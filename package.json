@@ -1,9 +1,9 @@
 {
-  "name": "electron-template",
+  "name": "thiscord",
   "version": "0.1.0",
   "private": true,
-  "description": "Production-ready Electron template with Vite, React, an Electron-owned local backend, packaging, and updates.",
-  "author": "Your Name",
+  "description": "Self-hosted communication application with PocketBase, Jitsi, a responsive PWA, and Electron desktop clients.",
+  "author": "Thiscord contributors",
   "type": "module",
   "main": "apps/desktop/dist/main.cjs",
   "workspaces": [
@@ -12,6 +12,8 @@
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "dev:web": "npm run dev --workspace @thiscord/renderer",
+    "dev:desktop": "node scripts/dev.mjs --external",
     "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",
     "package": "node scripts/package.mjs",
@@ -19,24 +21,33 @@
     "release": "node scripts/release.mjs",
     "smoke": "node scripts/smoke.mjs",
     "smoke:package": "node scripts/smoke-package.mjs",
+    "validate:release": "node scripts/validate-release-config.mjs",
+    "setup:self-host": "node scripts/setup-self-host.mjs",
     "init:app": "node scripts/init-app.mjs",
     "updates:mock": "node scripts/mock-update-server.mjs",
     "publish:local": "node scripts/publish-local.mjs",
     "clean": "node scripts/clean.mjs"
   },
   "dependencies": {
-    "electron-updater": "^6.8.3"
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "@types/node": "^24.12.3",
     "electron": "^39.8.8",
-    "electron-builder": "^26.8.1",
-    "esbuild": "^0.27.1",
-    "tsx": "^4.21.0",
+    "electron-builder": "26.15.7",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.23.1",
     "typescript": "~6.0.2"
   },
   "engines": {
     "node": ">=24.10"
   },
-  "packageManager": "npm@11.6.2"
+  "packageManager": "npm@11.16.0",
+  "allowScripts": {
+    "electron@39.8.10": true,
+    "electron-winstaller@5.4.0": true,
+    "esbuild@0.28.1": true,
+    "fsevents@2.3.3": true,
+    "strophe.js@1.5.0": true
+  }
 }

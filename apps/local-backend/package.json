@@ -1,5 +1,5 @@
 {
-  "name": "@template/local-backend",
+  "name": "@thiscord/local-backend",
   "description": "Electron-owned local backend and static renderer server.",
   "version": "0.1.0",
   "private": true,
@@ -14,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@template/shared": "0.1.0"
+    "@thiscord/shared": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "^24.12.3",

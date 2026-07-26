@@ -1,0 +1,12 @@
+{
+  "name": "@thiscord/pocketbase",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build": "npm run validate",
+    "smoke": "node scripts/smoke.mjs",
+    "typecheck": "npm run validate",
+    "validate": "node scripts/validate.mjs"
+  }
+}

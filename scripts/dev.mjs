@@ -7,10 +7,11 @@ import { distPaths, fromRoot, readJson, workspaceName, workspacePaths } from "./
 const require = createRequire(import.meta.url);
 const electronPath = require("electron");
 
+const externalServices = process.argv.includes("--external");
 const rendererPort = Number(process.env.APP_RENDERER_PORT ?? 5173);
 const backendPort = Number(process.env.APP_BACKEND_PORT ?? 8787);
 const host = "127.0.0.1";
-const rendererUrl = `http://${host}:${rendererPort}/`;
+const rendererUrl = process.env.APP_RENDERER_URL ?? `http://${host}:${rendererPort}/`;
 const backendUrl = `http://${host}:${backendPort}`;
 const desktopMain = fromRoot(distPaths.desktopMain);
 const desktopPreload = fromRoot(distPaths.desktopPreload);
@@ -101,8 +102,9 @@ function startElectron() {
       APP_DEV: "1",
       APP_VERSION: appVersion,
       APP_RENDERER_URL: rendererUrl,
-      APP_BACKEND_URL: backendUrl,
-      VITE_APP_BACKEND_URL: backendUrl
+      APP_BACKEND_URL: rendererUrl,
+      VITE_POCKETBASE_URL: process.env.VITE_POCKETBASE_URL || "http://127.0.0.1:8090",
+      APP_JITSI_URL: process.env.APP_JITSI_URL || "http://127.0.0.1:8443"
     }
   });
   children.add(electron);
@@ -137,30 +139,33 @@ async function shutdown(code = 0) {
 process.once("SIGINT", () => void shutdown(130));
 process.once("SIGTERM", () => void shutdown(143));
 
-spawnManaged("local-backend", "npm", ["run", "dev", "-w", workspaceName(workspacePaths.localBackend)], {
-  env: {
-    ...process.env,
-    APP_BACKEND_HOST: host,
-    APP_BACKEND_PORT: String(backendPort),
-    NODE_ENV: "development",
-    APP_VERSION: appVersion
-  }
-});
+if (!externalServices) {
+  spawnManaged("local-backend", "npm", ["run", "dev", "-w", workspaceName(workspacePaths.localBackend)], {
+    env: {
+      ...process.env,
+      APP_BACKEND_HOST: host,
+      APP_BACKEND_PORT: String(backendPort),
+      NODE_ENV: "development",
+      APP_VERSION: appVersion
+    }
+  });
 
-spawnManaged("renderer", "npm", ["run", "dev", "-w", workspaceName(workspacePaths.renderer), "--", "--port", String(rendererPort)], {
-  env: {
-    ...process.env,
-    PORT: String(rendererPort),
-    APP_BACKEND_URL: backendUrl,
-    VITE_APP_BACKEND_URL: backendUrl
-  }
-});
+  spawnManaged("renderer", "npm", ["run", "dev", "-w", workspaceName(workspacePaths.renderer), "--", "--port", String(rendererPort)], {
+    env: {
+      ...process.env,
+      PORT: String(rendererPort),
+      APP_BACKEND_URL: backendUrl,
+      VITE_POCKETBASE_URL: process.env.VITE_POCKETBASE_URL || "http://127.0.0.1:8090",
+      VITE_JITSI_DOMAIN: process.env.VITE_JITSI_DOMAIN || "127.0.0.1:8443"
+    }
+  });
+}
 
 spawnManaged("desktop", "npm", ["run", "watch", "-w", workspaceName(workspacePaths.desktop)]);
 
 await Promise.all([
   waitForTcp(rendererPort),
-  waitForTcp(backendPort),
+  ...(!externalServices ? [waitForTcp(backendPort)] : []),
   waitForFiles([desktopMain, desktopPreload])
 ]);
 

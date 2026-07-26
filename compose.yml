@@ -1,0 +1,151 @@
+name: thiscord
+
+services:
+  gateway:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL}
+      POCKETBASE_DOMAIN: ${POCKETBASE_DOMAIN}
+      JITSI_DOMAIN: ${JITSI_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  pocketbase:
+    build:
+      context: packages/pocketbase
+      args:
+        POCKETBASE_VERSION: "0.39.9"
+    restart: unless-stopped
+    environment:
+      JITSI_DOMAIN: ${JITSI_DOMAIN}
+      JITSI_URL: https://${JITSI_DOMAIN}
+      JITSI_APP_ID: ${JITSI_APP_ID}
+      JITSI_APP_SECRET: ${JITSI_APP_SECRET}
+      THISCORD_PUBLIC_URL: ${FRONTEND_URL}
+      THISCORD_APP_NAME: ${APP_NAME:-Thiscord}
+      POCKETBASE_ORIGINS: ${POCKETBASE_ORIGINS:-*}
+    ports:
+      - "${POCKETBASE_BIND:-127.0.0.1:8090}:8090"
+    volumes:
+      - pocketbase_data:/app/pb_data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8090/api/health"]
+      interval: 20s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+  jitsi-web:
+    image: jitsi/web:stable-10978
+    restart: unless-stopped
+    depends_on:
+      - jvb
+    environment: &jitsi-environment
+      AUTH_TYPE: jwt
+      ENABLE_AUTH: "1"
+      ENABLE_GUESTS: "0"
+      ENABLE_XMPP_WEBSOCKET: "1"
+      DISABLE_HTTPS: "1"
+      ENABLE_HTTP_REDIRECT: "0"
+      ENABLE_LETSENCRYPT: "0"
+      ENABLE_PREJOIN_PAGE: "0"
+      ENABLE_WELCOME_PAGE: "0"
+      ENABLE_CLOSE_PAGE: "1"
+      PUBLIC_URL: https://${JITSI_DOMAIN}
+      JWT_APP_ID: ${JITSI_APP_ID}
+      JWT_APP_SECRET: ${JITSI_APP_SECRET}
+      JWT_ACCEPTED_ISSUERS: ${JITSI_APP_ID}
+      JWT_ACCEPTED_AUDIENCES: ${JITSI_APP_ID}
+      JICOFO_AUTH_PASSWORD: ${JICOFO_AUTH_PASSWORD}
+      JVB_AUTH_PASSWORD: ${JVB_AUTH_PASSWORD}
+      XMPP_DOMAIN: meet.jitsi
+      XMPP_AUTH_DOMAIN: auth.meet.jitsi
+      XMPP_GUEST_DOMAIN: guest.meet.jitsi
+      XMPP_MUC_DOMAIN: muc.meet.jitsi
+      XMPP_INTERNAL_MUC_DOMAIN: internal-muc.meet.jitsi
+      XMPP_HIDDEN_DOMAIN: hidden.meet.jitsi
+      XMPP_RECORDER_DOMAIN: recorder.meet.jitsi
+      XMPP_SERVER: prosody
+      XMPP_PORT: "5222"
+      XMPP_BOSH_URL_BASE: http://prosody:5280
+      JVB_BREWERY_MUC: jvbbrewery
+      JVB_PORT: "10000"
+      JVB_ADVERTISE_IPS: ${JVB_ADVERTISE_IPS}
+      TURN_HOST: ${TURN_DOMAIN}
+      TURN_PORT: "3478"
+      TURN_TRANSPORT: udp
+      TURN_USERNAME: thiscord
+      TURN_PASSWORD: ${TURN_PASSWORD}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - jitsi_web_config:/config
+      - jitsi_transcripts:/usr/share/jitsi-meet/transcripts
+
+  prosody:
+    image: jitsi/prosody:stable-10978
+    restart: unless-stopped
+    environment:
+      <<: *jitsi-environment
+    volumes:
+      - jitsi_prosody_config:/config
+      - jitsi_prosody_plugins:/prosody-plugins-custom
+
+  jicofo:
+    image: jitsi/jicofo:stable-10978
+    restart: unless-stopped
+    depends_on:
+      - prosody
+    environment:
+      <<: *jitsi-environment
+    volumes:
+      - jitsi_jicofo_config:/config
+
+  jvb:
+    image: jitsi/jvb:stable-10978
+    restart: unless-stopped
+    depends_on:
+      - prosody
+    environment:
+      <<: *jitsi-environment
+    ports:
+      - "10000:10000/udp"
+    volumes:
+      - jitsi_jvb_config:/config
+
+  coturn:
+    image: coturn/coturn:4.6.3-r3-alpine
+    restart: unless-stopped
+    command:
+      - --no-cli
+      - --fingerprint
+      - --lt-cred-mech
+      - --realm=${TURN_DOMAIN}
+      - --user=thiscord:${TURN_PASSWORD}
+      - --external-ip=${JVB_ADVERTISE_IPS}
+      - --min-port=49160
+      - --max-port=49200
+      - --no-multicast-peers
+      - --no-tls
+      - --no-dtls
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "49160-49200:49160-49200/udp"
+
+volumes:
+  pocketbase_data:
+  caddy_data:
+  caddy_config:
+  jitsi_web_config:
+  jitsi_transcripts:
+  jitsi_prosody_config:
+  jitsi_prosody_plugins:
+  jitsi_jicofo_config:
+  jitsi_jvb_config:

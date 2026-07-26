@@ -8,11 +8,13 @@ export const workspacePaths = {
   desktop: "apps/desktop",
   renderer: "apps/renderer",
   localBackend: "apps/local-backend",
-  shared: "packages/shared"
+  shared: "packages/shared",
+  pocketbase: "packages/pocketbase"
 };
 
 export const buildOrder = [
   workspacePaths.shared,
+  workspacePaths.pocketbase,
   workspacePaths.localBackend,
   workspacePaths.renderer,
   workspacePaths.desktop

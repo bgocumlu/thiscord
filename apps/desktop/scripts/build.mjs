@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const watch = process.argv.includes("--watch");
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const outdir = resolve(root, "apps/desktop/dist");
+const appProtocol = process.env.APP_PROTOCOL || "thiscord";
 
 if (!watch) {
   rmSync(outdir, { recursive: true, force: true });
@@ -25,7 +26,10 @@ const configs = [
     ...common,
     entryPoints: [resolve(root, "apps/desktop/src/main.ts")],
     outfile: resolve(root, "apps/desktop/dist/main.cjs"),
-    format: "cjs"
+    format: "cjs",
+    define: {
+      __APP_PROTOCOL__: JSON.stringify(appProtocol)
+    }
   },
   {
     ...common,

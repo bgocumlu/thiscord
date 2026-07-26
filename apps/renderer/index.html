@@ -2,12 +2,33 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Electron Template</title>
+    <meta name="theme-color" content="#111216" />
+    <meta name="application-name" content="Thiscord" />
+    <title>Thiscord</title>
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      if (
+        (location.hostname === '127.0.0.1' || location.hostname === 'localhost')
+        && location.port === '5173'
+        && 'serviceWorker' in navigator
+        && navigator.serviceWorker.controller
+        && !sessionStorage.getItem('thiscord-dev-sw-reset')
+      ) {
+        sessionStorage.setItem('thiscord-dev-sw-reset', '1')
+        Promise.all([
+          navigator.serviceWorker.getRegistrations()
+            .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister()))),
+          caches.keys()
+            .then((keys) => Promise.all(keys.filter((key) => key.startsWith('thiscord-')).map((key) => caches.delete(key)))),
+        ]).then(() => location.reload())
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

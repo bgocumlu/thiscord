@@ -15,6 +15,23 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Use the repository npm version
+        run: npm install --global npm@11.16.0
       - run: npm ci
       - run: npm run check
       - run: npm run smoke
+      - name: Validate Compose deployment
+        run: |
+          docker compose --env-file .env.example config --quiet
+          docker compose -f compose.local.yml config --quiet
+      - name: Download PocketBase
+        run: |
+          curl -fsSL -o pocketbase.zip https://github.com/pocketbase/pocketbase/releases/download/v0.39.9/pocketbase_0.39.9_linux_amd64.zip
+          unzip -q pocketbase.zip -d .pocketbase
+          chmod +x .pocketbase/pocketbase
+      - name: Test PocketBase migrations and protected routes
+        run: npm run smoke --workspace @thiscord/pocketbase
+        env:
+          POCKETBASE_BINARY: ${{ github.workspace }}/.pocketbase/pocketbase
+      - name: Audit production dependencies
+        run: npm audit --omit=dev

@@ -1,4 +1,4 @@
-import type { HealthResponse } from "@template/shared";
+import type { HealthResponse } from "@thiscord/shared";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -60,9 +60,11 @@ function resolveStaticFile(rendererDist: string, requestPath: string): string | 
 
 async function serveStatic(response: ServerResponse, filePath: string) {
   const extension = extname(filePath).toLowerCase();
+  const noCacheFiles = new Set(["index.html", "distribution.json", "manifest.webmanifest", "sw.js", "registerSW.js"]);
+  const filename = filePath.split(/[\\/]/).at(-1) ?? "";
   response.writeHead(200, {
     "content-type": contentTypes.get(extension) ?? "application/octet-stream",
-    "cache-control": filePath.endsWith("index.html") ? "no-cache" : "public, max-age=31536000, immutable"
+    "cache-control": noCacheFiles.has(filename) ? "no-cache" : "public, max-age=31536000, immutable"
   });
   createReadStream(filePath).pipe(response);
 }
@@ -106,7 +108,13 @@ export async function startBackend(options: BackendOptions = {}) {
       return;
     }
 
-    const filePath = resolveStaticFile(rendererDist, url.pathname);
+    let filePath: string | undefined;
+    try {
+      filePath = resolveStaticFile(rendererDist, url.pathname);
+    } catch {
+      sendText(response, 400, "Invalid request path.");
+      return;
+    }
     if (!filePath) {
       sendText(response, 404, "Not found.");
       return;

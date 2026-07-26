@@ -1,5 +1,5 @@
 {
-  "name": "@template/desktop",
+  "name": "@thiscord/desktop",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
   "devDependencies": {
     "@types/node": "^24.12.3",
     "electron": "^39.8.8",
-    "esbuild": "^0.27.1",
+    "esbuild": "^0.28.1",
     "typescript": "~6.0.2"
   }
 }

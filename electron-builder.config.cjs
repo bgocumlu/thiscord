@@ -1,5 +1,6 @@
-const appId = process.env.APP_ID || "com.example.electronTemplate";
-const productName = process.env.APP_NAME || "Electron Template";
+const appId = process.env.APP_ID || "chat.thiscord.app";
+const productName = process.env.APP_NAME || "Thiscord";
+const protocol = process.env.APP_PROTOCOL || productName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "thiscord";
 const channel = process.env.RELEASE_CHANNEL || "latest";
 const macSigningEnabled = process.env.MAC_SIGN === "true";
 
@@ -70,6 +71,12 @@ module.exports = {
   extraMetadata: {
     main: "apps/desktop/dist/main.cjs"
   },
+  protocols: [
+    {
+      name: productName,
+      schemes: [protocol]
+    }
+  ],
   publish: resolvePublish(),
   mac: {
     target: ["dmg", "zip"],

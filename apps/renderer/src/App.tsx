@@ -1,72 +1,112 @@
+import type { InvitePreview, Membership } from '@thiscord/shared'
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import './App.css'
+import { useAuth } from './auth/AuthProvider'
+import { AuthScreen } from './components/AuthScreen'
+import { WorkspaceApp } from './components/WorkspaceApp'
+import { CallProvider } from './call/CallProvider'
+import { usePocketBase } from './lib/contexts'
+import { errorMessage } from './lib/pocketbase'
+import { AppRouter, useAppRouter } from './lib/router'
 
-type Health = {
-  ok: true
-  appVersion: string
-  mode: 'development' | 'production'
-}
-
-function App() {
-  const [version, setVersion] = useState('...')
-  const [health, setHealth] = useState<Health | null>(null)
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'offline'>('checking')
+function InviteRoute({ code }: { readonly code: string }) {
+  const client = usePocketBase()
+  const queryClient = useQueryClient()
+  const { navigate } = useAppRouter()
+  const [error, setError] = useState('')
+  const [preview, setPreview] = useState<InvitePreview | null>(null)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    void window.desktop?.getVersion().then(setVersion)
+    let active = true
+    const load = async () => {
+      try {
+        const value = await client.send<InvitePreview>(
+          `/api/thiscord/invites/${encodeURIComponent(code)}/preview`,
+          {},
+        )
+        if (active) setPreview(value)
+      } catch (caught) {
+        if (active) setError(errorMessage(caught))
+      }
+    }
+    void load()
+    return () => {
+      active = false
+    }
+  }, [client, code])
 
-    const backendUrl = import.meta.env.VITE_APP_BACKEND_URL || window.location.origin
-    void fetch(`${backendUrl}/api/health`)
-      .then((response) => {
-        if (!response.ok) throw new Error(`Health check failed with ${response.status}`)
-        return response.json() as Promise<Health>
-      })
-      .then((nextHealth) => {
-        setHealth(nextHealth)
-        setBackendStatus('connected')
-      })
-      .catch(() => {
-        setHealth(null)
-        setBackendStatus('offline')
-      })
-  }, [])
+  const accept = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const membership = await client.send<Membership>(
+        `/api/thiscord/invites/${encodeURIComponent(code)}/accept`,
+        { method: 'POST' },
+      )
+      await queryClient.invalidateQueries({ queryKey: ['memberships'] })
+      navigate(`/channels/${membership.community}`, { replace: true })
+    } catch (caught) {
+      setError(errorMessage(caught))
+      setBusy(false)
+    }
+  }
 
-  return (
-    <main>
-      <section className="shell">
-        <header className="titlebar">
-          <div>
-            <p className="eyebrow">Electron + Vite + React</p>
-            <h1>Desktop app template</h1>
-          </div>
-          <span className={`status ${backendStatus}`}>{backendStatus}</span>
-        </header>
-
-        <section className="summary">
-          <h2>Production-ready local foundation</h2>
-          <p>
-            Secure preload bridge, packaged renderer, Electron-owned local backend, updater hooks, and portable
-            release scripts.
-          </p>
+  if (!preview && !error) return <main className="loading-state fullscreen">Loading invitation…</main>
+  if (preview) {
+    return (
+      <main className="fatal-startup invite-preview-page">
+        <section>
+          <span className="invite-kicker">You’re invited</span>
+          <h1>{preview.community.name}</h1>
+          {preview.community.description ? <p>{preview.community.description}</p> : null}
+          <p>{preview.memberCount} member{preview.memberCount === 1 ? '' : 's'}</p>
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          <button className="primary-action" type="button" disabled={busy} onClick={() => void accept()}>
+            {busy ? 'Joining…' : 'Join community'}
+          </button>
+          <button type="button" className="secondary-action" onClick={() => navigate('/channels/@me', { replace: true })}>Not now</button>
         </section>
-
-        <dl className="metrics">
-          <div>
-            <dt>App version</dt>
-            <dd>{version}</dd>
-          </div>
-          <div>
-            <dt>Backend mode</dt>
-            <dd>{health?.mode ?? 'checking'}</dd>
-          </div>
-          <div>
-            <dt>Backend version</dt>
-            <dd>{health?.appVersion ?? 'checking'}</dd>
-          </div>
-        </dl>
+      </main>
+    )
+  }
+  return (
+    <main className="fatal-startup">
+      <section>
+        <h1>Invite unavailable</h1>
+        <p>{error}</p>
+        <button className="primary-action" type="button" onClick={() => navigate('/channels/@me', { replace: true })}>
+          Open Thiscord
+        </button>
       </section>
     </main>
   )
+}
+
+function AuthenticatedApp() {
+  const { pathname, navigate } = useAppRouter()
+  const inviteMatch = pathname.match(/^\/invite\/([^/]+)\/?$/)
+  const inviteCode = inviteMatch?.[1] ?? ''
+  useEffect(() => {
+    if (!inviteCode && !pathname.startsWith('/channels/')) {
+      navigate('/channels/@me', { replace: true })
+    }
+  }, [inviteCode, navigate, pathname])
+  if (inviteCode) return <InviteRoute code={decodeURIComponent(inviteCode)} />
+  return <WorkspaceApp />
+}
+
+function AppContent() {
+  const { user, ready } = useAuth()
+  const { pathname } = useAppRouter()
+  if (pathname === '/auth/verify' || pathname === '/auth/reset') return <AuthScreen />
+  if (!ready && !user) return <main className="loading-state fullscreen">Opening Thiscord…</main>
+  return user ? <CallProvider user={user}><AuthenticatedApp /></CallProvider> : <AuthScreen />
+}
+
+function App() {
+  return <AppRouter><AppContent /></AppRouter>
 }
 
 export default App

@@ -1,0 +1,11 @@
+{
+  "id": "thiscord",
+  "name": "Thiscord",
+  "appId": "chat.thiscord.app",
+  "webUrl": "http://127.0.0.1:5173",
+  "pocketBaseUrl": "http://127.0.0.1:8090",
+  "jitsiDomain": "127.0.0.1:8443",
+  "supportUrl": "",
+  "updateUrl": "",
+  "accent": "#6957e8"
+}

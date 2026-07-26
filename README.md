@@ -1,90 +1,111 @@
-# Electron Template
+# Thiscord
 
-Production-focused Electron starter with a generated Vite + React renderer, secure Electron shell, an Electron-owned local backend, portable packaging scripts, and optional CI wrappers.
+Thiscord is a monorepo containing a React PWA, an Electron desktop app,
+PocketBase application logic, and a self-hosted Jitsi media stack.
 
-## Stack
+| Part | Runs where |
+| --- | --- |
+| Web/PWA | GitHub Pages or any static host |
+| Desktop | Windows, macOS, and Linux |
+| PocketBase | VPS or container host with persistent storage |
+| Jitsi + TURN | VPS with public UDP ports |
 
-- Electron main/preload built with esbuild
-- Vite 8 + React 19 renderer from `create-vite`
-- Minimal Electron-owned local backend using built-in `http`
-- `electron-builder` packaging
-- `electron-updater` hooks
-- npm workspaces
+The frontend and backend have separate lifecycles. Docker is not used for the
+frontend.
 
-## Commands
+Voice channels are native Thiscord surfaces backed by the installation’s Jitsi
+services. Selecting a disconnected voice channel joins it without replacing the
+open conversation. Selecting that connected channel again opens its focused
+call view. The call remains active while moving through text channels or direct
+messages, with persistent call controls in the sidebar.
+
+## Run locally
+
+Requirements: Node.js 24.10+, npm 11.16, Docker Engine, and Docker Compose v2.
 
 ```bash
 npm install
-npm run dev
+docker compose -f compose.local.yml up -d --build
+npm run dev:web
+```
+
+Open:
+
+- Thiscord: `http://127.0.0.1:5173`
+- PocketBase administration: `http://127.0.0.1:8090/_/`
+- Jitsi: `http://127.0.0.1:8443`
+
+Create or replace the local PocketBase administrator:
+
+```bash
+docker compose -f compose.local.yml exec pocketbase pocketbase superuser upsert admin@example.com "choose-a-long-password" --dir=/app/pb_data
+```
+
+Run Electron in another terminal with `npm run dev:desktop`.
+
+Stop everything:
+
+```bash
+docker compose -f compose.local.yml down
+```
+
+Local data remains in Docker volumes. Add `--volumes` only when you deliberately
+want to erase it.
+
+## Deploy
+
+- [Frontend and backend deployment](docs/deployment.md)
+- [PocketBase administration](docs/pocketbase.md)
+- [Development and tests](docs/development.md)
+- [Backups and upgrades](docs/operations.md)
+- [Architecture](docs/architecture.md)
+- [Product decisions](docs/product-plan.md)
+- [Enhancement backlog](docs/enhancements.md)
+
+The shortest production backend flow is:
+
+```bash
+cp .env.example .env
+# Edit .env, then:
+docker compose config --quiet
+docker compose up -d --build
+```
+
+The GitHub Pages workflow builds only the static frontend. Configure
+`infra/distribution.json`, enable Pages with **GitHub Actions** as its source,
+and push to `main`.
+
+Create a complete self-host configuration without hand-editing secrets:
+
+```bash
+npm run setup:self-host -- \
+  --frontend-url https://app.example.com \
+  --pocketbase-domain api.example.com \
+  --jitsi-domain meet.example.com \
+  --turn-domain turn.example.com \
+  --public-ip 203.0.113.10 \
+  --email admin@example.com \
+  --name "Yourcord" \
+  --distribution-id yourcord \
+  --app-id com.example.yourcord \
+  --protocol yourcord
+```
+
+This writes `.env` and `infra/distribution.local.json` once and refuses to
+overwrite either file. See [Deployment](docs/deployment.md) before exposing the
+services publicly.
+
+## Verify changes
+
+```bash
 npm run check
 npm run build
-npm run package:dir
-npm run package -- --platform win --arch x64
-npm run release -- --provider generic --channel latest
+npm run smoke
+npm run smoke:package
+docker compose -f compose.local.yml config --quiet
+docker compose --env-file .env.example config --quiet
 ```
 
-Set `APP_OPEN_DEVTOOLS=1` before `npm run dev` if you want Electron DevTools to open automatically.
-
-## App Shape
-
-Development:
-
-```text
-Vite dev server       -> Electron BrowserWindow
-Local backend process -> renderer API calls
-Electron main         -> native shell, updater, IPC
-```
-
-Production:
-
-```text
-Electron main starts the local backend with ELECTRON_RUN_AS_NODE
-Local backend serves apps/renderer/dist
-BrowserWindow loads local backend URL
-```
-
-The backend in this template is owned by the desktop app. It is for local APIs, static renderer serving, and desktop-adjacent work that should ship inside Electron. It is not intended to model a public product backend or hosted API service.
-
-This keeps production close to the packaged app shape while still preserving Vite HMR during development.
-
-## Updates
-
-The default updater target is generic HTTPS storage:
-
-```bash
-UPDATE_PROVIDER=generic
-UPDATE_URL=https://updates.example.com/stable
-RELEASE_CHANNEL=latest
-```
-
-Upload the installer files, `*.yml`, and `*.blockmap` files from `release/` to the configured update URL.
-
-GitHub Releases are optional:
-
-```bash
-UPDATE_PROVIDER=github
-UPDATE_REPOSITORY=owner/repo
-npm run release -- --provider github --channel latest
-```
-
-## Signing
-
-Unsigned local builds are supported by default.
-
-Set `MAC_SIGN=true` and the standard electron-builder Apple signing/notarization environment variables for signed macOS builds.
-
-Set `WIN_SIGN=true` and configure your Windows signing provider for signed Windows builds.
-
-## Layout
-
-```text
-apps/desktop       Electron main/preload and updater IPC
-apps/renderer      Vite React renderer
-apps/local-backend Electron-owned local backend and static renderer server
-packages/shared    shared API and IPC types
-scripts            portable dev/package/release/smoke scripts
-```
-
-## Optional Web App
-
-If your product also needs a hosted web app, add it as a separate workspace such as `apps/web`. Keep public web/API concerns there or in your hosted backend, and keep `apps/local-backend` focused on desktop-local behavior that the packaged Electron app starts and owns.
+The PocketBase API suite is separate because it needs a PocketBase binary. It
+verifies permissions and persistence after a real backend restart. See
+[Development and tests](docs/development.md) for the command.
