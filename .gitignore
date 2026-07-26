@@ -1,0 +1,15 @@
+node_modules/
+dist/
+release/
+release-staging/
+*.log
+.env
+.env.*
+!.env.example
+infra/distribution.local.json
+packages/pocketbase/pb_data/
+.DS_Store
+Thumbs.db
+apps/*/dist/
+apps/renderer/.vite/
+apps/desktop/.electron-runtime/

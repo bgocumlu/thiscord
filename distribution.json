@@ -1,0 +1,11 @@
+{
+  "id": "thiscord",
+  "name": "Thiscord",
+  "appId": "chat.thiscord.app",
+  "webUrl": "https://bgocumlu.github.io/thiscord/",
+  "pocketBaseUrl": "https://api.thiscord.sesivo.app",
+  "jitsiDomain": "meet.thiscord.sesivo.app",
+  "supportUrl": "",
+  "updateUrl": "",
+  "accent": "#6957e8"
+}
