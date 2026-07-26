@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Build platform
+        required: true
+        default: win
+        type: choice
+        options:
+          - win
+          - mac
+          - linux
+      channel:
+        description: Update channel
+        required: true
+        default: latest
+        type: string
+
+jobs:
+  package:
+    runs-on: ${{ inputs.platform == 'mac' && 'macos-latest' || inputs.platform == 'linux' && 'ubuntu-latest' || 'windows-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run package -- --platform ${{ inputs.platform }}
+        env:
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+          UPDATE_PROVIDER: ${{ vars.UPDATE_PROVIDER || 'generic' }}
+          UPDATE_URL: ${{ vars.UPDATE_URL }}
+          UPDATE_REPOSITORY: ${{ github.repository }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ inputs.platform }}-${{ inputs.channel }}
+          path: release/**

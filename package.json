@@ -1,0 +1,42 @@
+{
+  "name": "electron-template",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Production-ready Electron template with Vite, React, an Electron-owned local backend, packaging, and updates.",
+  "author": "Your Name",
+  "type": "module",
+  "main": "apps/desktop/dist/main.cjs",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/check.mjs",
+    "package": "node scripts/package.mjs",
+    "package:dir": "node scripts/package.mjs --dir",
+    "release": "node scripts/release.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:package": "node scripts/smoke-package.mjs",
+    "init:app": "node scripts/init-app.mjs",
+    "updates:mock": "node scripts/mock-update-server.mjs",
+    "publish:local": "node scripts/publish-local.mjs",
+    "clean": "node scripts/clean.mjs"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.3",
+    "electron": "^39.8.8",
+    "electron-builder": "^26.8.1",
+    "esbuild": "^0.27.1",
+    "tsx": "^4.21.0",
+    "typescript": "~6.0.2"
+  },
+  "engines": {
+    "node": ">=24.10"
+  },
+  "packageManager": "npm@11.6.2"
+}
