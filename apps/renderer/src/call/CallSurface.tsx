@@ -1,5 +1,6 @@
 import {
   AudioLines,
+  Fullscreen,
   Headphones,
   Mic,
   MicOff,
@@ -9,6 +10,7 @@ import {
   PhoneOff,
   RotateCcw,
   Settings2,
+  Shrink,
   UserX,
   Video,
   VideoOff,
@@ -44,7 +46,7 @@ function TrackElement({ track, audio = false, muted = false, screen = false, spe
   return audio
     ? <audio ref={(node) => { element.current = node }} autoPlay muted={muted} />
     : <video
-        className={screen ? 'screen-media' : 'camera-media'}
+        className={`${screen ? 'screen-media' : 'camera-media'} ${track.isLocal() && !screen ? 'local-camera-media' : ''}`.trim()}
         ref={(node) => { element.current = node }}
         autoPlay
         muted={track.isLocal()}
@@ -59,23 +61,59 @@ function ParticipantTile({ participant, featured = false, canMute = false, canRe
   readonly canMute?: boolean
   readonly canRemove?: boolean
   readonly onModerate?: (participantId: string, action: 'mute' | 'kick') => void
-  readonly onSpotlight?: (track: JitsiTrack | null) => void
+  readonly onSpotlight?: (participantId: string) => void
 }) {
+  const tileElement = useRef<HTMLElement>(null)
+  const [fullscreen, setFullscreen] = useState(false)
   const videoTrack = participant.screenTrack ?? participant.videoTrack
+
+  useEffect(() => {
+    const updateFullscreen = () => setFullscreen(document.fullscreenElement === tileElement.current)
+    document.addEventListener('fullscreenchange', updateFullscreen)
+    return () => document.removeEventListener('fullscreenchange', updateFullscreen)
+  }, [])
+
+  const toggleFullscreen = async () => {
+    const tile = tileElement.current
+    if (!tile) return
+    if (document.fullscreenElement === tile) {
+      await document.exitFullscreen()
+      return
+    }
+    if (document.fullscreenElement) await document.exitFullscreen()
+    await tile.requestFullscreen()
+  }
+
   return (
-    <article className={`voice-tile ${participant.speaking ? 'speaking' : ''} ${featured ? 'sharing' : ''} ${participant.screenTrack ? 'screen-share' : ''}`}>
+    <article ref={tileElement} className={`voice-tile ${participant.speaking ? 'speaking' : ''} ${featured ? 'spotlighted' : ''} ${participant.screenTrack ? 'screen-share' : ''}`}>
       {videoTrack ? <TrackElement track={videoTrack} screen={Boolean(participant.screenTrack)} /> : <span className="call-avatar">{initials(participant.name)}</span>}
-      {videoTrack && onSpotlight ? (
-        <button
-          className="voice-tile-focus"
-          type="button"
-          title={featured ? 'Remove spotlight' : `Spotlight ${participant.name}${participant.screenTrack ? '’s screen' : ''}`}
-          aria-label={featured ? `Remove ${participant.name} from spotlight` : `Spotlight ${participant.name}${participant.screenTrack ? '’s screen' : ''}`}
-          aria-pressed={featured}
-          onClick={() => onSpotlight(featured ? null : videoTrack)}
-        >
-          {featured ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-        </button>
+      {videoTrack ? (
+        <div className="voice-tile-view-actions">
+          {onSpotlight ? (
+            <button
+              className="voice-tile-focus"
+              type="button"
+              title={featured ? 'Remove spotlight' : `Spotlight ${participant.name}${participant.screenTrack ? '’s screen' : ''}`}
+              aria-label={featured ? `Remove ${participant.name} from spotlight` : `Spotlight ${participant.name}${participant.screenTrack ? '’s screen' : ''}`}
+              aria-pressed={featured}
+              onClick={() => onSpotlight(participant.id)}
+            >
+              {featured ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
+          ) : null}
+          {participant.screenTrack ? (
+            <button
+              className="voice-tile-fullscreen"
+              type="button"
+              title={fullscreen ? 'Exit full screen' : `View ${participant.name}’s screen in full screen`}
+              aria-label={fullscreen ? `Exit ${participant.name}’s full screen share` : `View ${participant.name}’s screen share in full screen`}
+              aria-pressed={fullscreen}
+              onClick={() => void toggleFullscreen().catch(() => undefined)}
+            >
+              {fullscreen ? <Shrink size={14} /> : <Fullscreen size={14} />}
+            </button>
+          ) : null}
+        </div>
       ) : null}
       <div className="voice-tile-label">
         <span>{participant.name}{participant.local ? ' (You)' : ''}</span>
@@ -98,19 +136,41 @@ export function VoiceChannelSurface({ channel, occupancy }: {
   readonly channel: Channel
   readonly occupancy: readonly CallParticipantRecord[]
 }) {
+  interface SpotlightSelection {
+    readonly channelId: string
+    readonly participantId: string
+    readonly track: JitsiTrack
+  }
+
   const call = useCall()
   const { prioritizeVideo, session } = call
   const [devicesOpen, setDevicesOpen] = useState(false)
-  const [spotlightTrack, setSpotlightTrack] = useState<JitsiTrack | null>(null)
+  const [spotlightSelection, setSpotlightSelection] = useState<SpotlightSelection | null>(null)
   const visibleParticipants = session?.channel.id === channel.id
     ? mergeCallParticipants(session.participants, occupancy, channel.id)
     : []
-  const spotlightParticipant = visibleParticipants.find((participant) => (
-    participant.screenTrack === spotlightTrack || participant.videoTrack === spotlightTrack
-  )) ?? null
+  const spotlightParticipant = spotlightSelection?.channelId === channel.id
+    ? visibleParticipants.find((participant) => (
+        participant.id === spotlightSelection.participantId
+        && (participant.screenTrack ?? participant.videoTrack) === spotlightSelection.track
+      )) ?? null
+    : null
   const spotlightScreenTrack = spotlightParticipant?.screenTrack ?? null
   const spotlightVideoTrack = spotlightParticipant?.videoTrack ?? null
   const spotlightIsLocal = spotlightParticipant?.local ?? false
+
+  const toggleSpotlight = (participantId: string) => {
+    const participant = visibleParticipants.find((item) => item.id === participantId)
+    const track = participant?.screenTrack ?? participant?.videoTrack
+    if (!track) return
+    setSpotlightSelection((current) => (
+      current?.channelId === channel.id
+      && current.participantId === participantId
+      && current.track === track
+        ? null
+        : { channelId: channel.id, participantId, track }
+    ))
+  }
 
   useEffect(() => {
     if (session?.channel.id === channel.id) {
@@ -148,7 +208,7 @@ export function VoiceChannelSurface({ channel, occupancy }: {
       canMute={session.canMuteMembers}
       canRemove={session.canRemoveMembers}
       onModerate={(id, action) => void call.moderateParticipant(id, action)}
-      onSpotlight={setSpotlightTrack}
+      onSpotlight={toggleSpotlight}
       key={participant.id}
     />
   )
