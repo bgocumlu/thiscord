@@ -1,4 +1,4 @@
-const CACHE_NAME = "thiscord-shell-v4";
+const CACHE_NAME = "thiscord-shell-v5";
 const SCOPE = new URL(self.registration.scope);
 const scopedPath = (name = "") => new URL(name, SCOPE).pathname;
 const SHELL = [
@@ -32,6 +32,7 @@ self.addEventListener("fetch", (event) => {
     || url.pathname.startsWith(scopedPath("src/"))
     || url.pathname.startsWith(scopedPath("@"))
     || url.pathname.startsWith(scopedPath("node_modules/"))
+    || url.pathname === scopedPath("sw.js")
     || url.pathname === scopedPath("distribution.json")
   ) return;
 
