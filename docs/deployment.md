@@ -117,7 +117,7 @@ PocketBase and Jitsi endpoints are public configuration.
 
 Any static provider can host the same output:
 
-```bash
+```powershell
 $env:DISTRIBUTION_FILE="infra/distribution.local.json"
 $env:PUBLIC_BASE_PATH="/"
 npm run build --workspace @thiscord/shared
