@@ -1063,7 +1063,7 @@ function DirectView({
   }, [client, conversation, messages.data, queryClient])
 
   if (!conversation) {
-    return <div className="direct-empty"><button className="mobile-nav-button" type="button" onClick={onOpenNavigation}><Menu size={18} />Messages</button><MessageSquareText size={34} /><h1>Your messages</h1><p>Select a conversation or start a new one.</p></div>
+    return <div className="direct-empty"><button className="mobile-nav-button" type="button" aria-label="Open messages navigation" onClick={onOpenNavigation}><Menu size={18} /></button><MessageSquareText size={34} /><h1>Your messages</h1><p>Select a conversation or start a new one.</p></div>
   }
 
   const send = async (content: string, files: File[]) => {

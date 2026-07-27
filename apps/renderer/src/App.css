@@ -4496,6 +4496,31 @@
   .settings-card {
     grid-template-columns: 150px minmax(0, 1fr);
   }
+
+  .voice-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+    align-content: start;
+  }
+
+  .voice-stage-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    align-content: start;
+    overflow-y: auto;
+  }
+
+  .voice-filmstrip {
+    grid-auto-rows: auto;
+  }
+
+  .voice-grid .voice-tile,
+  .voice-stage-layout > .voice-tile,
+  .voice-filmstrip .voice-tile {
+    width: 100%;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+  }
 }
 
 @media (max-width: 640px) {
