@@ -76,6 +76,7 @@ $env:DISTRIBUTION_FILE = "infra/distribution.local.json"
 $env:PUBLIC_BASE_PATH = "/thiscord/"
 
 node scripts/validate-web-config.mjs
+npm run build --workspace @thiscord/shared
 npm run build --workspace @thiscord/renderer
 npx --yes gh-pages@6.3.0 --dist apps/renderer/dist --branch gh-pages --nojekyll --message "deploy: frontend"
 ```
@@ -104,6 +105,7 @@ $env:DISTRIBUTION_FILE = "infra/distribution.local.json"
 $env:PUBLIC_BASE_PATH = "/thiscord/"
 
 node scripts/validate-web-config.mjs
+npm run build --workspace @thiscord/shared
 npm run build --workspace @thiscord/renderer
 npx --yes gh-pages@6.3.0 --dist apps/renderer/dist --branch gh-pages --nojekyll --message "deploy: frontend"
 ```

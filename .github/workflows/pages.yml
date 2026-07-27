@@ -47,7 +47,9 @@ jobs:
       - name: Validate public endpoints
         run: node scripts/validate-web-config.mjs
       - name: Build static frontend
-        run: npm run build --workspace @thiscord/renderer
+        run: |
+          npm run build --workspace @thiscord/shared
+          npm run build --workspace @thiscord/renderer
       - name: Publish gh-pages branch
         shell: bash
         run: |
