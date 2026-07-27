@@ -32,17 +32,42 @@ configuration:
 deployment build without changing or committing the repository's tracked
 distribution manifest.
 
-Authenticate the GitHub CLI and disable the repository's Actions-based Pages
-workflow. This prevents it from competing with the `gh-pages` branch:
+Authenticate the GitHub CLI and store the public deployment configuration in
+GitHub Actions repository variables. These values are deployment configuration,
+not secrets:
 
 ```powershell
 gh auth login
 gh auth status
-gh workflow disable pages.yml --repo bgocumlu/thiscord
+
+$distribution = Get-Content "infra/distribution.local.json" -Raw
+gh variable set DISTRIBUTION_JSON --repo bgocumlu/thiscord --body $distribution
+gh variable set PUBLIC_BASE_PATH --repo bgocumlu/thiscord --body "/thiscord/"
+gh workflow enable pages.yml --repo bgocumlu/thiscord
 ```
 
-From the repository root, install dependencies, validate the public endpoints,
-build with the repository base path, and publish the output:
+Keep GitHub Pages configured to serve the root of the `gh-pages` branch:
+
+```powershell
+gh api --method PUT repos/bgocumlu/thiscord/pages `
+  -f 'source[branch]=gh-pages' `
+  -f 'source[path]=/' `
+  -f 'build_type=legacy'
+```
+
+The `Deploy frontend to GitHub Pages` workflow now builds and updates this
+branch automatically on every push to `main`. It can also be started manually:
+
+```powershell
+gh workflow run pages.yml --repo bgocumlu/thiscord --ref main
+gh run list --repo bgocumlu/thiscord --workflow pages.yml --limit 1
+```
+
+## Publish directly from this computer
+
+The following remains available as a manual fallback. From the repository root,
+install dependencies, validate the public endpoints, build with the repository
+base path, and publish the output:
 
 ```powershell
 npm ci
@@ -55,7 +80,7 @@ npm run build --workspace @thiscord/renderer
 npx --yes gh-pages@6.3.0 --dist apps/renderer/dist --branch gh-pages --nojekyll --message "deploy: frontend"
 ```
 
-Create the GitHub Pages site from the new branch:
+If the Pages site does not exist yet, create it from the new branch:
 
 ```powershell
 gh api --method POST repos/bgocumlu/thiscord/pages `
@@ -64,18 +89,9 @@ gh api --method POST repos/bgocumlu/thiscord/pages `
   -f 'build_type=legacy'
 ```
 
-If GitHub says the Pages site already exists, update it instead:
-
-```powershell
-gh api --method PUT repos/bgocumlu/thiscord/pages `
-  -f 'source[branch]=gh-pages' `
-  -f 'source[path]=/' `
-  -f 'build_type=legacy'
-```
-
 The first publication can take a few minutes.
 
-## Publish future frontend updates
+## Manual future frontend updates
 
 Run these commands from the repository root whenever the frontend changes:
 
@@ -94,13 +110,3 @@ npx --yes gh-pages@6.3.0 --dist apps/renderer/dist --branch gh-pages --nojekyll 
 
 Do not edit the generated `gh-pages` branch manually. Its contents are replaced
 from `apps/renderer/dist`.
-
-## Current workflow failures
-
-The first Pages workflow failed because GitHub Pages was not enabled for the
-repository. The branch setup above enables it after creating `gh-pages`.
-
-The separate CI failure is unrelated to Pages. All checks reached the final
-`npm audit --omit=dev` step, which reports the known moderate `uuid`
-vulnerability inherited from `lib-jitsi-meet`. Publishing the static frontend
-does not depend on that audit step.
