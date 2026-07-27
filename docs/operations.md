@@ -67,11 +67,11 @@ If an administrator credential is exposed, revoke it from PocketBase immediately
 
 ## Release limits and dependency advisories
 
-The renderer's production dependency audit currently reports three moderate
-advisories inherited through the pinned `lib-jitsi-meet` release. The matched
-Jitsi server/client release has no upstream-compatible fix at this pin, so do
-not replace only the browser package. Recheck after every coordinated Jitsi
-upgrade.
+The renderer's production dependency audit is currently clean. Thiscord vendors
+`@jitsi/rtcstats` with its compatible UUID dependency patched to remove the
+previous Jitsi advisory. Keep that patch documented and recheck
+`npm audit --omit=dev` after every coordinated Jitsi upgrade; see
+[Vendored dependencies](vendoring.md).
 
 The full development audit also reports high-severity advisories in
 `electron-builder`'s packaging dependency tree. Those packages run during

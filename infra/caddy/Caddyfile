@@ -6,6 +6,9 @@
 {$POCKETBASE_DOMAIN} {
 	encode zstd gzip
 
+	@root path /
+	redir @root /_/ 302
+
 	reverse_proxy pocketbase:8090
 
 	header {

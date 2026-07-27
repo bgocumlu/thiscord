@@ -72,9 +72,11 @@ docker compose config --quiet
 docker compose up -d --build
 ```
 
-The GitHub Pages workflow builds only the static frontend. Configure
-`infra/distribution.json`, enable Pages with **GitHub Actions** as its source,
-and push to `main`.
+The GitHub Pages workflow builds only the static frontend. Store the public
+distribution JSON in the `DISTRIBUTION_JSON` repository variable, keep Pages
+configured to serve the root of the `gh-pages` branch, and push to `main`.
+The same branch can still be published manually. See
+[GitHub Pages deployment](docs/github-pages-branch.md).
 
 Create a complete self-host configuration without hand-editing secrets:
 

@@ -23,14 +23,46 @@ Allow inbound:
 49160-49200/udp
 ```
 
-Clone the repository on the VPS, then:
+Clone the repository on the VPS and choose one configuration method.
+
+For manual configuration:
 
 ```bash
 cp .env.example .env
 ```
 
 Edit `.env`. Set the static frontend URL, the three backend domains, the VPS
-public IP, an ACME email, and fresh random secrets. Then:
+public IP, an ACME email, and fresh random secrets.
+
+Alternatively, the setup helper can generate `.env` and a matching
+desktop/frontend manifest:
+
+```bash
+npm run setup:self-host -- --frontend-url https://username.github.io/thiscord --pocketbase-domain api.example.com --jitsi-domain meet.example.com --turn-domain turn.example.com --public-ip 203.0.113.10 --email admin@example.com
+```
+
+Installing Node on the VPS is not required. Run the same helper in a temporary
+Node container from the repository root:
+
+```bash
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -v "$PWD:/workspace" \
+  -w /workspace \
+  node:24.10.0-alpine \
+  npm run setup:self-host -- \
+    --frontend-url https://username.github.io/thiscord \
+    --pocketbase-domain api.example.com \
+    --jitsi-domain meet.example.com \
+    --turn-domain turn.example.com \
+    --public-ip 203.0.113.10 \
+    --email admin@example.com
+```
+
+The helper creates both files with fresh secrets and refuses to replace an
+existing deployment configuration.
+
+After either configuration method:
 
 ```bash
 docker compose config --quiet
@@ -40,35 +72,44 @@ docker compose ps
 ```
 
 Caddy obtains TLS certificates. PocketBase is available at
-`https://api.example.com`; its administration UI is
-`https://api.example.com/_/`.
-
-The setup helper can generate `.env` and a matching desktop/frontend manifest:
-
-```bash
-npm run setup:self-host -- --frontend-url https://username.github.io/thiscord --pocketbase-domain api.example.com --jitsi-domain meet.example.com --turn-domain turn.example.com --public-ip 203.0.113.10 --email admin@example.com
-```
+`https://api.example.com`. Its root redirects to the administration UI at
+`https://api.example.com/_/`; the health endpoint is
+`https://api.example.com/api/health`.
 
 ## Frontend on GitHub Pages
 
-Edit `infra/distribution.json`:
+Create the ignored `infra/distribution.local.json`:
 
 ```json
 {
+  "id": "thiscord",
+  "name": "Thiscord",
+  "appId": "chat.thiscord.app",
   "webUrl": "https://username.github.io/thiscord",
   "pocketBaseUrl": "https://api.example.com",
-  "jitsiDomain": "meet.example.com"
+  "jitsiDomain": "meet.example.com",
+  "supportUrl": "",
+  "updateUrl": "",
+  "accent": "#6957e8"
 }
 ```
 
-Keep the other keys in the file. In GitHub:
+Store that public configuration and base path as repository variables:
 
-1. Open **Settings → Pages** and choose **GitHub Actions** as the source.
-2. If the site is at `https://username.github.io/repository/`, no variable is
-   needed.
-3. For a user site or custom domain, create the Actions repository variable
-   `PUBLIC_BASE_PATH` with value `/`.
-4. Push to `main` or run the **Deploy frontend to GitHub Pages** workflow.
+```powershell
+$distribution = Get-Content "infra/distribution.local.json" -Raw
+gh variable set DISTRIBUTION_JSON --body $distribution
+gh variable set PUBLIC_BASE_PATH --body "/thiscord/"
+gh workflow enable pages.yml
+```
+
+In GitHub:
+
+1. Open **Settings → Pages** and choose the root of the `gh-pages` branch.
+2. Push to `main` for an automatic deployment, or run the
+   **Deploy frontend to GitHub Pages** workflow manually.
+3. The workflow validates the repository variables, builds the PWA, and updates
+   `gh-pages`. GitHub Pages then publishes that branch.
 
 The workflow validates the public URLs, builds the static PWA, and publishes
 only `apps/renderer/dist`. Backend secrets are never placed in the frontend;
@@ -77,8 +118,9 @@ PocketBase and Jitsi endpoints are public configuration.
 Any static provider can host the same output:
 
 ```bash
-$env:DISTRIBUTION_FILE="infra/distribution.json"
+$env:DISTRIBUTION_FILE="infra/distribution.local.json"
 $env:PUBLIC_BASE_PATH="/"
+npm run build --workspace @thiscord/shared
 npm run build --workspace @thiscord/renderer
 ```
 
