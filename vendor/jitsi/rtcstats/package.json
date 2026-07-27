@@ -1,0 +1,26 @@
+{
+  "name": "@jitsi/rtcstats",
+  "version": "9.7.1",
+  "description": "gather WebRTC API traces and statistics",
+  "main": "rtcstats.js",
+  "dependencies": {
+    "@jitsi/js-utils": "^2.2.0",
+    "@jitsi/logger": "2.0.2",
+    "sdp": "^3.0.3",
+    "uuid": "11.1.1"
+  },
+  "thiscordVendor": {
+    "upstream": "9.7.1",
+    "patch": "uuid 11.1.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jitsi/rtcstats.git"
+  },
+  "keywords": [
+    "webrtc",
+    "rtcpeerconnection"
+  ],
+  "author": "Philipp Hancke",
+  "license": "MIT"
+}

@@ -11,9 +11,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@jitsi/rtcstats": "file:../../vendor/jitsi/rtcstats",
     "@tanstack/react-query": "^5.101.2",
     "@thiscord/shared": "0.1.0",
-    "lib-jitsi-meet": "https://github.com/jitsi/lib-jitsi-meet/releases/download/v2156.0.0+3884dbd5/lib-jitsi-meet.tgz",
+    "lib-jitsi-meet": "file:../../vendor/jitsi/lib-jitsi-meet",
     "lucide-react": "^1.25.0",
     "pocketbase": "^0.27.0",
     "react": "^19.2.6",

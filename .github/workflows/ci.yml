@@ -24,10 +24,13 @@ jobs:
         run: |
           docker compose --env-file .env.example config --quiet
           docker compose -f compose.local.yml config --quiet
-      - name: Download PocketBase
+      - name: Prepare vendored PocketBase
         run: |
-          curl -fsSL -o pocketbase.zip https://github.com/pocketbase/pocketbase/releases/download/v0.39.9/pocketbase_0.39.9_linux_amd64.zip
-          unzip -q pocketbase.zip -d .pocketbase
+          cd packages/pocketbase/vendor/pocketbase/0.39.9/linux_amd64
+          sha256sum -c SHA256SUMS
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p .pocketbase
+          cp packages/pocketbase/vendor/pocketbase/0.39.9/linux_amd64/pocketbase .pocketbase/pocketbase
           chmod +x .pocketbase/pocketbase
       - name: Test PocketBase migrations and protected routes
         run: npm run smoke --workspace @thiscord/pocketbase

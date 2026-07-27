@@ -58,6 +58,7 @@ want to erase it.
 - [PocketBase administration](docs/pocketbase.md)
 - [Development and tests](docs/development.md)
 - [Backups and upgrades](docs/operations.md)
+- [Vendored dependencies](docs/vendoring.md)
 - [Architecture](docs/architecture.md)
 - [Product decisions](docs/product-plan.md)
 - [Enhancement backlog](docs/enhancements.md)
