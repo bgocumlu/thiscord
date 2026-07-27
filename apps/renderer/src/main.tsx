@@ -32,6 +32,7 @@ async function bootstrap() {
     if (import.meta.env.PROD) {
       void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, {
         scope: import.meta.env.BASE_URL,
+        updateViaCache: 'none',
       }).catch(() => undefined)
     } else {
       void navigator.serviceWorker.getRegistrations()

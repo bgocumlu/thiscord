@@ -2027,6 +2027,10 @@
     grid-auto-rows: minmax(120px, 180px);
     overflow-y: visible;
   }
+
+  .screen-share-action {
+    display: none !important;
+  }
 }
 
 @media (max-width: 640px) {

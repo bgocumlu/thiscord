@@ -144,6 +144,7 @@ export function VoiceChannelSurface({ channel, occupancy }: {
 
   const call = useCall()
   const { prioritizeVideo, session } = call
+  const screenShareAvailable = Boolean(window.desktop || navigator.mediaDevices?.getDisplayMedia)
   const [devicesOpen, setDevicesOpen] = useState(false)
   const [spotlightSelection, setSpotlightSelection] = useState<SpotlightSelection | null>(null)
   const visibleParticipants = session?.channel.id === channel.id
@@ -269,9 +270,11 @@ export function VoiceChannelSurface({ channel, occupancy }: {
         <button className={`control-button ${session.cameraEnabled ? '' : 'off'}`} type="button" title={session.canStreamVideo ? '' : 'You do not have permission to share video'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleCamera()}>
           {session.cameraEnabled ? <Video size={18} /> : <VideoOff size={18} />}<span>{session.cameraEnabled ? 'Camera off' : 'Camera'}</span>
         </button>
-        <button className={`control-button ${session.screenSharing ? 'active' : ''}`} type="button" title={session.canStreamVideo ? '' : 'You do not have permission to share video'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleScreenShare()}>
-          <MonitorUp size={18} /><span>{session.screenSharing ? 'Stop sharing' : 'Share screen'}</span>
-        </button>
+        {screenShareAvailable ? (
+          <button className={`control-button screen-share-action ${session.screenSharing ? 'active' : ''}`} type="button" title={session.canStreamVideo ? '' : 'You do not have permission to share video'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleScreenShare()}>
+            <MonitorUp size={18} /><span>{session.screenSharing ? 'Stop sharing' : 'Share screen'}</span>
+          </button>
+        ) : null}
         <button className={`control-button ${devicesOpen ? 'active' : ''}`} type="button" onClick={() => { setDevicesOpen((value) => !value); void call.refreshDevices() }}>
           <Settings2 size={18} /><span>Devices</span>
         </button>
@@ -286,6 +289,7 @@ export function VoiceChannelSurface({ channel, occupancy }: {
 export function CallDock({ onOpen }: { readonly onOpen: (channel: Channel) => void }) {
   const call = useCall()
   const { session } = call
+  const screenShareAvailable = Boolean(window.desktop || navigator.mediaDevices?.getDisplayMedia)
   if (!session) return null
   return (
     <div className="voice-connected">
@@ -301,9 +305,11 @@ export function CallDock({ onOpen }: { readonly onOpen: (channel: Channel) => vo
         <button className={session.cameraEnabled ? 'active' : ''} type="button" title={!session.canStreamVideo ? 'You do not have permission to share video' : session.cameraEnabled ? 'Turn off camera' : 'Turn on camera'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleCamera()}>
           {session.cameraEnabled ? <Video size={17} /> : <VideoOff size={17} />}
         </button>
-        <button className={session.screenSharing ? 'active' : ''} type="button" title={!session.canStreamVideo ? 'You do not have permission to share video' : session.screenSharing ? 'Stop sharing' : 'Share your screen'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleScreenShare()}>
-          <MonitorUp size={17} />
-        </button>
+        {screenShareAvailable ? (
+          <button className={`screen-share-action ${session.screenSharing ? 'active' : ''}`} type="button" title={!session.canStreamVideo ? 'You do not have permission to share video' : session.screenSharing ? 'Stop sharing' : 'Share your screen'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleScreenShare()}>
+            <MonitorUp size={17} />
+          </button>
+        ) : null}
       </div>
       <div className="call-audio" aria-hidden="true">
         {session.participants

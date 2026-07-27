@@ -108,15 +108,24 @@ let jitsiApiPromise: Promise<JitsiMeetApi> | null = null
 function isStaleJitsiModule(caught: unknown) {
   const message = errorMessage(caught)
   return /failed to fetch dynamically imported module|importing a module script failed|error loading dynamically imported module/i.test(message)
-    && /lib-jitsi-meet|\/assets\//i.test(message)
 }
 
-function reloadForFreshJitsiModule(channelId: string) {
+async function reloadForFreshJitsiModule(channelId: string) {
   const lastReload = Number(sessionStorage.getItem(JITSI_RELOAD_AT_KEY) || 0)
   if (Date.now() - lastReload < 30_000) return false
   sessionStorage.setItem(JITSI_RELOAD_AT_KEY, String(Date.now()))
   sessionStorage.setItem(JITSI_RESUME_CHANNEL_KEY, channelId)
-  window.location.reload()
+  if ('serviceWorker' in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations().catch(() => [])
+    await Promise.all(registrations.map((registration) => registration.unregister()))
+  }
+  if ('caches' in window) {
+    const keys = await caches.keys().catch(() => [])
+    await Promise.all(keys.filter((key) => key.startsWith('thiscord-')).map((key) => caches.delete(key)))
+  }
+  const freshUrl = new URL(window.location.href)
+  freshUrl.searchParams.set('thiscord-refresh', String(Date.now()))
+  window.location.replace(freshUrl)
   return true
 }
 
@@ -711,7 +720,7 @@ export function CallProvider({ user, children }: {
       connection.connect({ name: info.roomName })
     } catch (caught) {
       if (generation.current === requestGeneration) {
-        if (isStaleJitsiModule(caught) && reloadForFreshJitsiModule(channel.id)) return
+        if (isStaleJitsiModule(caught) && await reloadForFreshJitsiModule(channel.id)) return
         publish({ status: 'error', error: errorMessage(caught) })
       }
     }
