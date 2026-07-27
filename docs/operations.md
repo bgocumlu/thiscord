@@ -1,5 +1,66 @@
 # Operations
 
+## Routine backend management
+
+Connect to the VPS and enter the deployed repository before running Compose
+commands:
+
+```bash
+ssh user@your-vps
+cd ~/thiscord
+```
+
+Inspect the deployment:
+
+```bash
+# Container state and published ports
+docker compose ps
+
+# Recent logs from every backend service
+docker compose logs --tail 200
+
+# Follow one service; use pocketbase, gateway, web, prosody, jicofo, jvb, or coturn
+docker compose logs -f pocketbase
+
+# Validate the resolved Compose configuration
+docker compose config --quiet
+
+# Host and Docker disk usage
+df -h
+docker system df
+```
+
+Restart or recreate only what is needed:
+
+```bash
+# Briefly restart one service
+docker compose restart pocketbase
+
+# Reconcile all services with the current configuration
+docker compose up -d
+
+# Rebuild the locally built PocketBase image after a repository update
+docker compose up -d --build pocketbase
+```
+
+Deploy a reviewed repository update:
+
+```bash
+git status --short
+git pull --ff-only
+docker compose config --quiet
+docker compose pull
+docker compose up -d --build
+docker compose ps
+```
+
+`docker compose pull` updates only services that use registry images. The
+repository pins PocketBase and Jitsi versions, so review and commit version
+changes before upgrading them. Do not use `docker compose down --volumes` in
+production; it removes persistent application data. PocketBase-specific
+dashboard, superuser, backup, and restore commands are in
+[PocketBase administration](pocketbase.md).
+
 ## Backups
 
 PocketBase’s backup API and administrator UI create consistent application backups. Store backups outside the Docker host and test restoration regularly.

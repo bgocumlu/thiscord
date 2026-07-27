@@ -14,7 +14,34 @@ Production:
 https://api.example.com/_/
 ```
 
-Create or replace a dashboard superuser from the machine running Compose:
+The plain `/_/` URL is the dashboard login page. On a new database, PocketBase
+prints a temporary, tokenized first-superuser URL to its logs. Retrieve it from
+the Compose directory:
+
+```bash
+install_path="$(
+  docker compose logs pocketbase --no-log-prefix |
+    grep -oE '/_/#/pbinstall/[A-Za-z0-9._-]+' |
+    tail -1
+)"
+printf 'https://api.example.com%s\n' "$install_path"
+```
+
+Replace `api.example.com` with the PocketBase domain, open the printed URL, and
+create the first superuser. Do not share or commit the URL because it contains
+a temporary setup token. If the link has expired while the database still has
+no real superuser, restart only PocketBase and run the command again:
+
+```bash
+docker compose restart pocketbase
+```
+
+PocketBase may temporarily store `__pbinstaller@example.com` while this setup
+link is active. That is its built-in installer account, not a dashboard account
+created by Thiscord.
+
+Alternatively, create or replace a dashboard superuser directly from the
+machine running Compose:
 
 ```bash
 docker compose exec pocketbase pocketbase superuser upsert admin@example.com "a-password-manager-generated-password" --dir=/app/pb_data
