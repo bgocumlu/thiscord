@@ -20,6 +20,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { usePocketBase } from '../lib/contexts'
 import { errorMessage } from '../lib/pocketbase'
+import { ScreenAudioMixerEffect } from './ScreenAudioMixerEffect'
 
 export type CallStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 
@@ -95,6 +96,15 @@ interface EngineResources {
   connection: JitsiConnection | null
   conference: JitsiConference | null
   localTracks: JitsiTrack[]
+  screenAudio: {
+    capturedTrack: JitsiTrack
+    microphoneTrack: JitsiTrack
+  } | null
+}
+
+interface RetainedMedia {
+  localTracks: JitsiTrack[]
+  screenAudio: EngineResources['screenAudio']
 }
 
 const CallContext = createContext<CallContextValue | null>(null)
@@ -178,7 +188,7 @@ function connectionOptions(origin: string) {
 }
 
 function emptyResources(): EngineResources {
-  return { connection: null, conference: null, localTracks: [] }
+  return { connection: null, conference: null, localTracks: [], screenAudio: null }
 }
 
 function participantFromJitsi(participant: JitsiParticipant): MutableParticipant {
@@ -250,6 +260,7 @@ export function CallProvider({ user, children }: {
   const reconnectAttempts = useRef(0)
   const joinRef = useRef<(channel: Channel, automatic?: boolean) => Promise<void>>(async () => undefined)
   const reportCallPresenceRef = useRef<(state: 'joined' | 'update' | 'left') => Promise<void>>(async () => undefined)
+  const stopScreenAudioRef = useRef<() => Promise<void>>(async () => undefined)
   const observedTracks = useRef(new WeakSet<JitsiTrack>())
   const localVideoKinds = useRef(new WeakMap<JitsiTrack, 'video' | 'desktop'>())
   const [preferredMicrophoneMuted, setPreferredMicrophoneMuted] = useState(
@@ -371,6 +382,7 @@ export function CallProvider({ user, children }: {
         setTrack(track, true)
         const conference = resources.current.conference
         if (conference) void conference.removeTrack(track).catch(() => undefined)
+        if (localVideoKind === 'desktop') void stopScreenAudioRef.current()
         void reportCallPresenceRef.current('update').catch(() => undefined)
       }
       if (events.LOCAL_TRACK_STOPPED) {
@@ -434,20 +446,29 @@ export function CallProvider({ user, children }: {
     }
     const current = resources.current
     resources.current = emptyResources()
-    const tracks = [...current.localTracks]
+    const retainedMedia: RetainedMedia = {
+      localTracks: [...current.localTracks],
+      screenAudio: current.screenAudio,
+    }
     current.localTracks.length = 0
+    current.screenAudio = null
     try {
       if (current.conference) await current.conference.leave('user-left')
     } catch {
       // Conference disposal continues even if the leave stanza fails.
     }
     if (!preserveLocalTracks) {
-      for (const track of tracks) {
+      for (const track of retainedMedia.localTracks) {
         try {
           await track.dispose()
         } catch {
           // A browser may have already ended a shared display track.
         }
+      }
+      try {
+        await retainedMedia.screenAudio?.capturedTrack.dispose()
+      } catch {
+        // The browser can end display audio before its paired video track.
       }
     }
     try {
@@ -456,7 +477,7 @@ export function CallProvider({ user, children }: {
       // The transport can already be disconnected after a network failure.
     }
     participants.current.clear()
-    return preserveLocalTracks ? tracks : []
+    return preserveLocalTracks ? retainedMedia : { localTracks: [], screenAudio: null }
   }, [reportCallPresence])
 
   const leave = useCallback(async () => {
@@ -479,12 +500,13 @@ export function CallProvider({ user, children }: {
     if (!automatic) reconnectAttempts.current = 0
     const requestGeneration = generation.current + 1
     generation.current = requestGeneration
-    const retainedLocalTracks = await releaseResources({
+    const retainedMedia = await releaseResources({
       preserveLocalTracks: automatic,
       announceDeparture: !automatic,
     })
     if (generation.current !== requestGeneration) {
-      await Promise.all(retainedLocalTracks.map((track) => track.dispose().catch(() => undefined)))
+      await Promise.all(retainedMedia.localTracks.map((track) => track.dispose().catch(() => undefined)))
+      await retainedMedia.screenAudio?.capturedTrack.dispose().catch(() => undefined)
       return
     }
 
@@ -501,8 +523,9 @@ export function CallProvider({ user, children }: {
       muted: preferredMicrophoneMuted || preferredDeafened,
       speaking: false,
     })
-    resources.current.localTracks.push(...retainedLocalTracks)
-    for (const track of retainedLocalTracks) {
+    resources.current.localTracks.push(...retainedMedia.localTracks)
+    resources.current.screenAudio = retainedMedia.screenAudio
+    for (const track of retainedMedia.localTracks) {
       const retainedKind = track.getType() === 'video'
         ? localVideoKinds.current.get(track)
           ?? (String(track.getVideoType() ?? '').startsWith('desktop') ? 'desktop' : 'video')
@@ -672,6 +695,9 @@ export function CallProvider({ user, children }: {
               resources.current.localTracks = resources.current.localTracks.filter((item) => item !== track)
               setTrack(track, true)
               await track.dispose().catch(() => undefined)
+              if (resources.current.screenAudio?.microphoneTrack === track) {
+                await stopScreenAudioRef.current()
+              }
               continue
             }
             const retainedKind = track.getType() === 'video'
@@ -685,6 +711,9 @@ export function CallProvider({ user, children }: {
               resources.current.localTracks = resources.current.localTracks.filter((item) => item !== track)
               setTrack(track, true)
               await track.dispose().catch(() => undefined)
+              if (resources.current.screenAudio?.microphoneTrack === track) {
+                await stopScreenAudioRef.current()
+              }
             }
           }
 
@@ -839,6 +868,25 @@ export function CallProvider({ user, children }: {
     }
   }, [preferredDeafened, preferredMicrophoneMuted, publish, rememberDeafened, rememberMuted, reportCallPresence, session, setTrack])
 
+  const stopScreenAudioMix = useCallback(async () => {
+    const screenAudio = resources.current.screenAudio
+    if (!screenAudio) return
+    resources.current.screenAudio = null
+    try {
+      await screenAudio.microphoneTrack.setEffect(undefined)
+      if (resources.current.localTracks.includes(screenAudio.microphoneTrack)) {
+        setTrack(screenAudio.microphoneTrack)
+      }
+    } catch {
+      // The conference or microphone may already be disposed during teardown.
+    }
+    await screenAudio.capturedTrack.dispose().catch(() => undefined)
+  }, [setTrack])
+
+  useEffect(() => {
+    stopScreenAudioRef.current = stopScreenAudioMix
+  }, [stopScreenAudioMix])
+
   const toggleVideoKind = useCallback(async (kind: 'video' | 'desktop') => {
     const conference = resources.current.conference
     const local = participants.current.get(LOCAL_PARTICIPANT)
@@ -855,6 +903,7 @@ export function CallProvider({ user, children }: {
         setTrack(existing, true)
         resources.current.localTracks = resources.current.localTracks.filter((track) => track !== existing)
         await existing.dispose()
+        if (kind === 'desktop') await stopScreenAudioMix()
       } else {
         const jitsi = await loadJitsi()
         const tracks = await jitsi.createLocalTracks({
@@ -862,17 +911,60 @@ export function CallProvider({ user, children }: {
           ...(kind === 'video' ? { resolution: '720' } : {}),
           ...(kind === 'video' && cameraDeviceId ? { cameraDeviceId } : {}),
         })
-        for (const track of tracks) {
-          resources.current.localTracks.push(track)
-          try {
-            observeTrack(track, kind)
-            await conference.addTrack(track)
-          } catch (caught) {
-            setTrack(track, true)
-            resources.current.localTracks = resources.current.localTracks.filter((item) => item !== track)
-            await track.dispose().catch(() => undefined)
-            throw caught
+        const capturedScreenAudio = kind === 'desktop'
+          ? tracks.find((track) => track.getType() === 'audio') ?? null
+          : null
+        let screenAudioAttached = false
+        try {
+          if (capturedScreenAudio) {
+            if (local.audioTrack) {
+              const effect = new ScreenAudioMixerEffect(jitsi, capturedScreenAudio)
+              await local.audioTrack.setEffect(effect)
+              resources.current.screenAudio = {
+                capturedTrack: capturedScreenAudio,
+                microphoneTrack: local.audioTrack,
+              }
+              capturedScreenAudio.getTrack().addEventListener('ended', () => {
+                void stopScreenAudioRef.current()
+              }, { once: true })
+              setTrack(local.audioTrack)
+              screenAudioAttached = true
+            } else {
+              await capturedScreenAudio.dispose()
+            }
           }
+          const publishableTracks = kind === 'desktop'
+            ? tracks.filter((track) => track.getType() === 'video')
+            : tracks
+          if (kind === 'desktop' && !publishableTracks.length) {
+            throw new Error('The browser did not provide a screen video track.')
+          }
+          for (const track of publishableTracks) {
+            resources.current.localTracks.push(track)
+            try {
+              observeTrack(track, kind)
+              await conference.addTrack(track)
+            } catch (caught) {
+              setTrack(track, true)
+              resources.current.localTracks = resources.current.localTracks.filter((item) => item !== track)
+              await track.dispose().catch(() => undefined)
+              throw caught
+            }
+          }
+        } catch (caught) {
+          if (screenAudioAttached) await stopScreenAudioMix()
+          else await capturedScreenAudio?.dispose().catch(() => undefined)
+          for (const track of tracks) {
+            if (track !== capturedScreenAudio && !resources.current.localTracks.includes(track)) {
+              await track.dispose().catch(() => undefined)
+            }
+          }
+          throw caught
+        }
+        for (const extraAudioTrack of tracks.filter((track) => (
+          track.getType() === 'audio' && track !== capturedScreenAudio
+        ))) {
+          await extraAudioTrack.dispose().catch(() => undefined)
         }
       }
       publish({ error: '' })
@@ -882,7 +974,7 @@ export function CallProvider({ user, children }: {
     } finally {
       publish({ actionBusy: false })
     }
-  }, [cameraDeviceId, observeTrack, publish, reportCallPresence, session?.canStreamVideo, setTrack])
+  }, [cameraDeviceId, observeTrack, publish, reportCallPresence, session?.canStreamVideo, setTrack, stopScreenAudioMix])
 
   const toggleCamera = useCallback(async () => toggleVideoKind('video'), [toggleVideoKind])
   const toggleScreenShare = useCallback(async () => {
@@ -937,26 +1029,48 @@ export function CallProvider({ user, children }: {
     const existing = participants.current.get(LOCAL_PARTICIPANT)?.audioTrack
     if (!conference || !existing) return
     publish({ actionBusy: true })
+    let replacement: JitsiTrack | null = null
+    let removedExisting = false
     try {
       const jitsi = await loadJitsi()
       const tracks = await jitsi.createLocalTracks({
         devices: ['audio'],
         ...(deviceId ? { micDeviceId: deviceId } : {}),
       })
-      const replacement = tracks.find((track) => track.getType() === 'audio')
+      replacement = tracks.find((track) => track.getType() === 'audio') ?? null
       if (!replacement) throw new Error('The selected microphone could not be opened.')
       if (existing.isMuted()) await replacement.mute()
+      const screenAudio = resources.current.screenAudio?.microphoneTrack === existing
+        ? resources.current.screenAudio
+        : null
       await conference.removeTrack(existing)
+      removedExisting = true
       setTrack(existing, true)
       resources.current.localTracks = resources.current.localTracks.filter((track) => track !== existing)
+      if (screenAudio) await existing.setEffect(undefined)
       await existing.dispose()
       resources.current.localTracks.push(replacement)
+      if (screenAudio) {
+        await replacement.setEffect(new ScreenAudioMixerEffect(jitsi, screenAudio.capturedTrack))
+        resources.current.screenAudio = {
+          capturedTrack: screenAudio.capturedTrack,
+          microphoneTrack: replacement,
+        }
+      }
       observeTrack(replacement)
       await conference.addTrack(replacement)
       publish({ error: '' })
       void refreshDevices()
       void reportCallPresence('update')
     } catch (caught) {
+      if (removedExisting && resources.current.screenAudio) {
+        await stopScreenAudioRef.current()
+      }
+      if (replacement) {
+        resources.current.localTracks = resources.current.localTracks.filter((track) => track !== replacement)
+        setTrack(replacement, true)
+        await replacement.dispose().catch(() => undefined)
+      }
       publish({ error: mediaErrorMessage(caught, 'microphone') })
     } finally {
       publish({ actionBusy: false })

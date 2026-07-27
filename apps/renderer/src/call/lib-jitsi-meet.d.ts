@@ -1,17 +1,35 @@
 declare module 'lib-jitsi-meet' {
+  export interface JitsiAudioMixer {
+    addMediaStream(stream: MediaStream): void
+    reset(): void
+    start(): MediaStream | null
+  }
+
+  export interface JitsiStreamEffect {
+    isEnabled(track: JitsiTrack): boolean
+    isMuted(): boolean
+    setMuted(muted: boolean): void
+    startEffect(stream: MediaStream): MediaStream
+    stopEffect(): void
+  }
+
   export interface JitsiTrack {
     addEventListener(event: string, listener: (...args: unknown[]) => void): void
     attach(element: HTMLElement): Promise<void>
     detach(element?: HTMLElement): void
     dispose(): Promise<void>
+    getOriginalStream(): MediaStream
     getParticipantId(): string
+    getTrack(): MediaStreamTrack
     getType(): 'audio' | 'video'
     getSourceName(): string | null | undefined
     getVideoType(): 'camera' | 'desktop' | 'desktop_high_fps'
+    isAudioTrack(): boolean
     isLocal(): boolean
     isMuted(): boolean
     mute(): Promise<void>
     removeEventListener(event: string, listener: (...args: unknown[]) => void): void
+    setEffect(effect?: JitsiStreamEffect): Promise<void>
     unmute(): Promise<void>
   }
 
@@ -52,6 +70,7 @@ declare module 'lib-jitsi-meet' {
       token: string,
       options: Record<string, unknown>,
     ) => JitsiConnection
+    createAudioMixer(): JitsiAudioMixer
     createLocalTracks(options: {
       devices: Array<'audio' | 'video' | 'desktop'>
       resolution?: string
