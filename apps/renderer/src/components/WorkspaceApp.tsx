@@ -61,7 +61,7 @@ import {
 import { createPortal } from 'react-dom'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { RecordModel } from 'pocketbase'
+import { isTokenExpired, type RecordModel } from 'pocketbase'
 import { useAuth } from '../auth/AuthProvider'
 import {
   useChannelData,
@@ -76,6 +76,7 @@ import {
   useVoiceOccupancy,
   type PresenceRecord,
 } from '../data/queries'
+import { useFileToken } from '../hooks/useFileToken'
 import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation'
 import { usePocketBase, useRuntimeConfig } from '../lib/contexts'
 import { errorMessage } from '../lib/pocketbase'
@@ -473,7 +474,6 @@ function MessageRow({
   readonly onDelete: () => void | Promise<void>
   readonly onPin?: () => void | Promise<void>
 }) {
-  const client = usePocketBase()
   const [reactionOpen, setReactionOpen] = useState(false)
   const [actionError, setActionError] = useState('')
   const author = message.expand?.author
@@ -508,27 +508,7 @@ function MessageRow({
           {message.editedAt ? <small className="edited">edited</small> : null}
         </div>
         {deleted ? <p>Message deleted</p> : <RichMessage content={message.content} embedsEnabled={message.embedsEnabled} />}
-        {!deleted && message.attachments.length ? (
-          <div className="message-attachments">
-            {message.attachments.map((filename) => {
-              const openUrl = client.files.getURL(message as unknown as RecordModel, filename)
-              const downloadUrl = client.files.getURL(message as unknown as RecordModel, filename, { download: true })
-              const displayName = filename.replace(/_[a-zA-Z0-9]+\.[^.]+$/, (suffix) => suffix.slice(suffix.lastIndexOf('.')))
-              const image = /\.(?:avif|gif|jpe?g|png|webp)$/i.test(filename)
-              return image ? (
-                <figure className="attachment-image" key={filename}>
-                  <a href={openUrl} target="_blank" rel="noreferrer"><img src={openUrl} alt={displayName} loading="lazy" /></a>
-                  <figcaption><span>{displayName}</span><a href={downloadUrl}>Download</a></figcaption>
-                </figure>
-              ) : (
-                <a className="attachment-card" href={downloadUrl} key={filename}>
-                  <span><FileText size={21} /></span>
-                  <span><strong>{displayName}</strong><small>Download attachment</small></span>
-                </a>
-              )
-            })}
-          </div>
-        ) : null}
+        {!deleted && message.attachments.length ? <MessageAttachments message={message} userId={currentUser.id} /> : null}
         {grouped.size ? (
           <div className="reactions">
             {[...grouped.entries()].map(([emoji, items]) => (
@@ -551,6 +531,48 @@ function MessageRow({
       {reactionOpen ? <EmojiPicker onSelect={(emoji) => { void run(() => onReact(emoji)); setReactionOpen(false) }} /> : null}
       {actionError ? <div className="message-action-error" role="alert">{actionError}</div> : null}
     </article>
+  )
+}
+
+function MessageAttachments({
+  message,
+  userId,
+}: {
+  readonly message: Message | DirectMessage
+  readonly userId: string
+}) {
+  const client = usePocketBase()
+  const fileToken = useFileToken(userId, message.attachments.length > 0)
+  const token = fileToken.data && !isTokenExpired(fileToken.data) ? fileToken.data : ''
+  const tokenError = Boolean(fileToken.error)
+  if (!token) {
+    return (
+      <div className="attachment-status" role={tokenError ? 'alert' : 'status'}>
+        <span>{tokenError ? 'Attachments could not be authorized.' : 'Authorizing attachments…'}</span>
+        {tokenError ? <button type="button" onClick={() => void fileToken.refetch()}>Retry</button> : null}
+      </div>
+    )
+  }
+  return (
+    <div className="message-attachments">
+      {message.attachments.map((filename) => {
+        const openUrl = client.files.getURL(message as unknown as RecordModel, filename, { token })
+        const downloadUrl = client.files.getURL(message as unknown as RecordModel, filename, { download: true, token })
+        const displayName = filename.replace(/_[a-zA-Z0-9]+\.[^.]+$/, (suffix) => suffix.slice(suffix.lastIndexOf('.')))
+        const image = /\.(?:avif|gif|jpe?g|png|webp)$/i.test(filename)
+        return image ? (
+          <figure className="attachment-image" key={filename}>
+            <a href={openUrl} target="_blank" rel="noreferrer"><img src={openUrl} alt={displayName} loading="lazy" /></a>
+            <figcaption><span>{displayName}</span><a href={downloadUrl}>Download</a></figcaption>
+          </figure>
+        ) : (
+          <a className="attachment-card" href={downloadUrl} key={filename}>
+            <span><FileText size={21} /></span>
+            <span><strong>{displayName}</strong><small>Download attachment</small></span>
+          </a>
+        )
+      })}
+    </div>
   )
 }
 

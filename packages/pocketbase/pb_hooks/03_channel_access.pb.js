@@ -42,17 +42,36 @@ onRecordViewRequest((e) => {
 }, ...channelScopedCollections);
 
 onFileDownloadRequest((e) => {
-  const guard = require(`${__hooks}/lib/channelAccess.js`);
   const access = require(`${__hooks}/lib/permissions.js`);
-  if (!e.hasSuperuserAuth()) {
+  const auth = access.fileRequestAuth(e);
+  const superuser = e.hasSuperuserAuth() || access.isSuperuserRecord(auth);
+  if (!superuser) {
     try {
-      access.channelContext(e.app, e.record.getString("channel"), e.auth ? e.auth.id : "", "read_history");
+      access.channelContext(e.app, e.record.getString("channel"), auth ? auth.id : "", "read_history");
     } catch {
       throw new ForbiddenError("You cannot download files from this channel.");
     }
   }
   e.next();
 }, "messages");
+
+onFileDownloadRequest((e) => {
+  const access = require(`${__hooks}/lib/permissions.js`);
+  const auth = access.fileRequestAuth(e);
+  const superuser = e.hasSuperuserAuth() || access.isSuperuserRecord(auth);
+  if (!superuser) {
+    try {
+      access.conversationMembership(
+        e.app,
+        e.record.getString("conversation"),
+        auth ? auth.id : "",
+      );
+    } catch {
+      throw new ForbiddenError("You cannot download files from this conversation.");
+    }
+  }
+  e.next();
+}, "direct_messages");
 
 // Built-in realtime list rules verify community membership. Apply the same
 // channel overwrite decision before the serialized event reaches each client.

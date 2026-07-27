@@ -318,6 +318,20 @@ function conversationMembership(app, conversationId, userId) {
   }
 }
 
+function fileRequestAuth(e) {
+  if (e.auth) return e.auth;
+  try {
+    const token = String(e.requestInfo().query.token || "");
+    return token ? e.app.findAuthRecordByToken(token, "file") : null;
+  } catch {
+    return null;
+  }
+}
+
+function isSuperuserRecord(record) {
+  return Boolean(record && record.collection().name === "_superusers");
+}
+
 function audit(app, communityId, actorId, action, targetType, targetId, reason, metadata) {
   const record = new Record(app.findCollectionByNameOrId("audit_events"));
   record.set("community", communityId);
@@ -389,6 +403,8 @@ module.exports = {
   channelContext,
   communityPermissions,
   conversationMembership,
+  fileRequestAuth,
+  isSuperuserRecord,
   jsonArray,
   normalizeChannelName,
   normalizeName,

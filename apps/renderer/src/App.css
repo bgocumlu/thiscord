@@ -2916,6 +2916,23 @@
   text-decoration: none;
 }
 
+.attachment-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.attachment-status button {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+}
+
 .message-deleted {
   opacity: .58;
 }

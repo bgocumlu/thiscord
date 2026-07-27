@@ -48,7 +48,11 @@ async function expectFailure(path, expectedStatuses, options = {}) {
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
   if (!expectedStatuses.includes(response.status)) {
-    throw new Error(`${options.method ?? "GET"} ${path} unexpectedly returned ${response.status}.`);
+    const body = await response.text();
+    throw new Error(
+      `${options.method ?? "GET"} ${path} unexpectedly returned ${response.status}: ${body}\n`
+      + output.join("").slice(-4_000),
+    );
   }
 }
 
@@ -220,6 +224,11 @@ try {
     authorization: auth.token,
   });
   if (attachmentMessage.attachments?.length !== 1) throw new Error("Message attachment upload did not persist.");
+  const attachmentFilePath = `/api/files/${attachmentMessage.collectionId}/${attachmentMessage.id}/${encodeURIComponent(attachmentMessage.attachments[0])}`;
+  await expectFailure(attachmentFilePath, [403]);
+  const ownerFileToken = await request("/api/files/token", { method: "POST", headers });
+  const ownerAttachment = await request(`${attachmentFilePath}?token=${encodeURIComponent(ownerFileToken.token)}`);
+  if (ownerAttachment !== "smoke attachment") throw new Error("An authorized member could not download a channel attachment.");
   const pinned = await request(`/api/thiscord/messages/${message.id}`, {
     method: "PATCH",
     headers,
@@ -264,6 +273,7 @@ try {
     body: { identity: secondEmail, password },
   });
   const secondHeaders = { authorization: secondAuth.token };
+  const secondFileToken = await request("/api/files/token", { method: "POST", headers: secondHeaders });
   const secondMembership = await request(`/api/thiscord/invites/${invite.code}/accept`, {
     method: "POST",
     headers: secondHeaders,
@@ -275,6 +285,8 @@ try {
   if (repeatedMembership.id !== secondMembership.id) throw new Error("Invite acceptance was not idempotent.");
   const inviteAfterRepeat = await request(`/api/collections/invites/records/${invite.id}`, { headers });
   if (inviteAfterRepeat.uses !== 1) throw new Error("Repeated invite acceptance consumed another use.");
+  const secondAttachment = await request(`${attachmentFilePath}?token=${encodeURIComponent(secondFileToken.token)}`);
+  if (secondAttachment !== "smoke attachment") throw new Error("A channel member could not download an attachment.");
   const secondDefaultChannels = await request(
     `/api/collections/channels/records?filter=${encodeURIComponent(`community = '${community.id}'`)}`,
     { headers: secondHeaders },
@@ -322,6 +334,7 @@ try {
     { headers: secondHeaders },
   );
   if (historyDeniedMessages.items.length) throw new Error("read_history denial exposed message records.");
+  await expectFailure(`${attachmentFilePath}?token=${encodeURIComponent(secondFileToken.token)}`, [403]);
   await request(`/api/thiscord/channels/${textChannel.id}/permissions`, {
     method: "PUT",
     headers,
@@ -356,6 +369,25 @@ try {
     headers,
     body: { conversation: conversation.id, content: "Direct smoke test" },
   });
+  const directAttachmentForm = new FormData();
+  directAttachmentForm.set("conversation", conversation.id);
+  directAttachmentForm.set("content", "Direct attachment smoke test");
+  directAttachmentForm.append("attachments", new Blob(["direct smoke attachment"], { type: "text/plain" }), "direct-smoke.txt");
+  const directAttachmentMessage = await requestForm("/api/thiscord/direct-messages", directAttachmentForm, {
+    authorization: auth.token,
+  });
+  if (directAttachmentMessage.attachments?.length !== 1) throw new Error("Direct-message attachment upload did not persist.");
+  const directAttachmentFilePath = `/api/files/${directAttachmentMessage.collectionId}/${directAttachmentMessage.id}/${encodeURIComponent(directAttachmentMessage.attachments[0])}`;
+  await expectFailure(directAttachmentFilePath, [403]);
+  const currentDirectFileToken = await request("/api/files/token", { method: "POST", headers });
+  const memberDirectFileToken = await request("/api/files/token", { method: "POST", headers: secondHeaders });
+  const directAttachment = await request(`${directAttachmentFilePath}?token=${encodeURIComponent(currentDirectFileToken.token)}`);
+  if (directAttachment !== "direct smoke attachment") throw new Error("A conversation member could not download a direct attachment.");
+  const secondDirectAttachment = await request(`${directAttachmentFilePath}?token=${encodeURIComponent(memberDirectFileToken.token)}`);
+  if (secondDirectAttachment !== "direct smoke attachment") throw new Error("The other conversation member could not download a direct attachment.");
+  const fileOutsider = await createAuthenticatedUser("fileoutsider", stamp, password);
+  const outsiderFileToken = await request("/api/files/token", { method: "POST", headers: fileOutsider.headers });
+  await expectFailure(`${directAttachmentFilePath}?token=${encodeURIComponent(outsiderFileToken.token)}`, [403]);
   await request(`/api/thiscord/direct-messages/${directMessage.id}`, {
     method: "PATCH",
     headers,
@@ -616,7 +648,7 @@ try {
     categoryDeletionUnparentsChannels: true,
     channelCount: channels.totalItems,
     messagePinned: pinned.pinned,
-    attachmentUpload: attachmentMessage.attachments.length === 1,
+    channelAttachmentAccess: true,
     jitsiRoom: jitsi.roomName,
     jwtIssued: Boolean(jitsi.jwt),
     assignedRole: role.name,
@@ -629,6 +661,7 @@ try {
     inviteIdempotent: true,
     inviteAccepted: secondMembership.state === "active",
     directConversation: conversation.kind,
+    directAttachmentAccess: true,
     directReactionTypingPinAndReadState: true,
     notificationReadAll: true,
     globalSearchAndUnreadSummary: true,
