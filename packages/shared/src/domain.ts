@@ -365,6 +365,7 @@ export interface CallParticipantRecord {
   readonly leftAt: IsoDate;
   readonly expiresAt: IsoDate;
   readonly muted: boolean;
+  readonly serverMuted: boolean;
   readonly deafened: boolean;
   readonly camera: boolean;
   readonly sharing: boolean;

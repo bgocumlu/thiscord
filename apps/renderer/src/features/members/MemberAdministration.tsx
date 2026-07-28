@@ -9,7 +9,7 @@ import { roleKeys } from '../roles/queryKeys'
 import { memberApi } from './api'
 import { Avatar } from './Avatar'
 
-type ModerationAction = 'kick' | 'ban' | 'timeout' | 'untimeout'
+export type ModerationAction = 'kick' | 'ban' | 'timeout' | 'untimeout'
 
 export function MemberAdminRow({
   community,
@@ -155,18 +155,20 @@ export function MemberAdminRow({
   )
 }
 
-function ModerationDialog({
+export function ModerationDialog({
   action,
   memberName,
   busy,
   onClose,
   onConfirm,
+  error = '',
 }: {
   readonly action: ModerationAction
   readonly memberName: string
   readonly busy: boolean
   readonly onClose: () => void
   readonly onConfirm: (reason: string, durationMinutes?: number) => Promise<void>
+  readonly error?: string
 }) {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -202,6 +204,7 @@ function ModerationDialog({
           </label>
         ) : null}
         <label><span>Reason (optional)</span><textarea name="reason" maxLength={policyLimits.community.descriptionMax} rows={3} /></label>
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
         <div className="confirmation-actions">
           <button className="secondary-action" type="button" disabled={busy} onClick={onClose}>Cancel</button>
           <button className="danger-action" type="submit" disabled={busy}>{busy ? 'Working…' : `Confirm ${action}`}</button>

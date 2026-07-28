@@ -1,14 +1,108 @@
-import type { Membership, Role, User } from '@thiscord/shared'
+import type {
+  Membership,
+  Role,
+  User,
+} from '@thiscord/shared'
+import { MoreVertical } from 'lucide-react'
+import { useState } from 'react'
 import { DataFailure, resolvedPresence } from '../../components/WorkspacePrimitives'
+import {
+  ContextMenu,
+  type ContextMenuPoint,
+} from '../../components/ContextMenu'
+import { keyboardContextMenuPoint } from '../../components/contextMenuPosition'
 import type { PresenceRecord } from './api'
 import { Avatar } from './Avatar'
+import { MemberContextMenuItems } from './MemberContextMenuItems'
+import type { MemberInteractions } from './memberInteractions'
+
+function MemberRow({
+  membership,
+  status,
+  highestRole,
+  interactions,
+}: {
+  readonly membership: Membership
+  readonly status: ReturnType<typeof resolvedPresence>
+  readonly highestRole?: Role
+  readonly interactions: MemberInteractions
+}) {
+  const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null)
+  const user = membership.expand?.user
+  if (!user) return null
+  const canModerateHierarchy = Boolean(interactions.canModerateUser?.(user.id))
+  const openAt = (point: ContextMenuPoint) => setMenuPoint(point)
+
+  return (
+    <div className="member-row-wrap">
+      <button
+        className={`member-row ${status === 'offline' ? 'offline' : ''}`}
+        type="button"
+        onClick={() => {
+          if (user.id === interactions.currentUserId) interactions.onOpenProfile(user)
+          else interactions.onMessage(user)
+        }}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          openAt({ x: event.clientX, y: event.clientY })
+        }}
+        onKeyDown={(event) => {
+          const point = keyboardContextMenuPoint(event)
+          if (point) openAt(point)
+        }}
+      >
+        <Avatar user={user} status={status} />
+        <span>
+          <strong style={highestRole?.color ? { color: highestRole.color } : undefined}>
+            {membership.nickname || user.displayName}
+          </strong>
+          <small>{user.customStatus || `@${user.handle}`}</small>
+        </span>
+      </button>
+      <button
+        className="member-context-trigger"
+        type="button"
+        title={`More actions for ${membership.nickname || user.displayName}`}
+        aria-label={`More actions for ${membership.nickname || user.displayName}`}
+        onClick={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect()
+          openAt({ x: bounds.right, y: bounds.bottom })
+        }}
+      ><MoreVertical size={15} /></button>
+      {menuPoint ? (
+        <ContextMenu
+          point={menuPoint}
+          label={`Actions for ${membership.nickname || user.displayName}`}
+          onClose={() => setMenuPoint(null)}
+        >
+          <MemberContextMenuItems
+            user={user}
+            membership={membership}
+            currentUserId={interactions.currentUserId}
+            onOpenProfile={() => interactions.onOpenProfile(user)}
+            onMessage={() => interactions.onMessage(user)}
+            communityModeration={
+              interactions.canManageMembers
+              && canModerateHierarchy
+              && interactions.onModerate
+                ? {
+                    onAction: (action) => interactions.onModerate?.(membership, action),
+                  }
+                : undefined
+            }
+          />
+        </ContextMenu>
+      ) : null}
+    </div>
+  )
+}
 
 export function MembersPanel({
   memberships,
   presence,
   roles,
   memberRoles,
-  onOpenMember,
+  interactions,
   hasMore,
   loadingMore,
   onLoadMore,
@@ -19,7 +113,7 @@ export function MembersPanel({
   readonly presence: PresenceRecord[]
   readonly roles: Role[]
   readonly memberRoles: readonly { membership: string; role: string }[]
-  readonly onOpenMember: (user: User) => void
+  readonly interactions: MemberInteractions
   readonly hasMore: boolean
   readonly loadingMore: boolean
   readonly onLoadMore: () => void
@@ -100,20 +194,13 @@ export function MembersPanel({
               const status = statusFor(user)
               const highestRole = roleFor(membership)
               return (
-                <button
-                  className={`member-row ${status === 'offline' ? 'offline' : ''}`}
-                  type="button"
-                  onClick={() => onOpenMember(user)}
+                <MemberRow
+                  membership={membership}
+                  status={status}
+                  highestRole={highestRole}
+                  interactions={interactions}
                   key={membership.id}
-                >
-                  <Avatar user={user} status={status} />
-                  <span>
-                    <strong style={highestRole?.color ? { color: highestRole.color } : undefined}>
-                      {membership.nickname || user.displayName}
-                    </strong>
-                    <small>{user.customStatus || `@${user.handle}`}</small>
-                  </span>
-                </button>
+                />
               )
             })}
           </section>

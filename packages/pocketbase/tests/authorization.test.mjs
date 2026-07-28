@@ -171,6 +171,7 @@ test('the V2 migrations contain the baseline and data-preserving presence upgrad
     '1785031200_v2_baseline.js',
     '1785254000_presence_schema_upgrade.js',
     '1785256000_user_directory_access.js',
+    '1785260000_call_server_mute.js',
   ])
   const migration = await readFile(
     resolve(migrationsDirectory, '1785031200_v2_baseline.js'),
@@ -182,6 +183,10 @@ test('the V2 migrations contain the baseline and data-preserving presence upgrad
   )
   const directoryAccess = await readFile(
     resolve(migrationsDirectory, '1785256000_user_directory_access.js'),
+    'utf8',
+  )
+  const callServerMute = await readFile(
+    resolve(migrationsDirectory, '1785260000_call_server_mute.js'),
     'utf8',
   )
   assert.match(migration, /CREATE UNIQUE INDEX idx_call_rooms_room_name ON call_rooms \(roomName\)/)
@@ -218,6 +223,8 @@ test('the V2 migrations contain the baseline and data-preserving presence upgrad
   assert.match(directoryAccess, /memberships_via_user\.community\.memberships_via_community\.user/)
   assert.match(directoryAccess, /conversation_members_via_user\.conversation\.conversation_members_via_conversation\.user/)
   assert.match(directoryAccess, /users\.fields\.getByName\(name\)\.hidden = true/)
+  assert.match(callServerMute, /name: "serverMuted"/)
+  assert.match(callServerMute, /fields\.removeByName\("serverMuted"\)/)
   assert.match(migration, /ownMembership/)
   assert.match(migration, /user = @request\.auth\.id \|\| \(@collection\.conversation_members:viewer/)
   assert.match(migration, /name: "lastMessageAt", required: true/)

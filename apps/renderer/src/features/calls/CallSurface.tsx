@@ -6,12 +6,12 @@ import {
   MicOff,
   Maximize2,
   Minimize2,
+  MoreHorizontal,
   MonitorUp,
   PhoneOff,
   RotateCcw,
   Settings2,
   Shrink,
-  UserX,
   Video,
   VideoOff,
   Volume2,
@@ -24,15 +24,24 @@ import { mergeCallParticipants } from './participantSync'
 import type { CallParticipant } from './types'
 import { channelCallTarget, sameCallTarget } from './targets'
 import { setAudioOutputDevice } from './speakerOutput'
+import {
+  ContextMenu,
+  type ContextMenuPoint,
+} from '../../components/ContextMenu'
+import { keyboardContextMenuPoint } from '../../components/contextMenuPosition'
+import { MemberContextMenuItems } from '../members/MemberContextMenuItems'
+import type { MemberInteractions } from '../members/memberInteractions'
+import type { RemoteAudioPreference } from './remoteAudioPreferences'
 
 function initials(value: string) {
   return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?'
 }
 
-function TrackElement({ track, audio = false, muted = false, screen = false, speakerDeviceId = '' }: {
+function TrackElement({ track, audio = false, muted = false, volume = 100, screen = false, speakerDeviceId = '' }: {
   readonly track: JitsiTrack
   readonly audio?: boolean
   readonly muted?: boolean
+  readonly volume?: number
   readonly screen?: boolean
   readonly speakerDeviceId?: string
 }) {
@@ -47,6 +56,9 @@ function TrackElement({ track, audio = false, muted = false, screen = false, spe
     const target = element.current as (HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> }) | null
     if (audio && target) void setAudioOutputDevice(target, speakerDeviceId).catch(() => undefined)
   }, [audio, speakerDeviceId])
+  useEffect(() => {
+    if (audio && element.current) element.current.volume = Math.max(0, Math.min(1, volume / 100))
+  }, [audio, volume])
   return audio
     ? <audio ref={(node) => { element.current = node }} autoPlay muted={muted} />
     : <video
@@ -59,17 +71,50 @@ function TrackElement({ track, audio = false, muted = false, screen = false, spe
       />
 }
 
-function ParticipantTile({ participant, featured = false, canMute = false, canRemove = false, onModerate, onSpotlight }: {
+function ParticipantTile({
+  participant,
+  featured = false,
+  canMute = false,
+  canRemove = false,
+  onModerate,
+  onSpotlight,
+  memberInteractions,
+  remoteAudio,
+  onRemoteMutedChange,
+  onRemoteVolumeChange,
+}: {
   readonly participant: CallParticipant
   readonly featured?: boolean
   readonly canMute?: boolean
   readonly canRemove?: boolean
-  readonly onModerate?: (participantId: string, action: 'mute' | 'kick') => void
+  readonly onModerate?: (
+    participantId: string,
+    action: 'server_mute' | 'server_unmute' | 'kick',
+  ) => void
   readonly onSpotlight?: (participantId: string) => void
+  readonly memberInteractions?: MemberInteractions
+  readonly remoteAudio?: RemoteAudioPreference
+  readonly onRemoteMutedChange?: (muted: boolean) => void
+  readonly onRemoteVolumeChange?: (volume: number) => void
 }) {
   const tileElement = useRef<HTMLElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
+  const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null)
   const videoTrack = participant.screenTrack ?? participant.videoTrack
+  const membership = memberInteractions?.memberships?.find(
+    (item) => item.user === participant.userId,
+  )
+  const canModerateHierarchy = Boolean(
+    participant.userId && memberInteractions?.canModerateUser?.(participant.userId),
+  )
+  const hasMenu = Boolean(
+    participant.user
+    || (!participant.local && participant.userId && (
+      participant.audioTrack
+      || videoTrack
+      || ((canMute || canRemove) && canModerateHierarchy)
+    )),
+  )
 
   useEffect(() => {
     const updateFullscreen = () => setFullscreen(document.fullscreenElement === tileElement.current)
@@ -89,7 +134,20 @@ function ParticipantTile({ participant, featured = false, canMute = false, canRe
   }
 
   return (
-    <article ref={tileElement} className={`voice-tile ${participant.speaking ? 'speaking' : ''} ${featured ? 'spotlighted' : ''} ${participant.screenTrack ? 'screen-share' : ''}`}>
+    <article
+      ref={tileElement}
+      className={`voice-tile ${participant.speaking ? 'speaking' : ''} ${featured ? 'spotlighted' : ''} ${participant.screenTrack ? 'screen-share' : ''}`}
+      tabIndex={hasMenu ? 0 : undefined}
+      aria-label={`${participant.name}${participant.local ? ', you' : ''}`}
+      onContextMenu={hasMenu ? (event) => {
+        event.preventDefault()
+        setMenuPoint({ x: event.clientX, y: event.clientY })
+      } : undefined}
+      onKeyDown={hasMenu ? (event) => {
+        const point = keyboardContextMenuPoint(event)
+        if (point) setMenuPoint(point)
+      } : undefined}
+    >
       {videoTrack ? <TrackElement track={videoTrack} screen={Boolean(participant.screenTrack)} /> : <span className="call-avatar">{initials(participant.name)}</span>}
       {videoTrack ? (
         <div className="voice-tile-view-actions">
@@ -122,25 +180,101 @@ function ParticipantTile({ participant, featured = false, canMute = false, canRe
       <div className="voice-tile-label">
         <span>{participant.name}{participant.local ? ' (You)' : ''}</span>
         {participant.screenTrack ? <span className="sharing-label"><MonitorUp size={12} />Screen</span> : null}
-        {participant.muted ? <MicOff size={12} /> : <Mic size={12} />}
+        {participant.serverMuted
+          ? <MicOff className="voice-tile-server-muted" size={12} aria-label="Server muted" />
+          : participant.muted
+            ? <MicOff size={12} />
+            : <Mic size={12} />}
       </div>
-      {(canMute || canRemove) && !participant.local && !participant.id.startsWith('presence:') ? (
+      {hasMenu ? (
         <div className="voice-tile-moderation">
-          {canMute ? <button type="button" title="Mute participant" onClick={() => onModerate?.(participant.id, 'mute')}><MicOff size={14} /></button> : null}
-          {canRemove ? <button type="button" title="Remove participant" onClick={() => {
-            if (window.confirm(`Remove ${participant.name} from this call?`)) onModerate?.(participant.id, 'kick')
-          }}><UserX size={14} /></button> : null}
+          <button
+            className="voice-tile-context-trigger"
+            type="button"
+            title={`More actions for ${participant.name}`}
+            aria-label={`More actions for ${participant.name}`}
+            onClick={(event) => {
+              const bounds = event.currentTarget.getBoundingClientRect()
+              setMenuPoint({ x: bounds.right, y: bounds.bottom })
+            }}
+          ><MoreHorizontal size={15} /></button>
         </div>
+      ) : null}
+      {menuPoint ? (
+        <ContextMenu
+          point={menuPoint}
+          label={`Actions for ${participant.name}`}
+          onClose={() => setMenuPoint(null)}
+        >
+          <MemberContextMenuItems
+            user={participant.user}
+            membership={membership}
+            currentUserId={memberInteractions?.currentUserId ?? ''}
+            onOpenProfile={participant.user && memberInteractions
+              ? () => memberInteractions.onOpenProfile(participant.user!)
+              : undefined}
+            onMessage={participant.user && memberInteractions
+              ? () => memberInteractions.onMessage(participant.user!)
+              : undefined}
+            localAudio={!participant.local && participant.audioTrack && remoteAudio
+              ? {
+                  muted: remoteAudio.muted,
+                  volume: remoteAudio.volume,
+                  onMutedChange: onRemoteMutedChange ?? (() => undefined),
+                  onVolumeChange: onRemoteVolumeChange ?? (() => undefined),
+                }
+              : undefined}
+            spotlight={videoTrack && onSpotlight
+              ? {
+                  active: featured,
+                  onToggle: () => onSpotlight(participant.id),
+                }
+              : undefined}
+            callModeration={!participant.local && participant.userId && canModerateHierarchy
+              ? {
+                  serverMuted: participant.serverMuted,
+                  canServerMute: canMute,
+                  canDisconnect: canRemove,
+                  onServerMuteChange: (serverMuted) => onModerate?.(
+                    participant.userId,
+                    serverMuted ? 'server_mute' : 'server_unmute',
+                  ),
+                  onDisconnect: () => {
+                    if (window.confirm(`Disconnect ${participant.name} from this call?`)) {
+                      onModerate?.(participant.userId, 'kick')
+                    }
+                  },
+                }
+              : undefined}
+            communityModeration={
+              membership
+              && memberInteractions?.canManageMembers
+              && canModerateHierarchy
+              && memberInteractions.onModerate
+                ? {
+                    onAction: (action) => memberInteractions.onModerate?.(membership, action),
+                  }
+                : undefined
+            }
+          />
+        </ContextMenu>
       ) : null}
     </article>
   )
 }
 
-export function CallSurface({ target, occupancy, description = '', presentation = 'full' }: {
+export function CallSurface({
+  target,
+  occupancy,
+  description = '',
+  presentation = 'full',
+  memberInteractions,
+}: {
   readonly target: CallTargetDescriptor
   readonly occupancy: readonly CallParticipantRecord[]
   readonly description?: string
   readonly presentation?: 'full' | 'conversation'
+  readonly memberInteractions?: MemberInteractions
 }) {
   interface SpotlightSelection {
     readonly targetKey: string
@@ -218,6 +352,12 @@ export function CallSurface({ target, occupancy, description = '', presentation 
       canRemove={session.canRemoveMembers}
       onModerate={(_id, action) => void call.moderateParticipant(participant.userId, action)}
       onSpotlight={toggleSpotlight}
+      memberInteractions={memberInteractions}
+      remoteAudio={!participant.local && participant.userId
+        ? call.remoteAudioFor(participant.userId)
+        : undefined}
+      onRemoteMutedChange={(muted) => call.setRemoteUserMuted(participant.userId, muted)}
+      onRemoteVolumeChange={(volume) => call.setRemoteUserVolume(participant.userId, volume)}
       key={participant.id}
     />
   )
@@ -297,15 +437,17 @@ export function CallSurface({ target, occupancy, description = '', presentation 
   )
 }
 
-export function VoiceChannelSurface({ channel, occupancy }: {
+export function VoiceChannelSurface({ channel, occupancy, memberInteractions }: {
   readonly channel: Channel
   readonly occupancy: readonly CallParticipantRecord[]
+  readonly memberInteractions?: MemberInteractions
 }) {
   return (
     <CallSurface
       target={channelCallTarget(channel)}
       occupancy={occupancy}
       description={channel.topic}
+      memberInteractions={memberInteractions}
     />
   )
 }
@@ -338,7 +480,19 @@ export function CallDock({ onOpen }: { readonly onOpen: (target: CallTargetDescr
       <div className="call-audio" aria-hidden="true">
         {session.participants
           .filter((participant) => !participant.local && participant.audioTrack)
-          .map((participant) => <TrackElement track={participant.audioTrack!} audio muted={session.deafened} speakerDeviceId={call.speakerDeviceId} key={participant.id} />)}
+          .map((participant) => {
+            const preference = call.remoteAudioFor(participant.userId)
+            return (
+              <TrackElement
+                track={participant.audioTrack!}
+                audio
+                muted={session.deafened || preference.muted}
+                volume={preference.volume}
+                speakerDeviceId={call.speakerDeviceId}
+                key={participant.id}
+              />
+            )
+          })}
       </div>
     </div>
   )

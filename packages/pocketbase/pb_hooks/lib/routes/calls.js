@@ -84,7 +84,26 @@ routerAdd("GET", "/api/thiscord/calls/{kind}/{id}/join", (e) => {
       "join",
       target.kind === "conversation",
     );
-    callPermissions = calls.callCapabilities(target.kind, context);
+    let participant = null;
+    try {
+      const activeCall = tx.findFirstRecordByFilter(
+        "call_sessions",
+        "room = {:room} && endedAt = ''",
+        { room: context.room.id },
+      );
+      participant = tx.findFirstRecordByFilter(
+        "call_participants",
+        "call = {:call} && user = {:user} && leftAt = '' && expiresAt > {:now}",
+        {
+          call: activeCall.id,
+          user: e.auth.id,
+          now: h.databaseDate(),
+        },
+      );
+    } catch {
+      // A token may be issued before product presence is created.
+    }
+    callPermissions = calls.callCapabilities(target.kind, context, participant);
     tokenVersion = calls.issueCallTokenVersion(
       tx,
       context.room,
@@ -157,7 +176,7 @@ routerAdd("POST", "/api/thiscord/calls/{kind}/{id}/moderate", (e) => {
   const target = calls.callTarget(e.request.pathValue("kind"), e.request.pathValue("id"));
   const body = e.requestInfo().body;
   const action = String(body.action || "");
-  if (action !== "mute" && action !== "kick") {
+  if (!["mute", "server_mute", "server_unmute", "kick"].includes(action)) {
     throw new BadRequestError("Invalid call moderation action.");
   }
   const userId = h.requiredText(body.userId, "userId", 30);
@@ -227,6 +246,13 @@ routerAdd("POST", "/api/thiscord/calls/{kind}/{id}/presence", (e) => {
     };
 
     const existingResult = currentResult();
+    if (existingResult.active) {
+      refreshedPermissions = calls.callCapabilities(
+        target.kind,
+        context,
+        existingResult.participant,
+      );
+    }
     const canRepairInterruptedJoin = leaseFound
       && state === "joined"
       && sequence === lease.getInt("sequence")
@@ -336,7 +362,17 @@ routerAdd("POST", "/api/thiscord/calls/{kind}/{id}/presence", (e) => {
       participant.set("call", call.id);
       participant.set("user", e.auth.id);
       participant.set("joinedAt", new Date().toISOString());
+      const previous = tx.findRecordsByFilter(
+        "call_participants",
+        "call = {:call} && user = {:user}",
+        "-created",
+        1,
+        0,
+        { call: call.id, user: e.auth.id },
+      )[0];
+      participant.set("serverMuted", previous ? previous.getBool("serverMuted") : false);
     }
+    refreshedPermissions = calls.callCapabilities(target.kind, context, participant);
 
     let devices = participantCreated ? {} : calls.deviceStates(participant);
     devices = calls.applyDeviceStates(participant, devices, now);

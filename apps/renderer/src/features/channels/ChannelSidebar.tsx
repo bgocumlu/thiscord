@@ -13,18 +13,37 @@ import {
   Megaphone,
   Mic,
   MicOff,
+  MoreVertical,
   Plus,
   Settings,
   Volume2,
 } from 'lucide-react'
 import type { RecordModel } from 'pocketbase'
-import { useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
+import {
+  ContextMenu,
+  type ContextMenuPoint,
+} from '../../components/ContextMenu'
+import {
+  CONTEXT_MENU_LONG_PRESS_MS,
+  contextMenuLongPressMoved,
+} from '../../components/contextMenuLongPress'
+import { keyboardContextMenuPoint } from '../../components/contextMenuPosition'
 import { usePocketBase } from '../../lib/contexts'
 import { Avatar } from '../members/Avatar'
+import { MemberContextMenuItems } from '../members/MemberContextMenuItems'
+import type { MemberInteractions } from '../members/memberInteractions'
 import { useCall } from '../calls/CallProvider'
 import { mergeCallParticipants } from '../calls/participantSync'
 import { CallDock } from '../calls/CallSurface'
 import { channelCallTarget, participantBelongsToTarget, sameCallTarget } from '../calls/targets'
+import type { CallParticipant } from '../calls/types'
 
 function initials(value: string) {
   return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?'
@@ -51,6 +70,7 @@ export function ChannelSidebar({
   unreadChannelIds,
   permissions: effectivePermissions,
   voiceOccupancy,
+  memberInteractions,
   hasMore,
   loadingMore,
   onLoadMore,
@@ -69,6 +89,7 @@ export function ChannelSidebar({
   readonly unreadChannelIds: ReadonlySet<string>
   readonly permissions: ReadonlySet<Permission>
   readonly voiceOccupancy: readonly CallParticipantRecord[]
+  readonly memberInteractions: MemberInteractions
   readonly hasMore: boolean
   readonly loadingMore: boolean
   readonly onLoadMore: () => void
@@ -93,7 +114,7 @@ export function ChannelSidebar({
       {bannerUrl ? <img className="community-banner" src={bannerUrl} alt="" /> : null}
       <div className="channel-scroll">
         {uncategorized.map((channel) => (
-          <ChannelButton channel={channel} occupants={voiceOccupancy} active={channel.id === activeChannelId} unread={unreadChannelIds.has(channel.id)} onSelect={onSelect} key={channel.id} />
+          <ChannelButton channel={channel} occupants={voiceOccupancy} active={channel.id === activeChannelId} unread={unreadChannelIds.has(channel.id)} onSelect={onSelect} permissions={effectivePermissions} memberInteractions={memberInteractions} key={channel.id} />
         ))}
         {categories.map((category) => (
           <section className="channel-category" key={category.id}>
@@ -112,7 +133,7 @@ export function ChannelSidebar({
               ) : null}
             </div>
             {!collapsed.has(category.id) ? channels.filter((channel) => channel.parent === category.id).map((channel) => (
-              <ChannelButton channel={channel} occupants={voiceOccupancy} active={channel.id === activeChannelId} unread={unreadChannelIds.has(channel.id)} onSelect={onSelect} key={channel.id} />
+              <ChannelButton channel={channel} occupants={voiceOccupancy} active={channel.id === activeChannelId} unread={unreadChannelIds.has(channel.id)} onSelect={onSelect} permissions={effectivePermissions} memberInteractions={memberInteractions} key={channel.id} />
             )) : null}
           </section>
         ))}
@@ -136,12 +157,193 @@ export function ChannelSidebar({
   )
 }
 
-function ChannelButton({ channel, active, unread, onSelect, occupants }: {
+function VoiceParticipantRow({
+  participant,
+  channel,
+  target,
+  onSelect,
+  permissions,
+  interactions,
+}: {
+  readonly participant: CallParticipant
+  readonly channel: Channel
+  readonly target: CallTargetDescriptor
+  readonly onSelect: (channel: Channel) => void
+  readonly permissions: ReadonlySet<Permission>
+  readonly interactions: MemberInteractions
+}) {
+  const call = useCall()
+  const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null)
+  const longPressTimer = useRef<number | undefined>(undefined)
+  const longPressStart = useRef({ x: 0, y: 0 })
+  const suppressNextClick = useRef(false)
+  const membership = interactions.memberships?.find(
+    (item) => item.user === participant.userId,
+  )
+  const user = participant.user ?? membership?.expand?.user
+  const isCurrentUser = participant.userId === interactions.currentUserId
+  const canModerateHierarchy = Boolean(
+    !isCurrentUser && interactions.canModerateUser?.(participant.userId),
+  )
+  const moderatingCurrentCall = Boolean(
+    call.session && sameCallTarget(call.session.target.target, target.target),
+  )
+  const canServerMute = moderatingCurrentCall
+    ? Boolean(call.session?.canMuteMembers)
+    : permissions.has('mute_members')
+  const canDisconnect = moderatingCurrentCall
+    ? Boolean(call.session?.canRemoveMembers)
+    : permissions.has('manage_members')
+  const remoteAudio = !participant.local && participant.audioTrack
+    ? call.remoteAudioFor(participant.userId)
+    : undefined
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimer.current !== undefined) {
+      window.clearTimeout(longPressTimer.current)
+      longPressTimer.current = undefined
+    }
+  }, [])
+
+  useEffect(() => clearLongPress, [clearLongPress])
+
+  const startLongPress = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType !== 'touch') return
+    clearLongPress()
+    longPressStart.current = { x: event.clientX, y: event.clientY }
+    longPressTimer.current = window.setTimeout(() => {
+      suppressNextClick.current = true
+      setMenuPoint({ x: event.clientX, y: event.clientY })
+      longPressTimer.current = undefined
+    }, CONTEXT_MENU_LONG_PRESS_MS)
+  }
+
+  const moveLongPress = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType !== 'touch' || longPressTimer.current === undefined) return
+    if (contextMenuLongPressMoved(longPressStart.current, {
+      x: event.clientX,
+      y: event.clientY,
+    })) {
+      clearLongPress()
+    }
+  }
+
+  const openMenu = (point: ContextMenuPoint) => {
+    clearLongPress()
+    setMenuPoint(point)
+  }
+
+  return (
+    <div className="voice-member-row-wrap">
+      <button
+        className="voice-member-row"
+        type="button"
+        onClick={(event) => {
+          if (suppressNextClick.current) {
+            suppressNextClick.current = false
+            event.preventDefault()
+            return
+          }
+          onSelect(channel)
+        }}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          openMenu({ x: event.clientX, y: event.clientY })
+        }}
+        onKeyDown={(event) => {
+          const point = keyboardContextMenuPoint(event)
+          if (point) openMenu(point)
+        }}
+        onPointerDown={startLongPress}
+        onPointerMove={moveLongPress}
+        onPointerUp={clearLongPress}
+        onPointerCancel={clearLongPress}
+        onPointerLeave={clearLongPress}
+      >
+        <span className={`voice-member-avatar ${participant.speaking ? 'speaking' : ''}`}>{initials(participant.name)}</span>
+        <span>{participant.name}</span>
+        {participant.serverMuted || participant.muted ? <MicOff size={12} /> : null}
+      </button>
+      <button
+        className="voice-member-context-trigger"
+        type="button"
+        title={`More actions for ${participant.name}`}
+        aria-label={`More actions for ${participant.name}`}
+        onClick={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect()
+          openMenu({ x: bounds.right, y: bounds.bottom })
+        }}
+      ><MoreVertical size={13} /></button>
+      {menuPoint ? (
+        <ContextMenu
+          point={menuPoint}
+          label={`Actions for ${participant.name}`}
+          onClose={() => setMenuPoint(null)}
+        >
+          <MemberContextMenuItems
+            user={user}
+            membership={membership}
+            currentUserId={interactions.currentUserId}
+            onOpenProfile={user ? () => interactions.onOpenProfile(user) : undefined}
+            onMessage={user ? () => interactions.onMessage(user) : undefined}
+            localAudio={remoteAudio
+              ? {
+                  muted: remoteAudio.muted,
+                  volume: remoteAudio.volume,
+                  onMutedChange: (muted) => call.setRemoteUserMuted(participant.userId, muted),
+                  onVolumeChange: (volume) => call.setRemoteUserVolume(participant.userId, volume),
+                }
+              : undefined}
+            callModeration={canModerateHierarchy && (canServerMute || canDisconnect)
+              ? {
+                  serverMuted: participant.serverMuted,
+                  canServerMute,
+                  canDisconnect,
+                  onServerMuteChange: (serverMuted) => void call.moderateParticipant(
+                    participant.userId,
+                    serverMuted ? 'server_mute' : 'server_unmute',
+                    target.target,
+                  ),
+                  onDisconnect: () => {
+                    if (window.confirm(`Disconnect ${participant.name} from this call?`)) {
+                      void call.moderateParticipant(participant.userId, 'kick', target.target)
+                    }
+                  },
+                }
+              : undefined}
+            communityModeration={
+              membership
+              && interactions.canManageMembers
+              && canModerateHierarchy
+              && interactions.onModerate
+                ? {
+                    onAction: (action) => interactions.onModerate?.(membership, action),
+                  }
+                : undefined
+            }
+          />
+        </ContextMenu>
+      ) : null}
+    </div>
+  )
+}
+
+function ChannelButton({
+  channel,
+  active,
+  unread,
+  onSelect,
+  occupants,
+  permissions,
+  memberInteractions,
+}: {
   readonly channel: Channel
   readonly active: boolean
   readonly unread: boolean
   readonly onSelect: (channel: Channel) => void
   readonly occupants: readonly CallParticipantRecord[]
+  readonly permissions: ReadonlySet<Permission>
+  readonly memberInteractions: MemberInteractions
 }) {
   const call = useCall()
   const target = channelCallTarget(channel)
@@ -161,11 +363,15 @@ function ChannelButton({ channel, active, unread, onSelect, occupants }: {
       {callParticipants.length ? (
         <div className="voice-member-list">
           {callParticipants.map((participant) => (
-            <button type="button" onClick={() => onSelect(channel)} key={participant.id}>
-              <span className={`voice-member-avatar ${participant.speaking ? 'speaking' : ''}`}>{initials(participant.name)}</span>
-              <span>{participant.name}</span>
-              {participant.muted ? <MicOff size={12} /> : null}
-            </button>
+            <VoiceParticipantRow
+              participant={participant}
+              channel={channel}
+              target={target}
+              onSelect={onSelect}
+              permissions={permissions}
+              interactions={memberInteractions}
+              key={participant.id}
+            />
           ))}
         </div>
       ) : null}

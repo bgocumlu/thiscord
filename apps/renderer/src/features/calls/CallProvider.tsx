@@ -55,6 +55,12 @@ import {
   markJitsiModuleFresh,
   type JitsiEngineResources,
 } from './jitsiEngine'
+import {
+  readRemoteAudioPreferences,
+  remoteAudioPreference,
+  updateRemoteAudioPreference,
+  writeRemoteAudioPreferences,
+} from './remoteAudioPreferences'
 
 const CallContext = createContext<CallContextValue | null>(null)
 
@@ -99,6 +105,9 @@ export function CallProvider({ user, children }: {
     stopScreenAudioRef.current = stop
   }, [])
   const [session, setSession] = useState<CallSession | null>(null)
+  const [remoteAudioPreferences, setRemoteAudioPreferences] = useState(
+    () => readRemoteAudioPreferences(),
+  )
   const presenceHeartbeat = useMemo(
     () => createPresenceHeartbeat(transientTimings.callHeartbeatMs, {
       setInterval: (callback, delayMs) => window.setInterval(callback, delayMs),
@@ -131,6 +140,28 @@ export function CallProvider({ user, children }: {
       screenSharing: Boolean(localParticipant?.screenTrack),
     }))
   }, [deafenedRef, microphoneMutedRef])
+  const updateRemoteAudio = useCallback((
+    userId: string,
+    patch: { readonly muted?: boolean; readonly volume?: number },
+  ) => {
+    setRemoteAudioPreferences((current) => {
+      const next = updateRemoteAudioPreference(current, userId, patch)
+      if (next !== current) writeRemoteAudioPreferences(next)
+      return next
+    })
+  }, [])
+  const remoteAudioFor = useCallback(
+    (userId: string) => remoteAudioPreference(remoteAudioPreferences, userId),
+    [remoteAudioPreferences],
+  )
+  const setRemoteUserMuted = useCallback(
+    (userId: string, muted: boolean) => updateRemoteAudio(userId, { muted }),
+    [updateRemoteAudio],
+  )
+  const setRemoteUserVolume = useCallback(
+    (userId: string, volume: number) => updateRemoteAudio(userId, { volume }),
+    [updateRemoteAudio],
+  )
   const recovery = useMemo(() => createRecoveryCoordinator({
     scheduler: {
       setTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
@@ -449,11 +480,13 @@ export function CallProvider({ user, children }: {
       id: LOCAL_PARTICIPANT,
       userId: user.id,
       name: user.displayName,
+      user,
       local: true,
       audioTrack: null,
       videoTrack: null,
       screenTrack: null,
       muted: preferredMicrophoneMuted || preferredDeafened,
+      serverMuted: false,
       speaking: false,
     })
     resources.current.localTracks.push(...retainedMedia.localTracks)
@@ -587,7 +620,7 @@ export function CallProvider({ user, children }: {
         await terminalFailureRef.current(errorMessage(caught))
       }
     }
-  }, [client, handleMediaPolicyRejected, handlePresenceFailure, microphoneDeviceId, observeTrack, preferredDeafened, preferredMicrophoneMuted, prepareCallPresence, presenceHeartbeat, publish, recovery, refreshDevices, releaseResources, rememberDeafened, session, setTrack, user.displayName, user.id])
+  }, [client, handleMediaPolicyRejected, handlePresenceFailure, microphoneDeviceId, observeTrack, preferredDeafened, preferredMicrophoneMuted, prepareCallPresence, presenceHeartbeat, publish, recovery, refreshDevices, releaseResources, rememberDeafened, session, setTrack, user])
 
   useEffect(() => {
     joinRef.current = join
@@ -619,15 +652,31 @@ export function CallProvider({ user, children }: {
     })
   }, [])
 
-  const moderateParticipant = useCallback(async (userId: string, action: 'mute' | 'kick') => {
-    if (!session) return
+  const moderateParticipant = useCallback(async (
+    userId: string,
+    action: 'server_mute' | 'server_unmute' | 'kick',
+    target = session?.target.target,
+  ) => {
+    if (!target) return
     try {
-      if (action === 'kick') {
-        if (!session.canRemoveMembers) throw new Error('You do not have permission to remove members from this call.')
-      } else {
-        if (!session.canMuteMembers) throw new Error('You do not have permission to mute members in this call.')
+      const moderatingCurrentCall = Boolean(
+        session && sameCallTarget(session.target.target, target),
+      )
+      if (moderatingCurrentCall && session) {
+        if (action === 'kick') {
+          if (!session.canRemoveMembers) throw new Error('You do not have permission to remove members from this call.')
+        } else if (!session.canMuteMembers) {
+          throw new Error('You do not have permission to mute members in this call.')
+        }
       }
-      await callApi.moderate(client, session.target.target, userId, action)
+      await callApi.moderate(client, target, userId, action)
+      if (moderatingCurrentCall) {
+        for (const participant of participants.current.values()) {
+          if (participant.userId === userId && action !== 'kick') {
+            participant.serverMuted = action === 'server_mute'
+          }
+        }
+      }
       publish({ error: '' })
     } catch (caught) {
       publish({ error: errorMessage(caught) })
@@ -659,8 +708,11 @@ export function CallProvider({ user, children }: {
     selectCamera,
     selectSpeaker,
     prioritizeVideo,
+    remoteAudioFor,
+    setRemoteUserMuted,
+    setRemoteUserVolume,
     moderateParticipant,
-  }), [cameraDeviceId, devices, join, leave, microphoneDeviceId, moderateParticipant, preferredDeafened, preferredMicrophoneMuted, prioritizeVideo, refreshDevices, retry, selectCamera, selectMicrophone, selectSpeaker, session, speakerDeviceId, toggleCamera, toggleDeafen, toggleMicrophone, toggleScreenShare])
+  }), [cameraDeviceId, devices, join, leave, microphoneDeviceId, moderateParticipant, preferredDeafened, preferredMicrophoneMuted, prioritizeVideo, refreshDevices, remoteAudioFor, retry, selectCamera, selectMicrophone, selectSpeaker, session, setRemoteUserMuted, setRemoteUserVolume, speakerDeviceId, toggleCamera, toggleDeafen, toggleMicrophone, toggleScreenShare])
 
   return (
     <CallContext.Provider value={value}>

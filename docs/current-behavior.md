@@ -174,10 +174,14 @@ transactional per-room/user version used by the media service to reject stale
 reconnects. They contain the public display name and an avatar URL rooted at the
 configured PocketBase public origin, but never the account email.
 
-Browser JWTs never receive Jitsi's coarse moderator role. Mute and remove
-actions use an authenticated PocketBase route and the private Prosody control
+Browser JWTs never receive Jitsi's coarse moderator role. Server-mute,
+server-unmute, and remove actions use an authenticated PocketBase route and the private Prosody control
 channel, where the target occupant is resolved from its signed Thiscord user
-identity. Signed speaking and video claims drive Jitsi AV-moderation
+identity. Call moderation rechecks the actor's channel permission and community
+role hierarchy inside its write transaction. A server mute is stored on the
+logical call participant, survives reconnects within that live call, and keeps
+the target outside the speaking whitelist until an authorized moderator removes
+it. Signed speaking and video claims drive Jitsi AV-moderation
 whitelists, so those media restrictions are enforced by the media service as
 well as by the client controls. Restrictive updates force-mute already
 published audio, camera, and desktop sources through Jicofo. AV-moderation
@@ -213,6 +217,23 @@ cleanup and stops the heartbeat. After a successful moderator kick, the
 matching product participant is marked left idempotently so shared occupancy
 cannot remain ghosted. Explicit sign-out leaves the active call before clearing
 the authentication token, so its final occupancy update remains authorized.
+
+Remote-participant call context menus are available from call tiles and the
+participant rows nested under community voice channels. Desktop users can
+right click, keyboard users can press the Menu key or Shift+F10, and touch users
+can press and hold for 500 ms; moving to scroll cancels the long press. An
+explicit more-actions button remains available as a touch and accessibility
+fallback. These call contexts combine profile and message actions with local
+audio and eligible server moderation controls. The general community member
+list intentionally excludes local audio, server mute, and call-disconnect
+controls; its menu remains focused on profile, messaging, timeout, kick, and
+ban. Destructive community actions retain their reason and confirmation dialog.
+
+Each client keeps a versioned, device-local per-user audio map. Local mute and
+0–100 percent volume affect only the remote `<audio>` element on that client;
+they do not publish presence, change server state, or notify the other member.
+Unmuting preserves the previously selected volume. Deafen remains a separate
+call-wide local output control and takes precedence over individual settings.
 
 Local browser media is stopped before conference departure, transport
 disconnect, or product-presence network work, and all of those network waits

@@ -183,7 +183,7 @@ function channelMediaPolicy(context) {
   };
 }
 
-function callCapabilities(targetKind, context) {
+function callCapabilities(targetKind, context, participant = null) {
   if (targetKind === "conversation") {
     return {
       canSpeak: true,
@@ -193,6 +193,7 @@ function callCapabilities(targetKind, context) {
     };
   }
   const policy = channelMediaPolicy(context);
+  if (participant && participant.getBool("serverMuted")) policy.canSpeak = false;
   const granted = context.auth.permissions;
   const administrator = granted.includes("administrator");
   return {
@@ -205,6 +206,7 @@ function callCapabilities(targetKind, context) {
 function syncParticipantMediaPolicy(target, room, participant, context) {
   if (target.kind !== "channel") return 0;
   const policy = channelMediaPolicy(context);
+  if (participant.getBool("serverMuted")) policy.canSpeak = false;
   return callControlRequest(
     room.getString("roomName"),
     participant.getString("user"),
@@ -218,12 +220,16 @@ function moderateParticipant(app, target, actorId, userId, action) {
     throw new BadRequestError("Conversation calls do not support moderation.");
   }
   if (actorId === userId) throw new BadRequestError("You cannot moderate yourself.");
-  const required = action === "mute" ? "mute_members" : "manage_members";
+  const serverMute = action === "server_mute" || action === "server_unmute" || action === "mute";
+  const required = serverMute ? "mute_members" : "manage_members";
   let roomName = "";
   let participantId = "";
+  let mediaPolicy = null;
   app.runInTransaction((tx) => {
     const context = permissions.channelContext(tx, target.id, actorId, required);
     const { room } = targetContext(tx, target.kind, target.id, actorId, "join");
+    const targetMembership = permissions.activeMembership(tx, context.communityId, userId);
+    permissions.assertCanManageMembership(tx, context.auth, targetMembership, serverMute ? "server mute" : "disconnect");
     try {
       const call = tx.findFirstRecordByFilter(
         "call_sessions",
@@ -240,6 +246,13 @@ function moderateParticipant(app, target, actorId, userId, action) {
         },
       );
       participantId = participant.id;
+      if (serverMute) {
+        participant.set("serverMuted", action !== "server_unmute");
+        tx.save(participant);
+        const targetContext = permissions.channelContext(tx, target.id, userId);
+        mediaPolicy = channelMediaPolicy(targetContext);
+        if (participant.getBool("serverMuted")) mediaPolicy.canSpeak = false;
+      }
     } catch {
       throw new NotFoundError("The participant is no longer in this call.");
     }
@@ -252,10 +265,18 @@ function moderateParticipant(app, target, actorId, userId, action) {
       "user",
       userId,
       "",
-      { action, channel: target.id },
+      {
+        action: action === "mute" ? "server_mute" : action,
+        channel: target.id,
+      },
     );
   });
-  const result = callControlRequest(roomName, userId, action);
+  const result = callControlRequest(
+    roomName,
+    userId,
+    serverMute ? "policy" : action,
+    mediaPolicy || {},
+  );
   if (action === "kick" && participantId) {
     app.runInTransaction((tx) => {
       let participant;

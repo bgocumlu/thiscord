@@ -1,7 +1,10 @@
 import type {
+  CallTarget,
   CallTargetDescriptor,
 } from '@thiscord/shared'
 import type { JitsiTrack } from 'lib-jitsi-meet'
+import type { User } from '@thiscord/shared'
+import type { RemoteAudioPreference } from './remoteAudioPreferences'
 
 export type CallStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 
@@ -9,11 +12,13 @@ export interface CallParticipant {
   readonly id: string
   readonly userId: string
   readonly name: string
+  readonly user?: User
   readonly local: boolean
   readonly audioTrack: JitsiTrack | null
   readonly videoTrack: JitsiTrack | null
   readonly screenTrack: JitsiTrack | null
   readonly muted: boolean
+  readonly serverMuted: boolean
   readonly speaking: boolean
 }
 
@@ -57,17 +62,26 @@ export interface CallContextValue {
     videoTrack: JitsiTrack | null,
     local: boolean,
   ) => void
-  readonly moderateParticipant: (userId: string, action: 'mute' | 'kick') => Promise<void>
+  readonly remoteAudioFor: (userId: string) => RemoteAudioPreference
+  readonly setRemoteUserMuted: (userId: string, muted: boolean) => void
+  readonly setRemoteUserVolume: (userId: string, volume: number) => void
+  readonly moderateParticipant: (
+    userId: string,
+    action: 'server_mute' | 'server_unmute' | 'kick',
+    target?: CallTarget,
+  ) => Promise<void>
 }
 
 export interface MutableParticipant {
   id: string
   userId: string
   name: string
+  user?: User
   local: boolean
   audioTrack: JitsiTrack | null
   videoTrack: JitsiTrack | null
   screenTrack: JitsiTrack | null
   muted: boolean
+  serverMuted: boolean
   speaking: boolean
 }

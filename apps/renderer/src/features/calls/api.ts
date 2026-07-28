@@ -45,7 +45,7 @@ export const callApi = {
     client: PocketBase,
     target: CallTarget,
     userId: string,
-    action: 'mute' | 'kick',
+    action: 'server_mute' | 'server_unmute' | 'kick',
   ) {
     return client.send(
       `/api/thiscord/calls/${target.kind}/${encodeURIComponent(target.id)}/moderate`,

@@ -406,6 +406,51 @@ test('unsigned Jitsi participants are never matched to occupancy by display name
   assert.deepEqual(merged.map((item) => item.id).sort(), ['presence:occupancy', 'unsigned-jitsi'])
 })
 
+test('signed Jitsi participants inherit server-mute state and user identity from occupancy', () => {
+  const user = { id: 'signed-user', displayName: 'Signed user' }
+  const live = {
+    id: 'signed-jitsi',
+    userId: user.id,
+    name: user.displayName,
+    local: false,
+    audioTrack: {},
+    videoTrack: null,
+    screenTrack: null,
+    muted: false,
+    serverMuted: false,
+    speaking: true,
+  }
+  const merged = mergeCallParticipants(
+    [live],
+    [{
+      id: 'occupancy',
+      call: 'call',
+      user: user.id,
+      joinedAt: '',
+      leftAt: '',
+      expiresAt: '',
+      muted: true,
+      serverMuted: true,
+      deafened: false,
+      camera: false,
+      sharing: false,
+      created: '',
+      updated: '',
+      expand: {
+        user,
+        call: { expand: { room: { channel: 'voice' } } },
+      },
+    }],
+    { kind: 'channel', id: 'voice' },
+  )
+
+  assert.equal(merged.length, 1)
+  assert.equal(merged[0].id, live.id)
+  assert.equal(merged[0].serverMuted, true)
+  assert.equal(merged[0].user, user)
+  assert.equal(merged[0].audioTrack, live.audioTrack)
+})
+
 test('conference lifecycle binds generic engine events and classifies recovery failures', () => {
   const connectionListeners = new Map()
   const conferenceListeners = new Map()

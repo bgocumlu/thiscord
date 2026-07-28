@@ -19,6 +19,7 @@ import { initials } from '../../components/WorkspacePrimitives'
 import { usePocketBase } from '../../lib/contexts'
 import { useAppRouter } from '../../lib/router'
 import { CallSurface } from '../calls/CallSurface'
+import type { MemberInteractions } from '../members/memberInteractions'
 import { participantBelongsToTarget } from '../calls/targets'
 import { MessageSurface } from '../messaging/MessageSurface'
 import { conversationKeys } from './queryKeys'
@@ -40,6 +41,7 @@ export function ConversationView({
   onStartCall,
   onToggleMute,
   onOpenNavigation,
+  memberInteractions,
 }: {
   readonly conversation: Conversation | null
   readonly members: ConversationMember[]
@@ -51,6 +53,7 @@ export function ConversationView({
   readonly onStartCall: (target: CallTargetDescriptor) => void
   readonly onToggleMute: () => void
   readonly onOpenNavigation: () => void
+  readonly memberInteractions: MemberInteractions
 }) {
   const client = usePocketBase()
   const queryClient = useQueryClient()
@@ -157,6 +160,7 @@ export function ConversationView({
           occupancy={callOccupancy}
           description={`${conversationMembers.length} members`}
           presentation="conversation"
+          memberInteractions={memberInteractions}
         />
       ) : null}
       <MessageSurface

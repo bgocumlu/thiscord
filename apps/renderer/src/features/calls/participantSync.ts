@@ -29,6 +29,7 @@ export function participantFromJitsi(participant: JitsiParticipant): MutablePart
     videoTrack: null,
     screenTrack: null,
     muted: true,
+    serverMuted: false,
     speaking: false,
   }
 }
@@ -43,6 +44,7 @@ export function createRemoteParticipant(id: string): MutableParticipant {
     videoTrack: null,
     screenTrack: null,
     muted: true,
+    serverMuted: false,
     speaking: false,
   }
 }
@@ -105,17 +107,26 @@ export function mergeCallParticipants(
       id: `presence:${record.id}`,
       userId: record.user,
       name: user?.displayName || user?.handle || 'Member',
+      user,
       local: false,
       audioTrack: null,
       videoTrack: null,
       screenTrack: null,
       muted: record.muted,
+      serverMuted: record.serverMuted,
       speaking: false,
     })
   }
   for (const participant of liveParticipants) {
     const key = participant.userId ? `user:${participant.userId}` : `jitsi:${participant.id}`
-    merged.set(key, participant)
+    const occupancyParticipant = merged.get(key)
+    merged.set(key, occupancyParticipant
+      ? {
+          ...participant,
+          user: occupancyParticipant.user,
+          serverMuted: occupancyParticipant.serverMuted,
+        }
+      : participant)
   }
   return [...merged.values()]
 }

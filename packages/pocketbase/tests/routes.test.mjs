@@ -808,10 +808,16 @@ test('call moderation is backend-authorized and never delegates Jitsi moderator 
   const fixture = communityFixture({
     userId: 'owner',
     ownerId: 'owner',
+    permissions: ['view_channels', 'connect_voice', 'speak', 'stream_video'],
     channelKind: 'voice',
   })
   const actor = record('users', 'owner')
   const target = record('users', 'target')
+  fixture.app.collection('memberships').push(record('memberships', 'target-membership', {
+    community: fixture.community.id,
+    user: target.id,
+    state: 'active',
+  }))
   const call = record('call_sessions', 'active-call', {
     room: fixture.callRoom.id,
     endedAt: '',
@@ -827,6 +833,9 @@ test('call moderation is backend-authorized and never delegates Jitsi moderator 
   globalThis.$os.getenv = (name) => ({
     JITSI_APP_SECRET: 'control-secret',
     JITSI_CONTROL_URL: 'http://prosody.test/thiscord-call-control',
+    JITSI_DOMAIN: 'meet.example.test',
+    JITSI_URL: 'https://meet.example.test',
+    JITSI_APP_ID: 'thiscord',
   })[name] || ''
   globalThis.$http.send = (value) => {
     request = value
@@ -836,15 +845,46 @@ test('call moderation is backend-authorized and never delegates Jitsi moderator 
   const response = routes.get('POST /api/thiscord/calls/{kind}/{id}/moderate')(event({
     app: fixture.app,
     auth: actor,
-    body: { userId: target.id, action: 'mute' },
+    body: { userId: target.id, action: 'server_mute' },
     path: { kind: 'channel', id: fixture.channel.id },
   }))
   assert.equal(response.status, 200)
   assert.deepEqual(JSON.parse(request.body), {
     roomName: 'opaque-room',
     userIds: [target.id],
-    action: 'mute',
+    action: 'policy',
+    canSpeak: false,
+    canStreamVideo: true,
   })
+  assert.equal(
+    fixture.app.findRecordById('call_participants', 'target-participant').getBool('serverMuted'),
+    true,
+  )
+  const reconnect = routes.get('GET /api/thiscord/calls/{kind}/{id}/join')(event({
+    app: fixture.app,
+    auth: target,
+    path: { kind: 'channel', id: fixture.channel.id },
+  }))
+  assert.equal(reconnect.value.canSpeak, false)
+  assert.equal(reconnect.value.canStreamVideo, true)
+  const unmuted = routes.get('POST /api/thiscord/calls/{kind}/{id}/moderate')(event({
+    app: fixture.app,
+    auth: actor,
+    body: { userId: target.id, action: 'server_unmute' },
+    path: { kind: 'channel', id: fixture.channel.id },
+  }))
+  assert.equal(unmuted.status, 200)
+  assert.deepEqual(JSON.parse(request.body), {
+    roomName: 'opaque-room',
+    userIds: [target.id],
+    action: 'policy',
+    canSpeak: true,
+    canStreamVideo: true,
+  })
+  assert.equal(
+    fixture.app.findRecordById('call_participants', 'target-participant').getBool('serverMuted'),
+    false,
+  )
   const kicked = routes.get('POST /api/thiscord/calls/{kind}/{id}/moderate')(event({
     app: fixture.app,
     auth: actor,
@@ -869,10 +909,26 @@ test('call moderation is backend-authorized and never delegates Jitsi moderator 
 
   const racingFixture = communityFixture({
     userId: 'moderator',
-    permissions: ['view_channels', 'connect_voice', 'mute_members'],
+    permissions: ['view_channels', 'connect_voice', 'speak', 'stream_video'],
     channelKind: 'voice',
   })
   const racingActor = record('users', 'moderator')
+  const moderatorRole = record('roles', 'moderator-role', {
+    community: racingFixture.community.id,
+    managed: false,
+    position: 10,
+    permissions: ['mute_members'],
+  })
+  racingFixture.app.collection('roles').push(moderatorRole)
+  racingFixture.app.collection('member_roles').push(record('member_roles', 'moderator-role-assignment', {
+    membership: racingFixture.membership.id,
+    role: moderatorRole.id,
+  }))
+  racingFixture.app.collection('memberships').push(record('memberships', 'racing-target-membership', {
+    community: racingFixture.community.id,
+    user: target.id,
+    state: 'active',
+  }))
   const racingCall = record('call_sessions', 'racing-call', {
     room: racingFixture.callRoom.id,
     endedAt: '',
@@ -886,7 +942,7 @@ test('call moderation is backend-authorized and never delegates Jitsi moderator 
   }))
   const racingTransaction = racingFixture.app.runInTransaction.bind(racingFixture.app)
   racingFixture.app.runInTransaction = (callback) => {
-    racingFixture.everyone.set('permissions', ['view_channels', 'connect_voice'])
+    moderatorRole.set('permissions', [])
     return racingTransaction(callback)
   }
   request = null
@@ -894,12 +950,84 @@ test('call moderation is backend-authorized and never delegates Jitsi moderator 
     () => routes.get('POST /api/thiscord/calls/{kind}/{id}/moderate')(event({
       app: racingFixture.app,
       auth: racingActor,
-      body: { userId: target.id, action: 'mute' },
+      body: { userId: target.id, action: 'server_mute' },
       path: { kind: 'channel', id: racingFixture.channel.id },
     })),
     /mute_members/i,
   )
   assert.equal(request, null)
+})
+
+test('call moderation cannot target an equal-or-higher community member', () => {
+  const fixture = communityFixture({
+    userId: 'moderator',
+    permissions: ['view_channels', 'connect_voice'],
+    channelKind: 'voice',
+  })
+  const actor = record('users', 'moderator')
+  const target = record('users', 'target')
+  const actorRole = record('roles', 'actor-role', {
+    community: fixture.community.id,
+    managed: false,
+    position: 10,
+    permissions: ['mute_members', 'manage_members'],
+  })
+  const targetRole = record('roles', 'target-role', {
+    community: fixture.community.id,
+    managed: false,
+    position: 10,
+    permissions: [],
+  })
+  const targetMembership = record('memberships', 'target-membership', {
+    community: fixture.community.id,
+    user: target.id,
+    state: 'active',
+  })
+  fixture.app.collection('roles').push(actorRole, targetRole)
+  fixture.app.collection('memberships').push(targetMembership)
+  fixture.app.collection('member_roles').push(
+    record('member_roles', 'actor-assignment', {
+      membership: fixture.membership.id,
+      role: actorRole.id,
+    }),
+    record('member_roles', 'target-assignment', {
+      membership: targetMembership.id,
+      role: targetRole.id,
+    }),
+  )
+  const call = record('call_sessions', 'active-call', {
+    room: fixture.callRoom.id,
+    endedAt: '',
+  })
+  fixture.app.collection('call_sessions').push(call)
+  fixture.app.collection('call_participants').push(record('call_participants', 'target-participant', {
+    call: call.id,
+    user: target.id,
+    leftAt: '',
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  }))
+  let controlRequests = 0
+  globalThis.$http.send = () => {
+    controlRequests += 1
+    return { statusCode: 200, raw: '{"affected":1}' }
+  }
+
+  for (const action of ['server_mute', 'kick']) {
+    assert.throws(
+      () => routes.get('POST /api/thiscord/calls/{kind}/{id}/moderate')(event({
+        app: fixture.app,
+        auth: actor,
+        body: { userId: target.id, action },
+        path: { kind: 'channel', id: fixture.channel.id },
+      })),
+      /equal or higher role/i,
+    )
+  }
+  assert.equal(controlRequests, 0)
+  assert.equal(
+    fixture.app.findRecordById('call_participants', 'target-participant').getBool('serverMuted'),
+    false,
+  )
 })
 
 test('call occupancy reuses active records, refreshes expiry, and ends when empty', () => {

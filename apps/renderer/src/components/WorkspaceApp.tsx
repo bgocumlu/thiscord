@@ -1,4 +1,9 @@
-import type { Channel, Community, User } from '@thiscord/shared'
+import type {
+  Channel,
+  Community,
+  Membership,
+  User,
+} from '@thiscord/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   Bell,
@@ -16,7 +21,7 @@ import {
 } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation'
-import { useRuntimeConfig } from '../lib/contexts'
+import { usePocketBase, useRuntimeConfig } from '../lib/contexts'
 import { errorMessage, requestWasDeniedOrMissing } from '../lib/pocketbase'
 import { useAppRouter } from '../lib/router'
 import { useCall } from '../features/calls/CallProvider'
@@ -58,10 +63,16 @@ import { useOpenDirectConversation } from '../features/conversations/useOpenDire
 import { ChannelMessageView } from '../features/messaging/ChannelMessageView'
 import { MembersPanel } from '../features/members/MembersPanel'
 import {
+  ModerationDialog,
+  type ModerationAction,
+} from '../features/members/MemberAdministration'
+import {
   MemberProfileDialog,
   ProfileDialog,
 } from '../features/members/ProfileDialogs'
 import { useCommunityMembers } from '../features/members/queries'
+import { memberApi } from '../features/members/api'
+import type { MemberInteractions } from '../features/members/memberInteractions'
 import { memberKeys } from '../features/members/queryKeys'
 import { usePresenceLifecycle } from '../features/members/usePresenceLifecycle'
 import { useUserAppearance } from '../features/members/useUserAppearance'
@@ -81,6 +92,12 @@ type Modal =
   | { readonly kind: 'settings' }
   | { readonly kind: 'profile' }
   | { readonly kind: 'member'; readonly user: User }
+  | {
+      readonly kind: 'moderation'
+      readonly community: Community
+      readonly membership: Membership
+      readonly action: ModerationAction
+    }
   | { readonly kind: 'direct' }
   | null
 
@@ -94,6 +111,7 @@ export function WorkspaceApp() {
       ? route.conversationId
       : ''
   const config = useRuntimeConfig()
+  const client = usePocketBase()
   const queryClient = useQueryClient()
   const { user, logout } = useAuth()
   const call = useCall()
@@ -198,6 +216,8 @@ export function WorkspaceApp() {
   const [showMembers, setShowMembers] = useState(true)
   const [modal, setModal] = useState<Modal>(null)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [memberActionBusy, setMemberActionBusy] = useState(false)
+  const [memberActionError, setMemberActionError] = useState('')
   const [acknowledgedNsfw, setAcknowledgedNsfw] = useState<ReadonlySet<string>>(() => {
     try {
       return new Set(JSON.parse(sessionStorage.getItem('thiscord_nsfw_ack') ?? '[]') as string[])
@@ -233,6 +253,74 @@ export function WorkspaceApp() {
   const channelMute = useChannelMute(currentUser, activeChannel)
   const conversationMute = useConversationMute(currentUser, activeConversation)
   const directConversation = useOpenDirectConversation()
+  const memberRolePositions = useMemo(() => {
+    const rolePositionById = new Map(
+      (communityData.roles.data ?? []).map((role) => [role.id, role.position]),
+    )
+    const positions = new Map<string, number>()
+    for (const assignment of communityData.memberRoles.data ?? []) {
+      positions.set(
+        assignment.membership,
+        Math.max(
+          positions.get(assignment.membership) ?? 0,
+          rolePositionById.get(assignment.role) ?? 0,
+        ),
+      )
+    }
+    return positions
+  }, [communityData.memberRoles.data, communityData.roles.data])
+  const canModerateUser = useCallback((userId: string) => {
+    if (!community || userId === currentUser.id || userId === community.owner) return false
+    if (communityPermissionQuery.data?.owner) return true
+    const targetMembership = (communityData.members.data ?? []).find(
+      (membership) => membership.user === userId,
+    )
+    if (!targetMembership) return false
+    return (memberRolePositions.get(targetMembership.id) ?? 0)
+      < (communityPermissionQuery.data?.highestRolePosition ?? 0)
+  }, [
+    community,
+    communityData.members.data,
+    communityPermissionQuery.data?.highestRolePosition,
+    communityPermissionQuery.data?.owner,
+    currentUser.id,
+    memberRolePositions,
+  ])
+  const openMemberProfile = useCallback((person: User) => {
+    setModal(person.id === currentUser.id
+      ? { kind: 'profile' }
+      : { kind: 'member', user: person })
+  }, [currentUser.id])
+  const messageMember = useCallback((person: User) => {
+    if (person.id !== currentUser.id) void directConversation.open(person.id)
+  }, [currentUser.id, directConversation])
+  const communityMemberInteractions = useMemo<MemberInteractions>(() => ({
+    currentUserId: currentUser.id,
+    memberships: communityData.members.data ?? [],
+    canManageMembers: communityPermissions.has('manage_members'),
+    canModerateUser,
+    onOpenProfile: openMemberProfile,
+    onMessage: messageMember,
+    onModerate: community
+      ? (membership, action) => {
+          setMemberActionError('')
+          setModal({ kind: 'moderation', community, membership, action })
+        }
+      : undefined,
+  }), [
+    canModerateUser,
+    community,
+    communityData.members.data,
+    communityPermissions,
+    currentUser.id,
+    messageMember,
+    openMemberProfile,
+  ])
+  const directMemberInteractions = useMemo<MemberInteractions>(() => ({
+    currentUserId: currentUser.id,
+    onOpenProfile: openMemberProfile,
+    onMessage: messageMember,
+  }), [currentUser.id, messageMember, openMemberProfile])
   const closeMobileNavigation = useCallback(() => setMobileSidebarOpen(false), [])
   const callNavigation = useCallNavigation({
     targets: callTargets,
@@ -338,6 +426,7 @@ export function WorkspaceApp() {
             unreadChannelIds={unreadChannelIds}
             permissions={communityPermissions}
             voiceOccupancy={callOccupancy.data ?? []}
+            memberInteractions={communityMemberInteractions}
             hasMore={Boolean(communityData.channels.hasNextPage)}
             loadingMore={communityData.channels.isFetchingNextPage}
             onLoadMore={() => void communityData.channels.fetchNextPage()}
@@ -381,7 +470,13 @@ export function WorkspaceApp() {
                   setAcknowledgedNsfw(next)
                 }}>Continue</button></section>
               ) : activeChannel.kind === 'voice'
-                ? <VoiceChannelSurface channel={activeChannel} occupancy={callOccupancy.data ?? []} />
+                ? (
+                    <VoiceChannelSurface
+                      channel={activeChannel}
+                      occupancy={callOccupancy.data ?? []}
+                      memberInteractions={communityMemberInteractions}
+                    />
+                  )
                 : <ChannelMessageView channel={activeChannel} currentUser={currentUser} permissions={channelPermissions} />}
             </>
           ) : community ? (
@@ -411,6 +506,7 @@ export function WorkspaceApp() {
                     onStartCall={(target) => void call.join(target)}
                     onToggleMute={() => void conversationMute.toggle()}
                     onOpenNavigation={() => setMobileSidebarOpen((value) => !value)}
+                    memberInteractions={directMemberInteractions}
                   />
           )}
         </main>
@@ -426,10 +522,7 @@ export function WorkspaceApp() {
                 hasMore={Boolean(communityData.members.hasNextPage)}
                 loadingMore={communityData.members.isFetchingNextPage}
                 onLoadMore={() => void communityData.members.fetchNextPage()}
-                onOpenMember={(person) => {
-                  if (person.id === currentUser.id) setModal({ kind: 'profile' })
-                  else void directConversation.open(person.id)
-                }}
+                interactions={communityMemberInteractions}
               />
         ) : null}
       </div>
@@ -518,6 +611,53 @@ export function WorkspaceApp() {
             const person = modal.user
             setModal(null)
             void directConversation.open(person.id)
+          }}
+        />
+      ) : null}
+      {modal?.kind === 'moderation' ? (
+        <ModerationDialog
+          action={modal.action}
+          memberName={
+            modal.membership.nickname
+            || modal.membership.expand?.user?.displayName
+            || 'member'
+          }
+          busy={memberActionBusy}
+          error={memberActionError}
+          onClose={() => {
+            if (!memberActionBusy) {
+              setMemberActionError('')
+              setModal(null)
+            }
+          }}
+          onConfirm={async (reason, durationMinutes) => {
+            if (memberActionBusy) return
+            setMemberActionBusy(true)
+            setMemberActionError('')
+            try {
+              await memberApi.moderate(client, modal.community.id, {
+                action: modal.action,
+                userId: modal.membership.user,
+                reason,
+                durationMinutes,
+              })
+              await Promise.all([
+                queryClient.invalidateQueries({
+                  queryKey: memberKeys.directory(modal.community.id),
+                }),
+                queryClient.invalidateQueries({
+                  queryKey: communityKeys.memberships,
+                }),
+                queryClient.invalidateQueries({
+                  queryKey: channelKeys.effectivePermissions(modal.community.id),
+                }),
+              ])
+              setModal(null)
+            } catch (caught) {
+              setMemberActionError(errorMessage(caught))
+            } finally {
+              setMemberActionBusy(false)
+            }
           }}
         />
       ) : null}
