@@ -6,9 +6,11 @@ import {
   callTargetForRealtimeEvent,
   queryKeysForRealtimeEvent,
   updateCallOccupancyCache,
+  updateMessageHistoryCache,
   updatePresenceDirectoryCache,
 } from '../src/features/realtime/invalidation.ts'
 import {
+  realtimeExpandFor,
   realtimeFilterFor,
   settleRealtimeSubscriptions,
 } from '../src/hooks/useRealtimeInvalidation.ts'
@@ -104,6 +106,36 @@ test('presence and call realtime events patch cached rows without directory refe
     updateCallOccupancyCache([participant], 'update', { ...participant, leftAt: 'now' }),
     [],
   )
+})
+
+test('message realtime events merge into paginated history without duplicates', () => {
+  const older = { id: 'older', content: 'old' }
+  const duplicate = { id: 'message', content: 'stale' }
+  const history = {
+    pageParams: [null, { id: 'cursor' }],
+    pages: [
+      { items: [duplicate], hasMore: true, nextCursor: { id: 'cursor' }, perPage: 50 },
+      { items: [older, duplicate], hasMore: false, nextCursor: null, perPage: 50 },
+    ],
+  }
+  const fresh = { id: 'fresh', content: 'new' }
+  const created = updateMessageHistoryCache(history, 'create', fresh)
+  assert.deepEqual(created.pages[0].items, [fresh, duplicate])
+
+  const updatedRecord = { id: 'message', content: 'updated' }
+  const updated = updateMessageHistoryCache(created, 'update', updatedRecord)
+  assert.deepEqual(updated.pages[0].items, [fresh, updatedRecord])
+  assert.deepEqual(updated.pages[1].items, [older])
+
+  const removed = updateMessageHistoryCache(updated, 'delete', fresh)
+  assert.deepEqual(removed.pages[0].items, [updatedRecord])
+  assert.equal(updateMessageHistoryCache(undefined, 'create', fresh), undefined)
+})
+
+test('message realtime subscriptions request the expansions required to render rows', () => {
+  assert.equal(realtimeExpandFor('messages'), 'author,replyTo,replyTo.author')
+  assert.equal(realtimeExpandFor('direct_messages'), 'author,replyTo,replyTo.author')
+  assert.equal(realtimeExpandFor('community_presence'), '')
 })
 
 test('private realtime collections always receive user or community filters', () => {

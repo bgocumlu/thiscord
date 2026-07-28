@@ -8,12 +8,27 @@ migrate((app) => {
   const channelCommunityMember = `${authenticated} && @collection.memberships:auth.community ?= channel.community && @collection.memberships:auth.user ?= @request.auth.id && @collection.memberships:auth.state ?= 'active'`;
   const conversationMember = `${authenticated} && @collection.conversation_members:auth.conversation ?= conversation && @collection.conversation_members:auth.user ?= @request.auth.id`;
   const directReactionMember = `${authenticated} && @collection.conversation_members:auth.conversation ?= message.conversation && @collection.conversation_members:auth.user ?= @request.auth.id`;
+  const importedCollectionIds = new Map();
   const saveCollection = (collection) => {
     if (!collection.fields.getByName("created")) {
       collection.fields.add(new AutodateField({ name: "created", onCreate: true, onUpdate: false }));
       collection.fields.add(new AutodateField({ name: "updated", onCreate: true, onUpdate: true }));
     }
-    app.save(collection);
+    const definition = JSON.parse(JSON.stringify(collection));
+    for (const field of definition.fields) {
+      if (field.type === "relation" && importedCollectionIds.has(field.collectionId)) {
+        field.collectionId = importedCollectionIds.get(field.collectionId);
+      }
+    }
+    let existing = null;
+    try {
+      existing = app.findCollectionByNameOrId(collection.name);
+      definition.id = existing.id;
+    } catch {
+      // New databases do not have the application collection yet.
+    }
+    importedCollectionIds.set(collection.id, definition.id);
+    app.importCollections([definition], false);
   };
 
   // PocketBase initializes a users auth collection on first boot. Extend that
@@ -50,7 +65,10 @@ migrate((app) => {
     maxSize: 32 * 1024,
     hidden: true,
   }));
-  users.indexes = [...users.indexes, "CREATE UNIQUE INDEX idx_users_handle ON users (handle)"];
+  users.indexes = [
+    ...users.indexes.filter((index) => !index.includes("idx_users_handle")),
+    "CREATE UNIQUE INDEX idx_users_handle ON users (handle)",
+  ];
   users.passwordAuth.enabled = true;
   users.passwordAuth.identityFields = ["email", "handle"];
   saveCollection(users);

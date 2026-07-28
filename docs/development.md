@@ -100,13 +100,17 @@ each target operating system and real devices.
 Schema changes belong in `packages/pocketbase/pb_migrations`; authorized product
 actions belong in `packages/pocketbase/pb_hooks`.
 
-The single `1785031200_v2_baseline.js` migration creates the complete current
-schema directly, including channel and conversation messaging, generic call
-rooms, ordered private presence leases, privacy-safe presence aggregates, final
-access rules, and quality repairs. If a
-local database was created from any earlier migration set, remove only that
-disposable local PocketBase data and recreate it from the baseline. There is
-intentionally no legacy call-schema migration or compatibility route.
+`1785031200_v2_baseline.js` creates the complete schema for a clean database,
+including channel and conversation messaging, generic call rooms, ordered
+private presence leases, privacy-safe presence aggregates, final access rules,
+and quality repairs. Its collection importer also adopts a pre-baseline local
+schema by collection name instead of colliding with existing indexes.
+
+`1785254000_presence_schema_upgrade.js` is the forward migration for databases
+that already recorded an earlier version of the baseline. It preserves durable
+records, removes only obsolete transient device-presence rows, and installs the
+ordered account/call lease collections. Back up any non-disposable data before
+running migrations.
 
 Never validate this reset against a data directory that may contain user data.
 The PocketBase smoke suite creates and removes an isolated temporary directory;

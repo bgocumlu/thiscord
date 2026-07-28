@@ -84,7 +84,8 @@ onFileDownloadRequest((e) => {
 onRealtimeMessageSend((e) => {
   const guard = require(`${__hooks}/lib/channelAccess.js`);
   const access = require(`${__hooks}/lib/permissions.js`);
-  if (e.hasSuperuserAuth() || !e.message) {
+  const auth = e.auth || e.client.get("auth");
+  if (e.hasSuperuserAuth() || access.isSuperuserRecord(auth) || !e.message) {
     e.next();
     return;
   }
@@ -104,18 +105,18 @@ onRealtimeMessageSend((e) => {
       ? e.message.data
       : String.fromCharCode(...e.message.data);
     const payload = JSON.parse(raw);
-    if (!e.auth) return;
+    if (!auth) return;
     if (calls.CALL_SCOPED_COLLECTIONS.includes(collection)) {
       const target = calls.targetForRealtimeRecord(e.app, collection, payload.record || {});
       if (!target) return;
-      calls.authorizeTarget(e.app, target, e.auth.id, "view");
+      calls.authorizeTarget(e.app, target, auth.id, "view");
     } else {
       const channelId = guard.channelIdForRealtimeRecord(e.app, collection, payload.record || {});
       if (!channelId) return;
       const required = ["messages", "reactions", "read_states"].includes(collection)
         ? "read_history"
         : "view_channels";
-      access.channelContext(e.app, channelId, e.auth.id, required);
+      access.channelContext(e.app, channelId, auth.id, required);
     }
     e.next();
   } catch {

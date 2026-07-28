@@ -1,6 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query'
-import type { CallParticipantRecord } from '@thiscord/shared'
-import type { InfiniteData } from '@tanstack/react-query'
+import type {
+  CallParticipantRecord,
+  DirectMessage,
+  Message,
+} from '@thiscord/shared'
+import type { InfiniteData, QueryKey } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import {
   callOccupancyQueryMatches,
@@ -8,6 +12,7 @@ import {
   queryKeysForRealtimeEvent,
   realtimeCollections,
   updateCallOccupancyCache,
+  updateMessageHistoryCache,
   updatePresenceDirectoryCache,
   type RealtimeCollection,
 } from '../features/realtime/invalidation'
@@ -19,6 +24,10 @@ import type {
 } from '../features/members/api'
 import { memberKeys } from '../features/members/queryKeys'
 import { callKeys } from '../features/calls/queryKeys'
+import { messageKeys } from '../features/messaging/queryKeys'
+import { conversationKeys } from '../features/conversations/queryKeys'
+import type { MessageCursor } from '../features/messaging/api'
+import type { DirectMessageCursor } from '../features/conversations/api'
 
 export interface RealtimeScope {
   readonly enabled: boolean
@@ -139,10 +148,25 @@ export function realtimeFilterFor(
   }
 }
 
-function realtimeExpandFor(collection: RealtimeCollection) {
+export function realtimeExpandFor(collection: RealtimeCollection) {
+  if (collection === 'messages' || collection === 'direct_messages') {
+    return 'author,replyTo,replyTo.author'
+  }
   if (collection === 'call_sessions') return 'room'
   if (collection === 'call_participants') return 'call.room'
   return ''
+}
+
+interface MessagePage<TMessage, TCursor> {
+  readonly perPage: number
+  readonly hasMore: boolean
+  readonly nextCursor: TCursor | null
+  readonly items: readonly TMessage[]
+}
+
+function queryKeysEqual(left: QueryKey, right: QueryKey) {
+  return left.length === right.length
+    && left.every((value, index) => value === right[index])
 }
 
 export async function settleRealtimeSubscriptions(
@@ -221,6 +245,28 @@ export function useRealtimeInvalidation(scope: RealtimeScope) {
               )
               return
             }
+            let patchedMessageKey: QueryKey | undefined
+            if (collection === 'messages' && event.record.channel) {
+              patchedMessageKey = messageKeys.channel(event.record.channel)
+              queryClient.setQueryData<InfiniteData<MessagePage<Message, MessageCursor>>>(
+                patchedMessageKey,
+                (current) => updateMessageHistoryCache(
+                  current,
+                  action,
+                  event.record as unknown as Message,
+                ),
+              )
+            } else if (collection === 'direct_messages' && event.record.conversation) {
+              patchedMessageKey = conversationKeys.messages(event.record.conversation)
+              queryClient.setQueryData<InfiniteData<MessagePage<DirectMessage, DirectMessageCursor>>>(
+                patchedMessageKey,
+                (current) => updateMessageHistoryCache(
+                  current,
+                  action,
+                  event.record as unknown as DirectMessage,
+                ),
+              )
+            }
             const callTarget = callTargetForRealtimeEvent(collection, event.record)
             if (collection === 'call_participants' && callTarget) {
               queryClient.setQueriesData<readonly CallParticipantRecord[]>(
@@ -245,6 +291,7 @@ export function useRealtimeInvalidation(scope: RealtimeScope) {
               return
             }
             for (const queryKey of queryKeysForRealtimeEvent(collection, event.record)) {
+              if (patchedMessageKey && queryKeysEqual(queryKey, patchedMessageKey)) continue
               void queryClient.invalidateQueries({ queryKey })
             }
           }, filter || expand ? { filter, expand } : undefined)

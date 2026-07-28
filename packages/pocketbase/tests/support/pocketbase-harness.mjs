@@ -228,16 +228,19 @@ export function loadCallAccess() {
 export function loadAccessRequestHooks() {
   installPocketBaseGlobals()
   const listHandlers = []
+  const realtimeHandlers = []
   globalThis.onRecordsListRequest = (handler, ...collections) => {
     listHandlers.push({ handler, collections })
   }
   globalThis.onRecordViewRequest = () => undefined
   globalThis.onFileDownloadRequest = () => undefined
-  globalThis.onRealtimeMessageSend = () => undefined
+  globalThis.onRealtimeMessageSend = (handler) => {
+    realtimeHandlers.push(handler)
+  }
   const path = resolve(hooksRoot, '03_channel_access.pb.js')
   delete require.cache[require.resolve(path)]
   require(path)
-  return listHandlers
+  return { listHandlers, realtimeHandlers }
 }
 
 export function loadActionRoutes() {

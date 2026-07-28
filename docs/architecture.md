@@ -98,9 +98,14 @@ recreate presence after a racing revocation.
 
 Web authentication uses PocketBase’s local auth store. Electron supplies an isolated auth store whose serialized token is encrypted through Electron `safeStorage`; renderer code has no Node.js access. The desktop window uses context isolation, sandboxing, navigation allowlists, and origin-scoped media permissions.
 
+User directory access is relationship-scoped: authenticated users may resolve
+public profile fields for accounts that share an active community or a
+conversation. Account presence, last-seen state, and preferences stay hidden on
+user records and are exposed only through their purpose-built scoped routes.
+
 ## Durable data
 
-The single V2 baseline migration creates:
+The V2 baseline and subsequent forward migrations create:
 
 ```text
 users, communities, memberships, roles, member_roles

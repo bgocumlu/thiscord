@@ -85,6 +85,43 @@ export function updateCallOccupancyCache(
     : [...remaining, record]
 }
 
+export function updateMessageHistoryCache<
+  TMessage extends { readonly id: string },
+  TPage extends { readonly items: readonly TMessage[] },
+>(
+  current: InfiniteData<TPage> | undefined,
+  action: 'create' | 'update' | 'delete',
+  record: TMessage,
+) {
+  if (!current) return current
+  let found = false
+  let keptReplacement = false
+  let changed = false
+  const pages = current.pages.map((page) => {
+    const items: TMessage[] = []
+    for (const item of page.items) {
+      if (item.id !== record.id) {
+        items.push(item)
+        continue
+      }
+      found = true
+      changed = true
+      if (action !== 'delete' && !keptReplacement) {
+        items.push(record)
+        keptReplacement = true
+      }
+    }
+    return items.length === page.items.length && !page.items.some((item) => item.id === record.id)
+      ? page
+      : { ...page, items }
+  })
+  if (action === 'create' && !found && pages[0]) {
+    pages[0] = { ...pages[0], items: [record, ...pages[0].items] }
+    changed = true
+  }
+  return changed ? { ...current, pages } : current
+}
+
 function present(...keys: Array<QueryKey | undefined>) {
   return keys.filter((key): key is QueryKey => Boolean(key))
 }

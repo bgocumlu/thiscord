@@ -294,9 +294,10 @@ V2 produces one coherent schema for fresh installations:
 7. Replace the pre-user migrations with the single
    `1785031200_v2_baseline.js` migration before the first supported V2 release.
 
-No channel-call backfill is required. Existing local PocketBase data is treated
-as disposable and should be reset explicitly rather than carried through
-production-oriented migration machinery.
+No channel-call backfill was required for that pre-release consolidation. Once
+the baseline was used by persistent installations, later schema changes moved
+to forward migrations. `1785254000_presence_schema_upgrade.js` preserves
+durable records while replacing only obsolete transient presence state.
 
 ### API cutover
 

@@ -42,6 +42,11 @@ delivery:
 - message attachments require `read_history`;
 - unauthorized realtime events are dropped rather than sent.
 
+Authenticated users can resolve the public profile fields of users who share an
+active community or a direct/group conversation with them. Private account
+presence, last-seen state, preferences, and auth fields remain hidden; shared
+presence comes only from the scoped presence collections.
+
 Each user may still read their own membership tombstone after a kick, ban,
 leave, or parent-record cascade. The realtime client subscribes to that
 user-scoped record so access removal invalidates cached communities even after

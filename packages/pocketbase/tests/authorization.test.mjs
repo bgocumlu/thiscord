@@ -25,9 +25,9 @@ test('canonical policy manifest and PocketBase artifact cannot drift', async () 
 })
 
 test('raw scoped collection lists are denied instead of filtering after pagination', () => {
-  const handlers = loadAccessRequestHooks()
-  const channelLists = handlers.find(({ collections }) => collections.includes('channels'))
-  const callLists = handlers.find(({ collections }) => collections.includes('call_rooms'))
+  const { listHandlers } = loadAccessRequestHooks()
+  const channelLists = listHandlers.find(({ collections }) => collections.includes('channels'))
+  const callLists = listHandlers.find(({ collections }) => collections.includes('call_rooms'))
   for (const registration of [channelLists, callLists]) {
     assert.ok(registration)
     assert.throws(
@@ -46,6 +46,68 @@ test('raw scoped collection lists are denied instead of filtering after paginati
     })
     assert.equal(continued, true)
   }
+})
+
+test('realtime channel and call authorization use auth attached during subscription', () => {
+  const { realtimeHandlers } = loadAccessRequestHooks()
+  assert.equal(realtimeHandlers.length, 1)
+  const fixture = communityFixture({ permissions: ['view_channels', 'read_history'] })
+  const auth = record('users', fixture.membership.getString('user'))
+  const message = {
+    name: 'messages/*',
+    data: JSON.stringify({
+      action: 'create',
+      record: { id: 'message', channel: fixture.channel.id },
+    }),
+  }
+  let delivered = false
+  realtimeHandlers[0]({
+    app: fixture.app,
+    auth: undefined,
+    client: { get: (key) => key === 'auth' ? auth : undefined },
+    hasSuperuserAuth: () => false,
+    message,
+    next: () => { delivered = true },
+  })
+  assert.equal(delivered, true)
+
+  let leaked = false
+  realtimeHandlers[0]({
+    app: fixture.app,
+    auth: undefined,
+    client: { get: () => record('users', 'outsider') },
+    hasSuperuserAuth: () => false,
+    message,
+    next: () => { leaked = true },
+  })
+  assert.equal(leaked, false)
+
+  const voice = communityFixture({
+    permissions: ['view_channels', 'connect_voice'],
+    channelKind: 'voice',
+  })
+  let callDelivered = false
+  realtimeHandlers[0]({
+    app: voice.app,
+    auth: undefined,
+    client: {
+      get: () => record('users', voice.membership.getString('user')),
+    },
+    hasSuperuserAuth: () => false,
+    message: {
+      name: 'call_rooms/*',
+      data: JSON.stringify({
+        action: 'update',
+        record: {
+          id: voice.callRoom.id,
+          channel: voice.channel.id,
+          conversation: '',
+        },
+      }),
+    },
+    next: () => { callDelivered = true },
+  })
+  assert.equal(callDelivered, true)
 })
 
 test('batched record helpers do not impose an installation-sized count cap', () => {
@@ -102,12 +164,24 @@ test('authorized pagination fills pages after hidden records instead of filterin
   assert.equal(page.hasMore, true)
 })
 
-test('the single V2 baseline contains final call and messaging schema', async () => {
+test('the V2 migrations contain the baseline and data-preserving presence upgrade', async () => {
   const migrationsDirectory = resolve(import.meta.dirname, '../pb_migrations')
   const migrationFiles = (await readdir(migrationsDirectory)).filter((name) => name.endsWith('.js'))
-  assert.deepEqual(migrationFiles, ['1785031200_v2_baseline.js'])
+  assert.deepEqual(migrationFiles, [
+    '1785031200_v2_baseline.js',
+    '1785254000_presence_schema_upgrade.js',
+    '1785256000_user_directory_access.js',
+  ])
   const migration = await readFile(
-    resolve(migrationsDirectory, migrationFiles[0]),
+    resolve(migrationsDirectory, '1785031200_v2_baseline.js'),
+    'utf8',
+  )
+  const presenceUpgrade = await readFile(
+    resolve(migrationsDirectory, '1785254000_presence_schema_upgrade.js'),
+    'utf8',
+  )
+  const directoryAccess = await readFile(
+    resolve(migrationsDirectory, '1785256000_user_directory_access.js'),
     'utf8',
   )
   assert.match(migration, /CREATE UNIQUE INDEX idx_call_rooms_room_name ON call_rooms \(roomName\)/)
@@ -132,7 +206,18 @@ test('the single V2 baseline contains final call and messaging schema', async ()
   assert.match(migration, /name: "call_presence_leases"/)
   assert.match(migration, /CREATE UNIQUE INDEX idx_presence_user ON presence \(user\)/)
   assert.match(migration, /name: "devices", maxSize: 16 \* 1024, hidden: true/)
+  assert.match(migration, /users\.indexes\.filter\(\(index\) => !index\.includes\("idx_users_handle"\)\)/)
+  assert.match(migration, /app\.importCollections\(\[definition\], false\)/)
   assert.doesNotMatch(migration, /idx_presence_user_device|name: "deviceId"/)
+  assert.match(presenceUpgrade, /presence\.fields\.removeByName\("deviceId"\)/)
+  assert.match(presenceUpgrade, /presence\.fields\.removeByName\("expiresAt"\)/)
+  assert.match(presenceUpgrade, /clearRecords\("presence"\)/)
+  assert.match(presenceUpgrade, /name: "community_presence"/)
+  assert.match(presenceUpgrade, /name: "presence_leases"/)
+  assert.match(presenceUpgrade, /name: "call_presence_leases"/)
+  assert.match(directoryAccess, /memberships_via_user\.community\.memberships_via_community\.user/)
+  assert.match(directoryAccess, /conversation_members_via_user\.conversation\.conversation_members_via_conversation\.user/)
+  assert.match(directoryAccess, /users\.fields\.getByName\(name\)\.hidden = true/)
   assert.match(migration, /ownMembership/)
   assert.match(migration, /user = @request\.auth\.id \|\| \(@collection\.conversation_members:viewer/)
   assert.match(migration, /name: "lastMessageAt", required: true/)
