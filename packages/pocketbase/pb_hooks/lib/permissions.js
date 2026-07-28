@@ -1,37 +1,126 @@
-const ALL_PERMISSIONS = [
-  "administrator",
-  "manage_community",
-  "manage_channels",
-  "manage_roles",
-  "manage_messages",
-  "manage_members",
-  "view_audit_log",
-  "create_invites",
-  "view_channels",
-  "send_messages",
-  "read_history",
-  "add_reactions",
-  "attach_files",
-  "embed_links",
-  "mention_everyone",
-  "connect_voice",
-  "speak",
-  "stream_video",
-  "mute_members",
-];
+const policies = require(`${__hooks}/lib/policies.generated.js`);
+const {
+  ALL_PERMISSIONS,
+  CHANNEL_CAPABILITIES,
+  CHANNEL_KINDS,
+  DEFAULT_MEMBER_PERMISSIONS,
+  PERMISSION_DEFINITIONS,
+  PERMISSION_GROUPS,
+  PERMISSION_IMPLICATIONS,
+  PERMISSION_RESTRICTIONS,
+  POLICY_LIMITS,
+  POLICY_MANIFEST,
+  TRANSIENT_TIMINGS,
+} = policies;
 
-const DEFAULT_MEMBER_PERMISSIONS = [
-  "create_invites",
-  "view_channels",
-  "send_messages",
-  "read_history",
-  "add_reactions",
-  "attach_files",
-  "embed_links",
-  "connect_voice",
-  "speak",
-  "stream_video",
-];
+function findAllRecordsByFilter(app, collection, filter, sort = "", params = {}, batchSize = 200) {
+  const records = [];
+  let offset = 0;
+  while (true) {
+    const batch = app.findRecordsByFilter(
+      collection,
+      filter,
+      sort,
+      batchSize,
+      offset,
+      params,
+    );
+    records.push(...batch);
+    if (batch.length < batchSize) return records;
+    offset += batch.length;
+  }
+}
+
+function databaseDate(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) throw new BadRequestError("Invalid date.");
+  return date.toISOString().replace("T", " ");
+}
+
+function recordPreferences(record) {
+  let preferences = record?.get("preferences") || {};
+  try {
+    if (typeof preferences?.string === "function") {
+      preferences = JSON.parse(preferences.string());
+    } else if (typeof preferences === "string") {
+      preferences = JSON.parse(preferences);
+    }
+  } catch {
+    preferences = {};
+  }
+  return preferences && typeof preferences === "object" && !Array.isArray(preferences)
+    ? preferences
+    : {};
+}
+
+function findAuthorizedPage(
+  app,
+  collection,
+  filter,
+  sort,
+  params,
+  page,
+  perPage,
+  authorize,
+  batchSize = 200,
+) {
+  const start = (page - 1) * perPage;
+  const authorized = [];
+  let authorizedSeen = 0;
+  let offset = 0;
+  let exhausted = false;
+  while (!exhausted && authorized.length <= perPage) {
+    const batch = app.findRecordsByFilter(
+      collection,
+      filter,
+      sort,
+      batchSize,
+      offset,
+      params,
+    );
+    exhausted = batch.length < batchSize;
+    offset += batch.length;
+    for (const record of batch) {
+      if (!authorize(record)) continue;
+      if (authorizedSeen >= start) authorized.push(record);
+      authorizedSeen += 1;
+      if (authorized.length > perPage) break;
+    }
+    if (!batch.length) break;
+  }
+  return {
+    items: authorized.slice(0, perPage),
+    hasMore: authorized.length > perPage,
+  };
+}
+
+function countRecordsByFilter(app, collection, filter, params = {}, batchSize = 500) {
+  let count = 0;
+  let offset = 0;
+  while (true) {
+    const batch = app.findRecordsByFilter(
+      collection,
+      filter,
+      "",
+      batchSize,
+      offset,
+      params,
+    );
+    count += batch.length;
+    if (batch.length < batchSize) return count;
+    offset += batch.length;
+  }
+}
+
+function deleteRecordsByFilter(app, collection, filter, params = {}, batchSize = 200) {
+  let deleted = 0;
+  while (true) {
+    const batch = app.findRecordsByFilter(collection, filter, "", batchSize, 0, params);
+    if (!batch.length) return deleted;
+    for (const record of batch) app.delete(record);
+    deleted += batch.length;
+  }
+}
 
 function jsonArray(record, field) {
   const value = record.get(field);
@@ -86,12 +175,11 @@ function jsonArray(record, field) {
 }
 
 function rolePosition(app, membershipId) {
-  const assignments = app.findRecordsByFilter(
+  const assignments = findAllRecordsByFilter(
+    app,
     "member_roles",
     "membership = {:membership}",
     "",
-    200,
-    0,
     { membership: membershipId },
   );
   if (!assignments.length) return 0;
@@ -137,12 +225,11 @@ function applyOverwrite(granted, overwrite) {
 
 function applyChannelLayer(app, granted, channelId, roles, membership) {
   if (!channelId) return;
-  const overwrites = app.findRecordsByFilter(
+  const overwrites = findAllRecordsByFilter(
+    app,
     "channel_permissions",
     "channel = {:channel}",
     "+created",
-    500,
-    0,
     { channel: channelId },
   );
   if (!overwrites.length) return;
@@ -209,21 +296,19 @@ function communityPermissions(app, communityId, userId, channelId) {
     };
   }
 
-  const assigned = app.findRecordsByFilter(
+  const assigned = findAllRecordsByFilter(
+    app,
     "member_roles",
     "membership = {:membership}",
     "",
-    200,
-    0,
     { membership: membership.id },
   );
   const assignedIds = assigned.map((item) => item.getString("role"));
-  const roles = app.findRecordsByFilter(
+  const roles = findAllRecordsByFilter(
+    app,
     "roles",
     "community = {:community}",
     "+position",
-    200,
-    0,
     { community: communityId },
   ).filter((role) => role.getBool("managed") || assignedIds.includes(role.id));
 
@@ -252,32 +337,13 @@ function communityPermissions(app, communityId, userId, channelId) {
 
     // A hidden channel cannot be used through a separately allowed action.
     if (!granted.has("view_channels")) {
-      for (const permission of [
-        "send_messages",
-        "read_history",
-        "add_reactions",
-        "attach_files",
-        "embed_links",
-        "mention_everyone",
-        "connect_voice",
-        "speak",
-        "stream_video",
-      ]) granted.delete(permission);
+      for (const permission of PERMISSION_RESTRICTIONS.hiddenChannelRemoves) granted.delete(permission);
     }
   }
 
   const timeoutUntil = membership.getString("timeoutUntil");
   if (timeoutUntil && new Date(timeoutUntil).getTime() > Date.now()) {
-    for (const permission of [
-      "send_messages",
-      "add_reactions",
-      "attach_files",
-      "embed_links",
-      "mention_everyone",
-      "connect_voice",
-      "speak",
-      "stream_video",
-    ]) granted.delete(permission);
+    for (const permission of PERMISSION_RESTRICTIONS.timeoutRemoves) granted.delete(permission);
   }
 
   return {
@@ -359,8 +425,22 @@ function normalizeChannelName(value) {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
-  if (!name || name.length > 100) throw new BadRequestError("Invalid channel name.");
+  if (!name || name.length > POLICY_LIMITS.channel.nameMax) throw new BadRequestError("Invalid channel name.");
   return name;
+}
+
+function assertChannelWriteFields(body, capabilities, creating) {
+  const settings = capabilities.settingsFields || [];
+  const supplied = (field) => Object.prototype.hasOwnProperty.call(body, field);
+  for (const field of ["topic", "parent", "slowmodeSeconds", "nsfw"]) {
+    if (supplied(field) && !settings.includes(field)) {
+      throw new BadRequestError(`The ${field} field is not supported by this channel type.`);
+    }
+  }
+  const immutable = creating ? ["community", "position"] : ["community", "kind", "position"];
+  if (immutable.some(supplied)) {
+    throw new BadRequestError("Channel identity and position use dedicated routes.");
+  }
 }
 
 function normalizeSlug(value) {
@@ -371,7 +451,10 @@ function normalizeSlug(value) {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
-  if (slug.length < 2 || slug.length > 80) throw new BadRequestError("Invalid community slug.");
+  if (
+    slug.length < POLICY_LIMITS.community.slugMin
+    || slug.length > POLICY_LIMITS.community.slugMax
+  ) throw new BadRequestError("Invalid community slug.");
   return slug;
 }
 
@@ -387,8 +470,25 @@ function optionalText(value, max) {
   return result;
 }
 
+function recordComesAfter(candidate, current) {
+  if (!current) return true;
+  const candidateCreated = candidate.getString("created");
+  const currentCreated = current.getString("created");
+  return candidateCreated > currentCreated
+    || (candidateCreated === currentCreated && candidate.id > current.id);
+}
+
+function bumpCommunityAccessRevision(app, communityOrId) {
+  const community = typeof communityOrId === "string"
+    ? app.findRecordById("communities", communityOrId)
+    : communityOrId;
+  community.set("accessRevision", community.getInt("accessRevision") + 1);
+  app.save(community);
+  return community;
+}
+
 function publicFileUrl(baseUrl, record, filename, thumb) {
-  if (!filename) return "";
+  if (!baseUrl || !filename) return "";
   let url = `${baseUrl.replace(/\/$/, "")}/api/files/${record.collection().id}/${record.id}/${filename}`;
   if (thumb) url += `?thumb=${encodeURIComponent(thumb)}`;
   return url;
@@ -396,21 +496,39 @@ function publicFileUrl(baseUrl, record, filename, thumb) {
 
 module.exports = {
   ALL_PERMISSIONS,
+  CHANNEL_CAPABILITIES,
+  CHANNEL_KINDS,
   DEFAULT_MEMBER_PERMISSIONS,
+  PERMISSION_DEFINITIONS,
+  PERMISSION_GROUPS,
+  PERMISSION_IMPLICATIONS,
+  PERMISSION_RESTRICTIONS,
+  POLICY_LIMITS,
+  POLICY_MANIFEST,
+  TRANSIENT_TIMINGS,
   activeMembership,
   assertCanManageMembership,
   audit,
+  bumpCommunityAccessRevision,
   channelContext,
   communityPermissions,
+  countRecordsByFilter,
   conversationMembership,
+  databaseDate,
+  deleteRecordsByFilter,
   fileRequestAuth,
+  findAllRecordsByFilter,
+  findAuthorizedPage,
   isSuperuserRecord,
   jsonArray,
   normalizeChannelName,
+  assertChannelWriteFields,
   normalizeName,
   normalizeSlug,
   optionalText,
   publicFileUrl,
+  recordComesAfter,
+  recordPreferences,
   requirePermission,
   requiredText,
   validateGrantedPermissions,

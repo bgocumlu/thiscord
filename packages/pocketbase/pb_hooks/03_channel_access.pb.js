@@ -7,30 +7,20 @@ const channelScopedCollections = [
   "reactions",
   "read_states",
   "typing",
-  "call_sessions",
-  "call_participants",
 ];
+const callScopedCollections = ["call_rooms", "call_sessions", "call_participants"];
 
-// PocketBase collection rules establish community membership. These hooks add
-// the channel-specific role/member overwrite check that collection rules cannot
-// safely express, including direct record views and expanded list responses.
+// PocketBase collection rules establish community membership. Exact record
+// views add the channel-specific overwrite check that collection rules cannot
+// safely express. Raw list endpoints are disabled because request hooks run
+// after PocketBase pagination; every supported list uses a custom route that
+// authorizes before filling its page.
 onRecordsListRequest((e) => {
-  const guard = require(`${__hooks}/lib/channelAccess.js`);
   if (e.hasSuperuserAuth()) {
     e.next();
     return;
   }
-
-  const userId = e.auth ? e.auth.id : "";
-  const visible = e.records.filter((record) => guard.canViewRecord(e.app, record, userId));
-  e.records = visible;
-  if (e.result) {
-    e.result.items = visible;
-    // Do not disclose how many records exist in channels the caller cannot see.
-    e.result.totalItems = visible.length;
-    e.result.totalPages = visible.length ? 1 : 0;
-  }
-  e.next();
+  throw new ForbiddenError("Use the authorized Thiscord collection route.");
 }, ...channelScopedCollections);
 
 onRecordViewRequest((e) => {
@@ -40,6 +30,22 @@ onRecordViewRequest((e) => {
   }
   e.next();
 }, ...channelScopedCollections);
+
+onRecordsListRequest((e) => {
+  if (e.hasSuperuserAuth()) {
+    e.next();
+    return;
+  }
+  throw new ForbiddenError("Use the authorized Thiscord call route.");
+}, ...callScopedCollections);
+
+onRecordViewRequest((e) => {
+  const guard = require(`${__hooks}/lib/callAccess.js`);
+  if (!e.hasSuperuserAuth() && !guard.canViewRecord(e.app, e.record, e.auth ? e.auth.id : "")) {
+    throw new ForbiddenError("You cannot view this call.");
+  }
+  e.next();
+}, ...callScopedCollections);
 
 onFileDownloadRequest((e) => {
   const access = require(`${__hooks}/lib/permissions.js`);
@@ -84,7 +90,11 @@ onRealtimeMessageSend((e) => {
   }
 
   const collection = String(e.message.name || "").split("/")[0];
-  if (!guard.CHANNEL_SCOPED_COLLECTIONS.includes(collection)) {
+  const calls = require(`${__hooks}/lib/callAccess.js`);
+  if (
+    !guard.CHANNEL_SCOPED_COLLECTIONS.includes(collection)
+    && !calls.CALL_SCOPED_COLLECTIONS.includes(collection)
+  ) {
     e.next();
     return;
   }
@@ -94,12 +104,19 @@ onRealtimeMessageSend((e) => {
       ? e.message.data
       : String.fromCharCode(...e.message.data);
     const payload = JSON.parse(raw);
-    const channelId = guard.channelIdForRealtimeRecord(e.app, collection, payload.record || {});
-    if (!channelId || !e.auth) return;
-    const required = ["messages", "reactions", "read_states"].includes(collection)
-      ? "read_history"
-      : "view_channels";
-    access.channelContext(e.app, channelId, e.auth.id, required);
+    if (!e.auth) return;
+    if (calls.CALL_SCOPED_COLLECTIONS.includes(collection)) {
+      const target = calls.targetForRealtimeRecord(e.app, collection, payload.record || {});
+      if (!target) return;
+      calls.authorizeTarget(e.app, target, e.auth.id, "view");
+    } else {
+      const channelId = guard.channelIdForRealtimeRecord(e.app, collection, payload.record || {});
+      if (!channelId) return;
+      const required = ["messages", "reactions", "read_states"].includes(collection)
+        ? "read_history"
+        : "view_channels";
+      access.channelContext(e.app, channelId, e.auth.id, required);
+    }
     e.next();
   } catch {
     // A missing relation or a denied permission intentionally drops the event.

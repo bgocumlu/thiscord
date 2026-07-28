@@ -7,8 +7,6 @@ const CHANNEL_SCOPED_COLLECTIONS = [
   "reactions",
   "read_states",
   "typing",
-  "call_sessions",
-  "call_participants",
 ];
 
 function channelIdForRecord(app, record) {
@@ -19,15 +17,10 @@ function channelIdForRecord(app, record) {
     case "messages":
     case "read_states":
     case "typing":
-    case "call_sessions":
       return record.getString("channel");
     case "reactions": {
       const message = app.findRecordById("messages", record.getString("message"));
       return message.getString("channel");
-    }
-    case "call_participants": {
-      const call = app.findRecordById("call_sessions", record.getString("call"));
-      return call.getString("channel");
     }
     default:
       return "";
@@ -58,15 +51,10 @@ function channelIdForRealtimeRecord(app, collection, record) {
     case "messages":
     case "read_states":
     case "typing":
-    case "call_sessions":
       return String(record.channel || "");
     case "reactions": {
       const message = app.findRecordById("messages", String(record.message || ""));
       return message.getString("channel");
-    }
-    case "call_participants": {
-      const call = app.findRecordById("call_sessions", String(record.call || ""));
-      return call.getString("channel");
     }
     default:
       return "";

@@ -3,6 +3,7 @@ import type { User } from '@thiscord/shared'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { RecordModel } from 'pocketbase'
 import { usePocketBase } from '../lib/contexts'
+import { getOwnPreferences } from '../features/members/preferences'
 
 interface RegisterInput {
   readonly email: string
@@ -30,9 +31,21 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
   const client = usePocketBase()
   const [user, setUser] = useState<User | null>(() => toUser(client.authStore.record))
 
-  useEffect(() => client.authStore.onChange((_token, record) => {
-    setUser(toUser(record))
-  }, true), [client])
+  useEffect(() => {
+    let generation = 0
+    return client.authStore.onChange((_token, record) => {
+      const currentGeneration = ++generation
+      const baseUser = toUser(record)
+      setUser(baseUser)
+      if (!baseUser) return
+      void getOwnPreferences(client).then((preferences) => {
+        if (generation !== currentGeneration) return
+        setUser({ ...baseUser, preferences })
+      }).catch(() => {
+        // Authentication remains usable if the private preference request is transiently unavailable.
+      })
+    }, true)
+  }, [client])
 
   const login = useCallback(async (identity: string, password: string) => {
     await client.collection('users').authWithPassword(identity.trim(), password)

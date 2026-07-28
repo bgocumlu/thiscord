@@ -1,17 +1,21 @@
-import type { InvitePreview, Membership } from '@thiscord/shared'
+import type { InvitePreview } from '@thiscord/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import './App.css'
 import { useAuth } from './auth/AuthProvider'
 import { AuthScreen } from './components/AuthScreen'
 import { WorkspaceApp } from './components/WorkspaceApp'
-import { CallProvider } from './call/CallProvider'
-import { usePocketBase } from './lib/contexts'
+import { CallProvider } from './features/calls/CallProvider'
+import { communityApi } from './features/communities/api'
+import { communityKeys } from './features/communities/queryKeys'
+import { appRoutes, parseAppRoute } from './features/navigation/routes'
+import { usePocketBase, useRuntimeConfig } from './lib/contexts'
 import { errorMessage } from './lib/pocketbase'
 import { AppRouter, useAppRouter } from './lib/router'
 
 function InviteRoute({ code }: { readonly code: string }) {
   const client = usePocketBase()
+  const config = useRuntimeConfig()
   const queryClient = useQueryClient()
   const { navigate } = useAppRouter()
   const [error, setError] = useState('')
@@ -22,10 +26,7 @@ function InviteRoute({ code }: { readonly code: string }) {
     let active = true
     const load = async () => {
       try {
-        const value = await client.send<InvitePreview>(
-          `/api/thiscord/invites/${encodeURIComponent(code)}/preview`,
-          {},
-        )
+        const value = await communityApi.previewInvite(client, code)
         if (active) setPreview(value)
       } catch (caught) {
         if (active) setError(errorMessage(caught))
@@ -41,12 +42,9 @@ function InviteRoute({ code }: { readonly code: string }) {
     setBusy(true)
     setError('')
     try {
-      const membership = await client.send<Membership>(
-        `/api/thiscord/invites/${encodeURIComponent(code)}/accept`,
-        { method: 'POST' },
-      )
-      await queryClient.invalidateQueries({ queryKey: ['memberships'] })
-      navigate(`/channels/${membership.community}`, { replace: true })
+      const membership = await communityApi.acceptInvite(client, code)
+      await queryClient.invalidateQueries({ queryKey: communityKeys.memberships })
+      navigate(appRoutes.channel(membership.community), { replace: true })
     } catch (caught) {
       setError(errorMessage(caught))
       setBusy(false)
@@ -66,7 +64,7 @@ function InviteRoute({ code }: { readonly code: string }) {
           <button className="primary-action" type="button" disabled={busy} onClick={() => void accept()}>
             {busy ? 'Joining…' : 'Join community'}
           </button>
-          <button type="button" className="secondary-action" onClick={() => navigate('/channels/@me', { replace: true })}>Not now</button>
+          <button type="button" className="secondary-action" onClick={() => navigate(appRoutes.conversations(), { replace: true })}>Not now</button>
         </section>
       </main>
     )
@@ -76,8 +74,8 @@ function InviteRoute({ code }: { readonly code: string }) {
       <section>
         <h1>Invite unavailable</h1>
         <p>{error}</p>
-        <button className="primary-action" type="button" onClick={() => navigate('/channels/@me', { replace: true })}>
-          Open Thiscord
+        <button className="primary-action" type="button" onClick={() => navigate(appRoutes.conversations(), { replace: true })}>
+          Open {config.name}
         </button>
       </section>
     </main>
@@ -86,22 +84,23 @@ function InviteRoute({ code }: { readonly code: string }) {
 
 function AuthenticatedApp() {
   const { pathname, navigate } = useAppRouter()
-  const inviteMatch = pathname.match(/^\/invite\/([^/]+)\/?$/)
-  const inviteCode = inviteMatch?.[1] ?? ''
+  const route = parseAppRoute(pathname)
+  const inviteCode = route.kind === 'invite' ? route.code : ''
   useEffect(() => {
-    if (!inviteCode && !pathname.startsWith('/channels/')) {
-      navigate('/channels/@me', { replace: true })
+    if (route.kind === 'unknown') {
+      navigate(appRoutes.conversations(), { replace: true })
     }
-  }, [inviteCode, navigate, pathname])
-  if (inviteCode) return <InviteRoute code={decodeURIComponent(inviteCode)} />
+  }, [navigate, route.kind])
+  if (inviteCode) return <InviteRoute code={inviteCode} />
   return <WorkspaceApp />
 }
 
 function AppContent() {
   const { user, ready } = useAuth()
+  const config = useRuntimeConfig()
   const { pathname } = useAppRouter()
-  if (pathname === '/auth/verify' || pathname === '/auth/reset') return <AuthScreen />
-  if (!ready && !user) return <main className="loading-state fullscreen">Opening Thiscord…</main>
+  if (parseAppRoute(pathname).kind === 'auth') return <AuthScreen />
+  if (!ready && !user) return <main className="loading-state fullscreen">Opening {config.name}…</main>
   return user ? <CallProvider user={user}><AuthenticatedApp /></CallProvider> : <AuthScreen />
 }
 

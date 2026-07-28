@@ -13,16 +13,22 @@ PocketBase owns authentication and durable product state. Jitsi owns live
 media. The static frontend is deployed independently. Caddy terminates TLS only
 for the PocketBase and Jitsi backend domains.
 
-The renderer owns the complete call interface. It lazy-loads a pinned
-`lib-jitsi-meet` client when a voice channel is selected and connects directly
+The renderer owns the complete call interface. Its call provider accepts a
+generic call-target descriptor instead of a channel record. It lazy-loads a
+pinned `lib-jitsi-meet` client when a voice-channel or conversation target is
+joined and connects directly
 to the installation’s Jitsi transport; it does not embed or expose the standard
 Jitsi web interface. Call state lives above workspace routing, so text-channel
 and direct-message navigation does not end the active conference. Joining and
-opening a call are separate actions: the first voice-channel selection connects
-in place, while selecting the connected channel opens its focused call surface.
+opening a call are separate actions: voice-channel selection connects in place,
+while direct and group conversations expose explicit start/join controls.
+An active conversation call renders as a bounded media stage above the existing
+message history and composer, so chat remains mounted and usable during the
+call.
 The call surface owns microphone, camera, speaker selection and exposes Jitsi
-mute/remove controls only to moderators. PocketBase call heartbeats make channel
-occupancy visible to members who are not connected to the conference.
+mute/remove controls only to moderators. PocketBase call-room sessions and
+heartbeats make authorized target occupancy visible to members who are not
+connected to the conference.
 
 ```text
 Browser / Electron renderer
@@ -43,13 +49,55 @@ Browser / Electron renderer
 
 Generic PocketBase mutation rules are closed for product collections. Privileged writes go through authenticated `/api/thiscord/*` routes that resolve membership, roles, channel overwrites, ownership, timeouts, and moderation authority.
 
-Jitsi room names are opaque random values stored on voice channels. The browser receives a five-minute HS256 JWT only after the server checks the current user’s voice permission. The Jitsi signing secret exists only in PocketBase and Jitsi service environments.
+Jitsi room names are opaque random values stored in hidden `call_rooms`
+records. Each room has exactly one channel or conversation target. The browser
+receives the room name and a five-minute HS256 JWT only from the authenticated
+generic call-join route after the server resolves that target's access policy.
+Failed media-server removals are stored in the private `call_ejections` outbox
+and retried by transient cleanup, so Jitsi availability cannot block an
+authorization change. A pending removal is cancelled only after target access
+and unrestricted speaking/video authority are both restored.
+Request-time dispatch is limited to intents created by that mutation, while
+exact monotonic revisions prevent a stale worker from deleting or rescheduling
+a newer intent. Finalization uses atomic ID-and-revision database mutations.
+Compatible per-room operations are combined into multi-user control requests.
+The cleanup worker pages and groups due intents until its bounded time budget
+is exhausted, so a large media outage backlog drains promptly without creating
+unbounded API or cron latency.
+The Jitsi signing secret exists only in PocketBase and Jitsi service
+environments. Community calls require resolved voice permissions. Any current
+direct or group conversation member may initiate or join its call, speak, and
+use video; conversation calls do not inherit community moderation permissions.
+Conversation call notifications exclude muted conversations and users in
+do-not-disturb mode.
+Jitsi's combined moderator role is not delegated to browser tokens. PocketBase
+authorizes mute and remove actions independently and forwards them over the
+private Prosody control endpoint. Signed speaking and video claims are applied
+to Jitsi AV-moderation whitelists, keeping media permission enforcement on the
+server boundary. A restrictive policy update also asks Jicofo to force-mute
+already-published audio, camera, and desktop sources. The client mirrors that
+revocation by muting or disposing its local tracks and leaves the call if local
+  cleanup fails. Each JWT carries a transactional per-room/user token version.
+  Permission changes revoke through the latest issued version even when the
+  client has not reported presence, and Prosody persists that cutoff through
+  the token lifetime. Reconnecting with any revoked version cannot restore
+  removed access or stale publishing authority; a newly authorized token gets
+  a higher version and remains usable.
+Each device heartbeat records only media state and expiry. When membership or
+voice access is revoked, PocketBase calls a private, shared-secret Prosody
+endpoint with the affected PocketBase user ID. Prosody removes every matching
+occupant by the user identity verified from its JWT session before PocketBase
+clears product presence. Client-reported media identifiers are not trusted.
+This prevents an already-connected client from remaining in the media room
+until its short-lived join token expires. Heartbeat authorization and the
+presence write share one database transaction, so a stale request cannot
+recreate presence after a racing revocation.
 
 Web authentication uses PocketBase’s local auth store. Electron supplies an isolated auth store whose serialized token is encrypted through Electron `safeStorage`; renderer code has no Node.js access. The desktop window uses context isolation, sandboxing, navigation allowlists, and origin-scoped media permissions.
 
 ## Durable data
 
-The initial migration creates:
+The single V2 baseline migration creates:
 
 ```text
 users, communities, memberships, roles, member_roles
@@ -58,12 +106,14 @@ messages, reactions, read_states
 invites, bans, audit_events
 presence, typing, direct_typing, notifications
 conversations, conversation_members, direct_messages, direct_reactions
-call_sessions, call_participants
+call_rooms, call_sessions, call_participants, call_ejections
 ```
 
 Presence, typing, and call-participant heartbeats expire automatically. PocketBase
-stores shared voice occupancy and media state while Jitsi remains the source of
-live tracks. Messages are soft-deleted so replies and audit history remain
+aggregates per-device call heartbeats into one logical occupant per account,
+stores per-device media state, derives shared occupancy, and revokes both
+product presence and live media access when membership ends. Jitsi remains the
+source of live tracks. Messages are soft-deleted so replies and audit history remain
 coherent. File records use PocketBase storage and can be moved to its
 S3-compatible storage option without changing client contracts. Message records
 also persist whether server-approved link embeds are enabled so clients do not

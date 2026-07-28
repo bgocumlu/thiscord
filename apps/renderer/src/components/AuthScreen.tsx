@@ -2,6 +2,8 @@ import type { InvitePreview } from '@thiscord/shared'
 import { ArrowLeft, LockKeyhole, Mail, UserRound } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../auth/AuthProvider'
+import { communityApi } from '../features/communities/api'
+import { parseAppRoute } from '../features/navigation/routes'
 import { usePocketBase, useRuntimeConfig } from '../lib/contexts'
 import { errorMessage } from '../lib/pocketbase'
 import { useAppRouter } from '../lib/router'
@@ -13,17 +15,16 @@ export function AuthScreen() {
   const client = usePocketBase()
   const { navigate, pathname } = useAppRouter()
   const { login, register, requestPasswordReset, ready } = useAuth()
-  const initialMode: Mode = pathname === '/auth/verify'
-    ? 'verify'
-    : pathname === '/auth/reset'
-      ? 'reset-confirm'
-      : 'login'
+  const route = parseAppRoute(pathname)
+  const initialMode: Mode = route.kind === 'auth'
+    ? route.action === 'verify' ? 'verify' : 'reset-confirm'
+    : 'login'
   const [mode, setMode] = useState<Mode>(initialMode)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [invite, setInvite] = useState<InvitePreview | null>(null)
-  const inviteCode = pathname.match(/^\/invite\/([^/]+)\/?$/)?.[1] ?? ''
+  const inviteCode = route.kind === 'invite' ? route.code : ''
   const token = new URLSearchParams(window.location.search).get('token') ?? ''
   const changeMode = (next: Mode) => {
     setError('')
@@ -34,10 +35,7 @@ export function AuthScreen() {
   useEffect(() => {
     if (!inviteCode) return
     let active = true
-    void client.send<InvitePreview>(
-      `/api/thiscord/invites/${encodeURIComponent(decodeURIComponent(inviteCode))}/preview`,
-      {},
-    ).then((value) => {
+    void communityApi.previewInvite(client, inviteCode).then((value) => {
       if (active) setInvite(value)
     }).catch((caught) => {
       if (active) setError(errorMessage(caught))

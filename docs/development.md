@@ -99,3 +99,15 @@ each target operating system and real devices.
 
 Schema changes belong in `packages/pocketbase/pb_migrations`; authorized product
 actions belong in `packages/pocketbase/pb_hooks`.
+
+The single `1785031200_v2_baseline.js` migration creates the complete current
+schema directly, including channel and conversation messaging, generic call
+rooms, per-device call presence, final access rules, and quality repairs. If a
+local database was created from any earlier migration set, remove only that
+disposable local PocketBase data and recreate it from the baseline. There is
+intentionally no legacy call-schema migration or compatibility route.
+
+Never validate this reset against a data directory that may contain user data.
+The PocketBase smoke suite creates and removes an isolated temporary directory;
+manual migration checks should likewise pass a new `--dir` path under the
+system temporary directory.

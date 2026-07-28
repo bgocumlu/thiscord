@@ -25,8 +25,11 @@ const queryClient = new QueryClient({
   },
 })
 
+let startupName = 'Thiscord'
+
 async function bootstrap() {
   const config = await loadRuntimeConfig()
+  startupName = config.name
   const pocketBase = await createPocketBase(config)
   if (!window.desktop && 'serviceWorker' in navigator) {
     if (import.meta.env.PROD) {
@@ -59,10 +62,10 @@ async function bootstrap() {
 }
 
 void bootstrap().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : 'Unable to start Thiscord.'
+  const message = error instanceof Error ? error.message : `Unable to start ${startupName}.`
   createRoot(document.getElementById('root')!).render(
     <main className="fatal-startup">
-      <h1>Thiscord could not start</h1>
+      <h1>{startupName} could not start</h1>
       <p>{message}</p>
     </main>,
   )

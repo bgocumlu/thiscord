@@ -42,3 +42,10 @@ export function errorMessage(error: unknown): string {
   }
   return error instanceof Error ? error.message : 'Something went wrong.'
 }
+
+export function requestWasDeniedOrMissing(error: unknown) {
+  return typeof error === 'object'
+    && error !== null
+    && 'status' in error
+    && ((error as { status?: unknown }).status === 403 || (error as { status?: unknown }).status === 404)
+}

@@ -1,11 +1,26 @@
 import type { Permission } from "./permissions.js";
+import type { channelCapabilities } from "./policies.generated.js";
 
 export type Id = string;
 export type IsoDate = string;
 
 export type PresenceStatus = "online" | "idle" | "dnd" | "offline";
 export type MembershipState = "active" | "pending" | "banned" | "left";
-export type ChannelKind = "category" | "text" | "announcement" | "voice";
+export type ChannelKind = keyof typeof channelCapabilities;
+export type ConversationKind = "direct" | "group";
+
+export type ThemePreference =
+  | { readonly theme: "dark" }
+  | { readonly theme: "light" }
+  | { readonly theme: "system" };
+
+export type UserPreferences = ThemePreference & {
+  readonly compactMode: boolean;
+  readonly reduceMotion: boolean;
+  readonly notificationSound: boolean;
+  readonly mutedChannels?: readonly Id[];
+  readonly mutedConversations?: readonly Id[];
+};
 
 export interface User {
   readonly id: Id;
@@ -18,13 +33,7 @@ export interface User {
   readonly status: PresenceStatus;
   readonly customStatus: string;
   readonly lastSeenAt: IsoDate;
-  readonly preferences?: {
-    readonly theme?: string;
-    readonly compactMode?: boolean;
-    readonly reduceMotion?: boolean;
-    readonly notificationSound?: boolean;
-    readonly mutedChannels?: readonly Id[];
-  };
+  readonly preferences?: UserPreferences;
   readonly created: IsoDate;
   readonly updated: IsoDate;
 }
@@ -95,7 +104,6 @@ export interface Channel {
   readonly position: number;
   readonly nsfw: boolean;
   readonly slowmodeSeconds: number;
-  readonly jitsiRoom: string;
   readonly created: IsoDate;
   readonly updated: IsoDate;
 }
@@ -173,14 +181,24 @@ export interface InvitePreview {
   readonly expiresAt: IsoDate;
 }
 
-export interface Conversation {
+interface ConversationBase {
   readonly id: Id;
-  readonly kind: "direct" | "group";
   readonly name: string;
   readonly owner: Id;
+  readonly lastMessageAt: IsoDate;
   readonly created: IsoDate;
   readonly updated: IsoDate;
 }
+
+export interface DirectConversation extends ConversationBase {
+  readonly kind: "direct";
+}
+
+export interface GroupConversation extends ConversationBase {
+  readonly kind: "group";
+}
+
+export type Conversation = DirectConversation | GroupConversation;
 
 export interface ConversationMember {
   readonly id: Id;
@@ -223,14 +241,94 @@ export interface DirectMessage {
   };
 }
 
-export interface JitsiJoin {
+export type SearchTarget =
+  | {
+      readonly kind: "channel";
+      readonly channel: Channel & { readonly expand?: { readonly community?: Community } };
+    }
+  | {
+      readonly kind: "message";
+      readonly message: Omit<Message, "expand"> & {
+        readonly expand?: {
+          readonly author?: User;
+          readonly channel?: Channel & { readonly expand?: { readonly community?: Community } };
+        };
+      };
+    }
+  | {
+      readonly kind: "conversation_message";
+      readonly message: Omit<DirectMessage, "expand"> & {
+        readonly expand?: {
+          readonly author?: User;
+          readonly conversation?: Conversation;
+        };
+      };
+    }
+  | { readonly kind: "user"; readonly user: User };
+
+interface NotificationBase {
+  readonly id: Id;
+  readonly user: Id;
+  readonly actor: Id;
+  readonly readAt: IsoDate;
+  readonly created: IsoDate;
+  readonly expand?: {
+    readonly actor?: User;
+  };
+}
+
+export interface CommunityNotification extends NotificationBase {
+  readonly type: "reply" | "mention" | "mention_everyone" | "role_mention";
+  readonly community: Id;
+  readonly channel: Id;
+  readonly message: Id;
+  readonly data?: Record<string, never>;
+}
+
+export interface ConversationNotification extends NotificationBase {
+  readonly type: "direct_message";
+  readonly community: "";
+  readonly channel: "";
+  readonly message: "";
+  readonly data: {
+    readonly conversation: Id;
+    readonly directMessage: Id;
+  };
+}
+
+export interface ConversationCallNotification extends NotificationBase {
+  readonly type: "conversation_call";
+  readonly community: "";
+  readonly channel: "";
+  readonly message: "";
+  readonly data: {
+    readonly conversation: Id;
+    readonly call: Id;
+  };
+}
+
+export type Notification =
+  | CommunityNotification
+  | ConversationNotification
+  | ConversationCallNotification;
+
+export type CallTarget =
+  | { readonly kind: "channel"; readonly id: Id }
+  | { readonly kind: "conversation"; readonly id: Id };
+
+export interface CallTargetDescriptor {
+  readonly target: CallTarget;
+  readonly name: string;
+  readonly href: string;
+}
+
+export interface CallJoin {
   readonly domain: string;
   readonly url: string;
   readonly roomName: string;
   readonly jwt: string;
   readonly displayName: string;
   readonly avatarUrl: string;
-  readonly moderator: boolean;
   readonly canSpeak: boolean;
   readonly canStreamVideo: boolean;
   readonly canMuteMembers: boolean;
@@ -238,14 +336,24 @@ export interface JitsiJoin {
   readonly expiresAt: IsoDate;
 }
 
-export interface CallSessionRecord {
+export interface CallRoomRecord {
   readonly id: Id;
   readonly channel: Id;
+  readonly conversation: Id;
+  readonly created: IsoDate;
+  readonly updated: IsoDate;
+}
+
+export interface CallSessionRecord {
+  readonly id: Id;
+  readonly room: Id;
   readonly startedBy: Id;
-  readonly roomName: string;
   readonly endedAt: IsoDate;
   readonly created: IsoDate;
   readonly updated: IsoDate;
+  readonly expand?: {
+    readonly room?: CallRoomRecord;
+  };
 }
 
 export interface CallParticipantRecord {
@@ -259,6 +367,13 @@ export interface CallParticipantRecord {
   readonly deafened: boolean;
   readonly camera: boolean;
   readonly sharing: boolean;
+  readonly devices: Readonly<Record<string, {
+    readonly expiresAt: IsoDate;
+    readonly muted: boolean;
+    readonly deafened: boolean;
+    readonly camera: boolean;
+    readonly sharing: boolean;
+  }>>;
   readonly created: IsoDate;
   readonly updated: IsoDate;
   readonly expand?: {

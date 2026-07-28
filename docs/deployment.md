@@ -66,7 +66,7 @@ After either configuration method:
 
 ```bash
 docker compose config --quiet
-docker compose pull
+docker compose pull --ignore-buildable
 docker compose up -d --build
 docker compose ps
 ```
@@ -75,6 +75,12 @@ Caddy obtains TLS certificates. PocketBase is available at
 `https://api.example.com`. Its root redirects to the administration UI at
 `https://api.example.com/_/`; the health endpoint is
 `https://api.example.com/api/health`.
+
+Compose gives PocketBase two distinct public origins: `THISCORD_PUBLIC_URL`
+points to the frontend for application and mail links, while
+`POCKETBASE_PUBLIC_URL` is derived as `https://${POCKETBASE_DOMAIN}` for public
+file URLs such as call avatars. Set both explicitly when running PocketBase
+outside this Compose deployment.
 
 ## Frontend on GitHub Pages
 
@@ -138,6 +144,23 @@ The backend Compose file already uses separate containers and volumes.
 Use the same Caddy file on either host; unused domain routes simply have no
 upstream. Point each DNS record at its corresponding host. On the PocketBase
 host, keep `JITSI_DOMAIN` and `JITSI_URL` aimed at the media host.
+
+Call moderation and access revocation also require a private route from
+PocketBase to Prosody. Connect the hosts with an encrypted private network
+(such as WireGuard or Tailscale), then:
+
+- on the media host, set `JITSI_CONTROL_BIND` to
+  `<media-private-ip>:5280`;
+- on the PocketBase host, set `JITSI_CONTROL_URL` to
+  `http://<media-private-ip>:5280/thiscord-call-control`; and
+- allow TCP port 5280 only from the PocketBase host's private address.
+
+Keep the same high-entropy `JITSI_APP_SECRET` on both hosts. Prosody requires
+that secret as a bearer credential on every call-control request. Do not bind
+the control port to a public interface or route it through the public Jitsi
+domain. Single-host deployments should retain the defaults:
+`JITSI_CONTROL_URL=http://prosody:5280/thiscord-call-control` and
+`JITSI_CONTROL_BIND=127.0.0.1:5280`.
 
 PocketBase can also run on a container provider if it has a persistent volume
 for `/app/pb_data`. Jitsi needs UDP port ranges and a publicly reachable media

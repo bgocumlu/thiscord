@@ -46,8 +46,8 @@ function applyRuntimeBranding(config: DistributionConfig) {
     name: config.name,
     short_name: config.name.slice(0, 30),
     description: config.name,
-    theme_color: '#111216',
-    background_color: '#0b0c0f',
+    theme_color: config.accent,
+    background_color: '#0d0f13',
     display: 'standalone',
     orientation: 'any',
     scope: './',
@@ -63,6 +63,7 @@ function applyRuntimeBranding(config: DistributionConfig) {
   manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }))
   document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.setAttribute('href', manifestUrl)
   document.querySelector<HTMLMetaElement>('meta[name="application-name"]')?.setAttribute('content', config.name)
+  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', config.accent)
 }
 
 export async function loadRuntimeConfig(): Promise<DistributionConfig> {

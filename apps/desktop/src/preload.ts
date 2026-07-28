@@ -12,7 +12,9 @@ const desktop: DesktopApi = {
   downloadUpdate: () => ipcRenderer.invoke(channels.downloadUpdate) as Promise<UpdateState>,
   installUpdate: () => ipcRenderer.invoke(channels.installUpdate) as Promise<{ readonly accepted: boolean }>,
   getDisplaySources: () => ipcRenderer.invoke(channels.getDisplaySources) as ReturnType<DesktopApi["getDisplaySources"]>,
-  selectDisplaySource: (sourceId) => ipcRenderer.invoke(channels.selectDisplaySource, sourceId) as Promise<void>
+  selectDisplaySource: (sourceId, shareSystemAudio = false) => (
+    ipcRenderer.invoke(channels.selectDisplaySource, sourceId, shareSystemAudio) as Promise<void>
+  )
 };
 
 contextBridge.exposeInMainWorld("desktop", desktop);

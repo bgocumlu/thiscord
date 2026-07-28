@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { channels } from "./channels.js";
+import { displayMediaStreams } from "./displayMedia.js";
 
 declare const __APP_PROTOCOL__: string;
 
@@ -29,7 +30,10 @@ let mainWindow: BrowserWindow | undefined;
 let backendProcess: ChildProcess | undefined;
 let backendUrl: string | undefined;
 let pendingDeepLink: string | undefined;
-let pendingDisplaySourceId: string | null = null;
+let pendingDisplaySource: {
+  readonly id: string;
+  readonly shareSystemAudio: boolean;
+} | null = null;
 
 let updateState: UpdateState = app.isPackaged
   ? { status: "idle", currentVersion: appVersion }
@@ -314,12 +318,16 @@ function registerIpc() {
       appIconUrl: source.appIcon?.toDataURL() ?? ""
     }));
   });
-  ipcMain.handle(channels.selectDisplaySource, async (event, sourceId: unknown) => {
+  ipcMain.handle(channels.selectDisplaySource, async (
+    event,
+    sourceId: unknown,
+    shareSystemAudio: unknown,
+  ) => {
     if (!mainWindow || event.sender !== mainWindow.webContents) {
       throw new Error("Display capture is unavailable for this window.");
     }
     if (sourceId === null) {
-      pendingDisplaySourceId = null;
+      pendingDisplaySource = null;
       return;
     }
     if (typeof sourceId !== "string" || !sourceId || sourceId.length > 512) {
@@ -332,7 +340,10 @@ function registerIpc() {
     if (!sources.some((source) => source.id === sourceId)) {
       throw new Error("That display source is no longer available.");
     }
-    pendingDisplaySourceId = sourceId;
+    pendingDisplaySource = {
+      id: sourceId,
+      shareSystemAudio: shareSystemAudio === true,
+    };
   });
 }
 
@@ -398,20 +409,24 @@ async function createMainWindow() {
 
   mainWindow.webContents.session.setDisplayMediaRequestHandler(async (request, callback) => {
     try {
-      if (!trustedOrigins.has(new URL(request.securityOrigin).origin) || !pendingDisplaySourceId) {
+      if (!trustedOrigins.has(new URL(request.securityOrigin).origin) || !pendingDisplaySource) {
         callback({});
         return;
       }
-      const selectedId = pendingDisplaySourceId;
-      pendingDisplaySourceId = null;
+      const selected = pendingDisplaySource;
+      pendingDisplaySource = null;
       const sources = await desktopCapturer.getSources({
         types: ["screen", "window"],
         thumbnailSize: { width: 1, height: 1 }
       });
-      const source = sources.find((item) => item.id === selectedId);
-      callback(source ? { video: source } : {});
+      const source = sources.find((item) => item.id === selected.id);
+      callback(displayMediaStreams(
+        source,
+        request.audioRequested,
+        selected.shareSystemAudio,
+      ));
     } catch {
-      pendingDisplaySourceId = null;
+      pendingDisplaySource = null;
       callback({});
     }
   });

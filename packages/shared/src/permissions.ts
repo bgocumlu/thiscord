@@ -1,42 +1,31 @@
-export const permissions = [
-  "administrator",
-  "manage_community",
-  "manage_channels",
-  "manage_roles",
-  "manage_messages",
-  "manage_members",
-  "view_audit_log",
-  "create_invites",
-  "view_channels",
-  "send_messages",
-  "read_history",
-  "add_reactions",
-  "attach_files",
-  "embed_links",
-  "mention_everyone",
-  "connect_voice",
-  "speak",
-  "stream_video",
-  "mute_members",
-] as const;
+import {
+  defaultMemberPermissions,
+  permissionImplications,
+  permissionDefinitions,
+  permissions,
+} from "./policies.generated.js";
 
-export type Permission = (typeof permissions)[number];
+export {
+  channelCapabilities,
+  channelKinds,
+  defaultMemberPermissions,
+  permissionDefinitions,
+  permissionGroups,
+  permissionImplications,
+  permissionRestrictions,
+  permissions,
+  policyLimits,
+  policyManifest,
+  transientTimings,
+} from "./policies.generated.js";
 
-export const defaultMemberPermissions: readonly Permission[] = [
-  "create_invites",
-  "view_channels",
-  "send_messages",
-  "read_history",
-  "add_reactions",
-  "attach_files",
-  "embed_links",
-  "connect_voice",
-  "speak",
-  "stream_video",
-];
+export type Permission = (typeof permissionDefinitions)[number]["id"];
 
 export function hasPermission(granted: readonly Permission[], permission: Permission): boolean {
-  return granted.includes("administrator") || granted.includes(permission);
+  return (
+    permissionImplications.administrator === "*"
+    && granted.includes("administrator")
+  ) || granted.includes(permission);
 }
 
 export function resolvePermissions(

@@ -7,8 +7,10 @@
     ".": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "generate:policies": "node scripts/generate-policies.mjs",
+    "check:policies": "node scripts/generate-policies.mjs --check",
+    "build": "npm run check:policies && tsc -p tsconfig.json",
+    "typecheck": "npm run check:policies && tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "typescript": "~6.0.2"

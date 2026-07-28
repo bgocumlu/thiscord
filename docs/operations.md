@@ -19,7 +19,7 @@ docker compose ps
 # Recent logs from every backend service
 docker compose logs --tail 200
 
-# Follow one service; use pocketbase, gateway, web, prosody, jicofo, jvb, or coturn
+# Follow one service; use pocketbase, gateway, jitsi-web, prosody, jicofo, jvb, or coturn
 docker compose logs -f pocketbase
 
 # Validate the resolved Compose configuration
@@ -49,12 +49,13 @@ Deploy a reviewed repository update:
 git status --short
 git pull --ff-only
 docker compose config --quiet
-docker compose pull
+docker compose pull --ignore-buildable
 docker compose up -d --build
 docker compose ps
 ```
 
-`docker compose pull` updates only services that use registry images. The
+`docker compose pull --ignore-buildable` updates only services that use
+registry images and skips the repository-built Prosody image. The
 repository pins PocketBase and Jitsi versions, so review and commit version
 changes before upgrading them. Do not use `docker compose down --volumes` in
 production; it removes persistent application data. PocketBase-specific
@@ -122,7 +123,11 @@ health endpoint is `https://POCKETBASE_DOMAIN/api/health`.
 
 ## Incident controls
 
-Rotate `JITSI_APP_SECRET` in PocketBase and every Jitsi component together. Existing meeting tokens expire within five minutes. Rotate Jicofo, JVB, and TURN credentials by updating `.env` and recreating the affected containers.
+Rotate `JITSI_APP_SECRET` in PocketBase and every Jitsi component together. The
+same secret protects the Compose-internal Prosody call-revocation endpoint, so
+recreate both PocketBase and Prosody during rotation. Existing meeting tokens
+expire within five minutes. Rotate Jicofo, JVB, and TURN credentials by
+updating `.env` and recreating the affected containers.
 
 If an administrator credential is exposed, revoke it from PocketBase immediately and review `audit_events`, PocketBase request logs, and reverse-proxy logs.
 

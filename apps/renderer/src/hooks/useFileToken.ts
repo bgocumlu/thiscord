@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { memberKeys } from '../features/members/queryKeys'
 import { getTokenPayload } from 'pocketbase'
 import { usePocketBase } from '../lib/contexts'
 
@@ -15,7 +16,7 @@ function refreshInterval(token: string | undefined): number {
 export function useFileToken(userId: string, enabled: boolean) {
   const client = usePocketBase()
   return useQuery({
-    queryKey: ['file-token', userId],
+    queryKey: memberKeys.fileToken(userId),
     queryFn: () => client.files.getToken(),
     enabled: enabled && Boolean(userId),
     staleTime: fallbackRefreshInterval,

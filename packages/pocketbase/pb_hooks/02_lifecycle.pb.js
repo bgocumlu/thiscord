@@ -6,9 +6,15 @@ onRecordCreateRequest((e) => {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9._-]/g, "");
-  if (handle.length < 2 || handle.length > 32) throw new BadRequestError("Invalid handle.");
+  if (
+    handle.length < h.POLICY_LIMITS.profile.handleMin
+    || handle.length > h.POLICY_LIMITS.profile.handleMax
+  ) throw new BadRequestError("Invalid handle.");
   e.record.set("handle", handle);
-  e.record.set("displayName", h.normalizeName(e.record.get("displayName") || handle, 80));
+  e.record.set(
+    "displayName",
+    h.normalizeName(e.record.get("displayName") || handle, h.POLICY_LIMITS.profile.displayNameMax),
+  );
   e.record.set("status", "online");
   e.record.set("lastSeenAt", new Date().toISOString());
   e.record.set("preferences", {
@@ -24,17 +30,24 @@ onRecordUpdateRequest((e) => {
   const h = require(`${__hooks}/lib/permissions.js`);
   if (e.record.get("handle")) {
     const handle = String(e.record.get("handle")).trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
-    if (handle.length < 2 || handle.length > 32) throw new BadRequestError("Invalid handle.");
+    if (
+      handle.length < h.POLICY_LIMITS.profile.handleMin
+      || handle.length > h.POLICY_LIMITS.profile.handleMax
+    ) throw new BadRequestError("Invalid handle.");
     e.record.set("handle", handle);
   }
   if (e.record.get("displayName")) {
-    e.record.set("displayName", h.normalizeName(e.record.get("displayName"), 80));
+    e.record.set(
+      "displayName",
+      h.normalizeName(e.record.get("displayName"), h.POLICY_LIMITS.profile.displayNameMax),
+    );
   }
   e.next();
 }, "users");
 
 onRecordAfterCreateSuccess((e) => {
   e.next();
+  const h = require(`${__hooks}/lib/permissions.js`);
   const message = e.record;
   if (message.getString("deletedAt")) return;
   const content = message.getString("content");
@@ -48,13 +61,7 @@ onRecordAfterCreateSuccess((e) => {
     try {
       h.channelContext(e.app, channel.id, userId, "read_history");
       const user = e.app.findRecordById("users", userId);
-      let preferences = {};
-      try {
-        preferences = user.get("preferences") || {};
-        if (typeof preferences === "string") preferences = JSON.parse(preferences);
-      } catch {
-        preferences = {};
-      }
+      const preferences = h.recordPreferences(user);
       const mutedChannels = Array.isArray(preferences.mutedChannels) ? preferences.mutedChannels.map(String) : [];
       if (mutedChannels.includes(channel.id)) return;
       createNotification(e.app, userId, authorId, communityId, channel.id, message.id, type);
@@ -75,11 +82,11 @@ onRecordAfterCreateSuccess((e) => {
     }
   }
 
-  const pattern = /@([a-z0-9._-]{2,32})/g;
+  const pattern = /(^|[^a-z0-9._-])@([a-z0-9._-]{2,32})(?![a-z0-9._-])/gi;
   let match;
   while ((match = pattern.exec(content)) !== null) {
     try {
-      const user = e.app.findFirstRecordByData("users", "handle", match[1].toLowerCase());
+      const user = e.app.findFirstRecordByData("users", "handle", match[2].toLowerCase());
       e.app.findFirstRecordByFilter(
         "memberships",
         "community = {:community} && user = {:user} && state = 'active'",
@@ -91,39 +98,41 @@ onRecordAfterCreateSuccess((e) => {
     }
   }
 
-  if (/(^|\s)@everyone\b/i.test(content)) {
+  if (/(^|[^a-z0-9._-])@everyone\b/i.test(content)) {
     const author = h.channelContext(e.app, channel.id, authorId, "mention_everyone");
     if (author) {
-      const members = e.app.findRecordsByFilter(
+      const members = h.findAllRecordsByFilter(
+        e.app,
         "memberships",
         "community = {:community} && state = 'active' && user != {:author}",
         "",
-        10000,
-        0,
         { community: communityId, author: authorId },
       );
       for (const member of members) notify(member.getString("user"), "mention_everyone");
     }
   }
 
-  const mentionableRoles = e.app.findRecordsByFilter(
+  const mentionableRoles = h.findAllRecordsByFilter(
+    e.app,
     "roles",
     "community = {:community} && mentionable = true",
     "",
-    500,
-    0,
     { community: communityId },
   );
   const normalizedContent = content.toLowerCase();
   for (const role of mentionableRoles) {
-    const token = `@${role.getString("name").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
-    if (!token || !normalizedContent.includes(token)) continue;
-    const assignments = e.app.findRecordsByFilter(
+    const normalizedRole = role.getString("name")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    if (!normalizedRole) continue;
+    const tokenPattern = new RegExp(`(^|[^a-z0-9-])@${normalizedRole}(?![a-z0-9-])`, "i");
+    if (!tokenPattern.test(normalizedContent)) continue;
+    const assignments = h.findAllRecordsByFilter(
+      e.app,
       "member_roles",
       "role = {:role}",
       "",
-      10000,
-      0,
       { role: role.id },
     );
     for (const assignment of assignments) {
@@ -152,12 +161,12 @@ onRecordAfterCreateSuccess((e) => {
 onRecordAfterCreateSuccess((e) => {
   e.next();
   const message = e.record;
-  const members = e.app.findRecordsByFilter(
+  const h = require(`${__hooks}/lib/permissions.js`);
+  const members = h.findAllRecordsByFilter(
+    e.app,
     "conversation_members",
     "conversation = {:conversation} && user != {:author}",
     "",
-    100,
-    0,
     { conversation: message.getString("conversation"), author: message.getString("author") },
   );
   for (const member of members) {
@@ -173,27 +182,30 @@ onRecordAfterCreateSuccess((e) => {
   }
 }, "direct_messages");
 
-cronAdd("thiscord-transient-cleanup", "* * * * *", () => {
+cronAdd(
+  "thiscord-transient-cleanup",
+  require(`${__hooks}/lib/policies.generated.js`).TRANSIENT_TIMINGS.transientCleanupCron,
+  () => {
+  const h = require(`${__hooks}/lib/permissions.js`);
   const now = new Date().toISOString();
-  for (const collection of ["presence", "typing", "direct_typing"]) {
-    const records = $app.findRecordsByFilter(
+  const queryNow = h.databaseDate(now);
+  for (const collection of ["presence", "typing", "direct_typing", "call_token_versions"]) {
+    h.deleteRecordsByFilter(
+      $app,
       collection,
       "expiresAt != '' && expiresAt <= {:now}",
-      "",
-      1000,
-      0,
-      { now },
+      { now: queryNow },
     );
-    for (const record of records) $app.delete(record);
   }
 
-  const staleParticipants = $app.findRecordsByFilter(
+  require(`${__hooks}/lib/callAccess.js`).retryPendingEjections($app, now);
+
+  const staleParticipants = h.findAllRecordsByFilter(
+    $app,
     "call_participants",
     "leftAt = '' && expiresAt != '' && expiresAt <= {:now}",
     "",
-    1000,
-    0,
-    { now },
+    { now: queryNow },
   );
   for (const participant of staleParticipants) {
     participant.set("leftAt", now);
@@ -201,7 +213,7 @@ cronAdd("thiscord-transient-cleanup", "* * * * *", () => {
     $app.save(participant);
   }
 
-  const activeCalls = $app.findRecordsByFilter("call_sessions", "endedAt = ''", "", 1000, 0);
+  const activeCalls = h.findAllRecordsByFilter($app, "call_sessions", "endedAt = ''");
   for (const call of activeCalls) {
     const participants = $app.findRecordsByFilter(
       "call_participants",
@@ -209,11 +221,12 @@ cronAdd("thiscord-transient-cleanup", "* * * * *", () => {
       "",
       1,
       0,
-      { call: call.id, now },
+      { call: call.id, now: queryNow },
     );
     if (!participants.length) {
       call.set("endedAt", now);
       $app.save(call);
     }
   }
-});
+  },
+);

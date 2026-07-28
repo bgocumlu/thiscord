@@ -14,7 +14,10 @@ export interface DesktopApi {
   readonly downloadUpdate: () => Promise<UpdateState>;
   readonly installUpdate: () => Promise<{ readonly accepted: boolean }>;
   readonly getDisplaySources: () => Promise<readonly DesktopCaptureSource[]>;
-  readonly selectDisplaySource: (sourceId: string | null) => Promise<void>;
+  readonly selectDisplaySource: (
+    sourceId: string | null,
+    shareSystemAudio?: boolean,
+  ) => Promise<void>;
 }
 
 export interface DesktopCaptureSource {

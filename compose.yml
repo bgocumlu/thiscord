@@ -28,7 +28,9 @@ services:
       JITSI_URL: https://${JITSI_DOMAIN}
       JITSI_APP_ID: ${JITSI_APP_ID}
       JITSI_APP_SECRET: ${JITSI_APP_SECRET}
+      JITSI_CONTROL_URL: ${JITSI_CONTROL_URL:-http://prosody:5280/thiscord-call-control}
       THISCORD_PUBLIC_URL: ${FRONTEND_URL}
+      POCKETBASE_PUBLIC_URL: https://${POCKETBASE_DOMAIN}
       THISCORD_APP_NAME: ${APP_NAME:-Thiscord}
       POCKETBASE_ORIGINS: ${POCKETBASE_ORIGINS:-*}
     ports:
@@ -89,13 +91,19 @@ services:
       - jitsi_transcripts:/usr/share/jitsi-meet/transcripts
 
   prosody:
-    image: jitsi/prosody:stable-10978
+    image: thiscord/prosody:stable-10978
+    build:
+      context: ./infra/jitsi
+      dockerfile: prosody.Dockerfile
     restart: unless-stopped
     environment:
       <<: *jitsi-environment
+      GLOBAL_MODULES: thiscord_call_control
+      THISCORD_CALL_CONTROL_SECRET: ${JITSI_APP_SECRET}
+    ports:
+      - "${JITSI_CONTROL_BIND:-127.0.0.1:5280}:5280"
     volumes:
       - jitsi_prosody_config:/config
-      - jitsi_prosody_plugins:/prosody-plugins-custom
 
   jicofo:
     image: jitsi/jicofo:stable-10978
@@ -146,6 +154,5 @@ volumes:
   jitsi_web_config:
   jitsi_transcripts:
   jitsi_prosody_config:
-  jitsi_prosody_plugins:
   jitsi_jicofo_config:
   jitsi_jvb_config:
