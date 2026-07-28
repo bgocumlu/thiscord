@@ -1,17 +1,27 @@
+import { createCoalescedReporter } from '../../lib/coalescedReporter'
+
 export interface IntervalScheduler {
   readonly setInterval: (callback: () => void, delayMs: number) => number
   readonly clearInterval: (id: number) => void
 }
 
+type PreparedReport = () => Promise<void>
+type PrepareReport = () => PreparedReport | null
+
 export interface PresenceHeartbeat {
   readonly start: (
-    report: () => Promise<void>,
+    prepare: PrepareReport,
     onFailure: (error: unknown) => void,
     immediate?: boolean,
-    initialReport?: () => Promise<void>,
+    prepareInitial?: PrepareReport,
   ) => void
-  readonly stop: () => Promise<void>
+  readonly update: (
+    prepare: PrepareReport,
+    onFailure: (error: unknown) => void,
+  ) => void
+  readonly stop: () => void
   readonly active: () => boolean
+  readonly idle: () => Promise<void>
 }
 
 export function createPresenceHeartbeat(
@@ -19,27 +29,29 @@ export function createPresenceHeartbeat(
   scheduler: IntervalScheduler,
 ): PresenceHeartbeat {
   let timer: number | null = null
-  let pending = Promise.resolve()
-  const enqueue = (
-    report: () => Promise<void>,
-    onFailure: (error: unknown) => void,
-  ) => {
-    pending = pending.then(report).catch(onFailure)
-    return pending
+  let failureHandler: (error: unknown) => void = () => undefined
+  const reporter = createCoalescedReporter((error) => failureHandler(error))
+  const enqueue = (prepare: PrepareReport, onFailure: (error: unknown) => void) => {
+    failureHandler = onFailure
+    const prepared = prepare()
+    if (prepared) reporter.submit(prepared)
   }
   return {
-    start(report, onFailure, immediate = true, initialReport = report) {
+    start(prepare, onFailure, immediate = true, prepareInitial = prepare) {
       if (timer !== null) scheduler.clearInterval(timer)
-      if (immediate) void enqueue(initialReport, onFailure)
-      timer = scheduler.setInterval(() => void enqueue(report, onFailure), intervalMs)
+      reporter.clearPending()
+      if (immediate) enqueue(prepareInitial, onFailure)
+      timer = scheduler.setInterval(() => enqueue(prepare, onFailure), intervalMs)
     },
-    async stop() {
+    update: enqueue,
+    stop() {
       if (timer !== null) {
         scheduler.clearInterval(timer)
         timer = null
       }
-      await pending
+      reporter.clearPending()
     },
     active: () => timer !== null,
+    idle: () => reporter.idle(),
   }
 }

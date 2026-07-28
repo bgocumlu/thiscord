@@ -128,6 +128,29 @@ the focused community and direct conversations; while a query remains active,
 a five-second refresh also covers changes in non-focused communities without
 subscribing the client to all of their message traffic.
 
+## Account presence lifecycle
+
+Each renderer page owns a random in-memory presence lease and a monotonic
+sequence. One request may be in flight and only the latest additional heartbeat
+is retained. Page hide, unmount, and explicit sign-out close the lease with a
+higher sequence; the server keeps a bounded tombstone so delayed online or idle
+writes cannot undo that close. Duplicate tabs therefore have independent
+leases, including tabs created by session duplication.
+
+The server reduces active leases to one private account aggregate and one
+privacy-scoped aggregate for each active community. Realtime events contain
+only community, user, and status. Lease identifiers, expiry, and ordering state
+are not readable by clients. Member-directory responses are already filtered
+against server time, so browser clock skew cannot mark members offline.
+Unchanged heartbeats do not update public aggregates or invalidate directories.
+Realtime callbacks patch the matching cached row, while the 30-second poll is a
+degraded-mode fallback.
+
+Automatic idle begins after five minutes without keyboard, pointer, or touch
+activity; merely hiding a page does not make it idle, and an active call keeps
+automatic presence online. Invisible mode closes once and does not heartbeat.
+`lastSeenAt` advances only when the last active lease ends or expires.
+
 ## Call token and occupancy lifecycle
 
 Calls use a generic `CallTarget`: either a community voice channel or a direct
@@ -163,18 +186,20 @@ higher version and can join normally.
 
 The first join creates or reuses the target room, recovers a concurrent
 first-session uniqueness race, and creates one logical active participant per
-account. Repeated device joins and updates reuse that participant, refresh its
-two-minute expiry, and retain per-device media state. Leaving one
-device removes only that device; the logical participant leaves after its last
-device and the call ends when no unexpired participants remain.
+account. Repeated page-lease joins and updates reuse that participant, refresh
+its two-minute expiry, and retain private per-lease media state. Leaving one
+page removes only that lease; the logical participant leaves after its last
+lease and the call ends when no unexpired participants remain.
 
 The client sends a joined heartbeat after the Jitsi conference joins and an
 update every 25 seconds. Transient cleanup runs once per minute, marks expired
 participants left, and ends empty calls. Target authorization is re-evaluated
-inside the same transaction that creates or refreshes presence. Joined and
-update writes share one ordered queue, and final departure waits for that queue
-before it is sent, so a late join or update cannot recreate a participant after
-leaving.
+inside the same transaction that creates or refreshes presence. Each call page
+uses a random in-memory lease with monotonic sequence numbers. The client keeps
+at most one write in flight and one latest queued update. Final departure drops
+the queued update and sends a higher-sequence close without waiting for an older
+request; the server retains a private tombstone, so an older late write cannot
+recreate a participant after leaving.
 Each heartbeat returns refreshed media and moderation capabilities. A false
 speaking or video capability immediately mutes or disposes the corresponding
 local microphone, camera, desktop, and screen-audio resources; cleanup failure
@@ -184,11 +209,14 @@ matching product participant is marked left idempotently so shared occupancy
 cannot remain ghosted. Explicit sign-out leaves the active call before clearing
 the authentication token, so its final occupancy update remains authorized.
 
-Recoverable media failures retry after 750 ms, 1.5 seconds, and 3 seconds.
+Local browser media is stopped before conference departure, transport
+disconnect, or product-presence network work, and all of those network waits
+are bounded. Recoverable media failures retry after 750 ms, 1.5 seconds, and 3 seconds.
 Automatic reconnect retains local tracks and does not announce a departure.
-A successful conference join resets the attempt count. Exhaustion reports an
-error and announces departure; if that request fails, expiry cleanup is the
-fallback. A stale dynamically imported Jitsi module may trigger one guarded
+A conference must remain joined for ten seconds before it resets the attempt
+count, so a flapping connection still exhausts the bounded retry budget.
+Exhaustion reports an error and announces departure; if that request fails,
+expiry cleanup is the fallback. A stale dynamically imported Jitsi module may trigger one guarded
 service-worker/cache-clearing reload per 30 seconds and records the generic call
 target for resume. Calls remain active across channel and conversation
 navigation. Resume resolves its exact channel or conversation descriptor

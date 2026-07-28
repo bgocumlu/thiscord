@@ -22,6 +22,7 @@ onRecordCreateRequest((e) => {
     compactMode: false,
     reduceMotion: false,
     notificationSound: true,
+    presenceStatus: "online",
   });
   e.next();
 }, "users");
@@ -189,7 +190,35 @@ cronAdd(
   const h = require(`${__hooks}/lib/permissions.js`);
   const now = new Date().toISOString();
   const queryNow = h.databaseDate(now);
-  for (const collection of ["presence", "typing", "direct_typing", "call_token_versions"]) {
+  const expiredPresenceLeases = h.findAllRecordsByFilter(
+    $app,
+    "presence_leases",
+    "expiresAt != '' && expiresAt <= {:now}",
+    "",
+    { now: queryNow },
+  );
+  const affectedPresenceUsers = new Set(
+    expiredPresenceLeases.map((lease) => lease.getString("user")),
+  );
+  for (const lease of expiredPresenceLeases) {
+    if (!lease.getString("closedAt")) {
+      lease.set("closedAt", now);
+      lease.set("status", "offline");
+      lease.set(
+        "expiresAt",
+        new Date(Date.now() + h.TRANSIENT_TIMINGS.presenceLeaseTombstoneMs).toISOString(),
+      );
+      $app.save(lease);
+    } else {
+      $app.delete(lease);
+    }
+  }
+  const presenceService = require(`${__hooks}/lib/presence.js`);
+  for (const userId of affectedPresenceUsers) {
+    presenceService.syncUserPresence($app, userId, now);
+  }
+
+  for (const collection of ["typing", "direct_typing", "call_token_versions"]) {
     h.deleteRecordsByFilter(
       $app,
       collection,
@@ -200,6 +229,27 @@ cronAdd(
 
   require(`${__hooks}/lib/callAccess.js`).retryPendingEjections($app, now);
 
+  const expiredCallLeases = h.findAllRecordsByFilter(
+    $app,
+    "call_presence_leases",
+    "expiresAt != '' && expiresAt <= {:now}",
+    "",
+    { now: queryNow },
+  );
+  for (const lease of expiredCallLeases) {
+    if (!lease.getString("closedAt")) {
+      lease.set("closedAt", now);
+      lease.set("closedReason", "expired");
+      lease.set(
+        "expiresAt",
+        new Date(Date.now() + h.TRANSIENT_TIMINGS.callLeaseTombstoneMs).toISOString(),
+      );
+      $app.save(lease);
+    } else {
+      $app.delete(lease);
+    }
+  }
+
   const staleParticipants = h.findAllRecordsByFilter(
     $app,
     "call_participants",
@@ -208,9 +258,7 @@ cronAdd(
     { now: queryNow },
   );
   for (const participant of staleParticipants) {
-    participant.set("leftAt", now);
-    participant.set("expiresAt", "");
-    $app.save(participant);
+    require(`${__hooks}/lib/callAccess.js`).endParticipant($app, participant, now, "expired");
   }
 
   const activeCalls = h.findAllRecordsByFilter($app, "call_sessions", "endedAt = ''");

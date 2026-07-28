@@ -31,6 +31,20 @@ function findAllRecordsByFilter(app, collection, filter, sort = "", params = {},
   }
 }
 
+function filterAny(field, values, prefix = "value") {
+  const unique = Array.from(new Set((values || []).map(String).filter(Boolean)));
+  const params = {};
+  const clauses = unique.map((value, index) => {
+    const key = `${prefix}${index}`;
+    params[key] = value;
+    return `${field} = {:${key}}`;
+  });
+  return {
+    filter: clauses.length ? `(${clauses.join(" || ")})` : "id = ''",
+    params,
+  };
+}
+
 function databaseDate(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   if (!Number.isFinite(date.getTime())) throw new BadRequestError("Invalid date.");
@@ -517,6 +531,7 @@ module.exports = {
   databaseDate,
   deleteRecordsByFilter,
   fileRequestAuth,
+  filterAny,
   findAllRecordsByFilter,
   findAuthorizedPage,
   isSuperuserRecord,

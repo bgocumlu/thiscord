@@ -3,6 +3,8 @@ import type PocketBase from 'pocketbase'
 
 export interface CallPresence {
   readonly state: 'joined' | 'update' | 'left'
+  readonly leaseId: string
+  readonly sequence: number
   readonly muted?: boolean
   readonly deafened?: boolean
   readonly camera?: boolean
@@ -11,21 +13,12 @@ export interface CallPresence {
 
 export interface CallPresenceResult {
   readonly active: boolean
+  readonly accepted: boolean
+  readonly sequence: number
   readonly canSpeak?: boolean
   readonly canStreamVideo?: boolean
   readonly canMuteMembers?: boolean
   readonly canRemoveMembers?: boolean
-}
-
-const callDeviceIdKey = 'thiscord_client_session_id'
-
-export function callDeviceId() {
-  let deviceId = sessionStorage.getItem(callDeviceIdKey)
-  if (!deviceId) {
-    deviceId = crypto.randomUUID()
-    sessionStorage.setItem(callDeviceIdKey, deviceId)
-  }
-  return deviceId
 }
 
 export function callAccessWasRevoked(error: unknown) {
@@ -59,10 +52,15 @@ export const callApi = {
       { method: 'POST', body: { userId, action } },
     )
   },
-  reportPresence(client: PocketBase, target: CallTarget, presence: CallPresence) {
+  reportPresence(
+    client: PocketBase,
+    target: CallTarget,
+    presence: CallPresence,
+    signal?: AbortSignal,
+  ) {
     return client.send<CallPresenceResult>(
       `/api/thiscord/calls/${target.kind}/${encodeURIComponent(target.id)}/presence`,
-      { method: 'POST', body: { ...presence, deviceId: callDeviceId() } },
+      { method: 'POST', body: presence, requestKey: null, signal },
     )
   },
 } as const

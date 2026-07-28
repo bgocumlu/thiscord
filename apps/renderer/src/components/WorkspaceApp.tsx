@@ -205,7 +205,26 @@ export function WorkspaceApp() {
       return new Set()
     }
   })
-  const presenceError = usePresenceLifecycle(currentUser)
+  const presence = usePresenceLifecycle(
+    currentUser,
+    Boolean(call.session && call.session.status !== 'error'),
+  )
+  const visiblePresence = useMemo(() => {
+    const records = (communityData.presence.data ?? [])
+      .filter((item) => item.user !== currentUser.id)
+    return presence.status === 'offline'
+      ? records
+      : [...records, {
+          id: `self:${currentUser.id}`,
+          user: currentUser.id,
+          status: presence.status,
+        }]
+  }, [communityData.presence.data, currentUser.id, presence.status])
+  const signOut = useCallback(async () => {
+    await call.leave()
+    await presence.close()
+    logout()
+  }, [call, logout, presence])
   const realtimeStatus = useRealtimeInvalidation({
     enabled: true,
     userId: currentUser.id,
@@ -309,7 +328,7 @@ export function WorkspaceApp() {
             channels={channels}
             activeChannelId={activeChannel?.id ?? ''}
             currentUser={currentUser}
-            currentStatus={resolvedPresence(currentUser.id, communityData.presence.data ?? [])}
+            currentStatus={resolvedPresence(currentUser.id, visiblePresence)}
             onSelect={callNavigation.selectChannel}
             onCreate={(parent) => setModal({ kind: 'channel', parent })}
             onCategorySettings={(category) => setModal({ kind: 'channelSettings', channel: category })}
@@ -330,7 +349,7 @@ export function WorkspaceApp() {
             unreadConversationIds={conversationsData.unreadConversationIds}
             activeId={activeConversation?.id ?? ''}
             currentUser={currentUser}
-            currentStatus={currentUser.status}
+            currentStatus={presence.status}
             onSelect={(conversation) => { navigate(appRoutes.conversations(conversation.id)); setMobileSidebarOpen(false) }}
             onCreate={() => setModal({ kind: 'direct' })}
             onProfile={() => setModal({ kind: 'profile' })}
@@ -401,7 +420,7 @@ export function WorkspaceApp() {
             ? <aside className="members-panel"><DataFailure error={communityData.members.error} onRetry={() => void communityData.members.refetch()} label="Could not load members." /></aside>
             : <MembersPanel
                 memberships={communityData.members.data ?? []}
-                presence={communityData.presence.data ?? []}
+                presence={visiblePresence}
                 roles={communityData.roles.data ?? []}
                 memberRoles={communityData.memberRoles.data ?? []}
                 hasMore={Boolean(communityData.members.hasNextPage)}
@@ -488,7 +507,7 @@ export function WorkspaceApp() {
         <ProfileDialog
           user={currentUser}
           onClose={() => setModal(null)}
-          onLogout={() => void call.leave().finally(logout)}
+          onLogout={() => void signOut()}
         />
       ) : null}
       {modal?.kind === 'member' ? (
@@ -512,7 +531,7 @@ export function WorkspaceApp() {
       ) : null}
       {actionError ? <div className="toast-error" role="alert">{actionError}<button type="button" onClick={clearActionError}><X size={14} /></button></div> : null}
       {backgroundFailure ? <div className="toast-error" role="alert"><span><strong>{backgroundFailure.label}</strong> {errorMessage(backgroundFailure.error)}</span><button type="button" onClick={() => void backgroundFailure.retry()}>Retry</button></div> : null}
-      {!backgroundFailure && (presenceError || realtimeStatus === 'degraded') ? <div className="toast-error connection-warning" role="status"><span>{presenceError || 'Live updates are reconnecting…'}</span></div> : null}
+      {!backgroundFailure && (presence.error || realtimeStatus === 'degraded') ? <div className="toast-error connection-warning" role="status"><span>{presence.error || 'Live updates are reconnecting…'}</span></div> : null}
     </div>
   )
 }

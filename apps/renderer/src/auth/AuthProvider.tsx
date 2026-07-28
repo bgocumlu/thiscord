@@ -30,20 +30,40 @@ function toUser(record: RecordModel | null): User | null {
 
 export function AuthProvider({ children }: { readonly children: ReactNode }) {
   const client = usePocketBase()
-  const [user, setUser] = useState<User | null>(() => toUser(client.authStore.record))
+  const [user, setUser] = useState<User | null>(null)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     let generation = 0
     return client.authStore.onChange((_token, record) => {
       const currentGeneration = ++generation
       const baseUser = toUser(record)
-      setUser(baseUser)
-      if (!baseUser) return
+      if (!baseUser) {
+        setUser(null)
+        setReady(true)
+        return
+      }
+      const embeddedStatus = baseUser.preferences?.presenceStatus
+      if (embeddedStatus) {
+        setUser({ ...baseUser, status: embeddedStatus })
+        setReady(true)
+      } else {
+        setReady(false)
+      }
       void getOwnPreferences(client).then((preferences) => {
         if (generation !== currentGeneration) return
-        setUser({ ...baseUser, preferences })
+        setUser({
+          ...baseUser,
+          status: preferences.presenceStatus ?? 'online',
+          preferences,
+        })
       }).catch(() => {
-        // Authentication remains usable if the private preference request is transiently unavailable.
+        // Fail closed for presence privacy until the private preference can be loaded.
+        if (generation === currentGeneration) {
+          setUser({ ...baseUser, status: 'offline' })
+        }
+      }).finally(() => {
+        if (generation === currentGeneration) setReady(true)
       })
     }, true)
   }, [client])
@@ -72,12 +92,12 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
 
   const value = useMemo<AuthContextValue>(() => ({
     user,
-    ready: true,
+    ready,
     login,
     register,
     logout,
     requestPasswordReset,
-  }), [user, login, register, logout, requestPasswordReset])
+  }), [user, ready, login, register, logout, requestPasswordReset])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

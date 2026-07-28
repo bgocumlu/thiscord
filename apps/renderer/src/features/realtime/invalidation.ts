@@ -1,4 +1,5 @@
-import type { QueryKey } from '@tanstack/react-query'
+import type { CallParticipantRecord } from '@thiscord/shared'
+import type { InfiniteData, QueryKey } from '@tanstack/react-query'
 import { callKeys } from '../calls/queryKeys'
 import { channelKeys } from '../channels/queryKeys'
 import { communityKeys } from '../communities/queryKeys'
@@ -8,6 +9,10 @@ import { messageKeys } from '../messaging/queryKeys'
 import { notificationKeys } from '../notifications/queryKeys'
 import { roleKeys } from '../roles/queryKeys'
 import { searchKeys } from '../search/queryKeys'
+import type {
+  CommunityMemberPage,
+  PresenceRecord,
+} from '../members/api'
 
 export const realtimeCollections = [
   'communities',
@@ -20,7 +25,7 @@ export const realtimeCollections = [
   'reactions',
   'read_states',
   'typing',
-  'presence',
+  'community_presence',
   'conversations',
   'conversation_members',
   'direct_messages',
@@ -41,10 +46,43 @@ export interface RealtimeRecord {
   readonly channel?: string
   readonly conversation?: string
   readonly membership?: string
+  readonly status?: string
+  readonly leftAt?: string
   readonly expand?: {
     readonly room?: RealtimeRecord
     readonly call?: RealtimeRecord
   }
+}
+
+export function updatePresenceDirectoryCache(
+  current: InfiniteData<CommunityMemberPage> | undefined,
+  action: 'create' | 'update' | 'delete',
+  record: PresenceRecord,
+) {
+  if (!current) return current
+  let changed = false
+  const pages = current.pages.map((page) => {
+    const containsUser = page.items.some((membership) => membership.user === record.user)
+    const containsPresence = page.presence.some((item) => item.user === record.user)
+    if (!containsUser && !containsPresence) return page
+    const next = page.presence.filter((item) => item.user !== record.user)
+    if (action !== 'delete') next.push(record)
+    changed = true
+    return { ...page, presence: next }
+  })
+  return changed ? { ...current, pages } : current
+}
+
+export function updateCallOccupancyCache(
+  current: readonly CallParticipantRecord[] | undefined,
+  action: 'create' | 'update' | 'delete',
+  record: CallParticipantRecord,
+) {
+  if (!current) return current
+  const remaining = current.filter((item) => item.id !== record.id)
+  return action === 'delete' || Boolean(record.leftAt)
+    ? remaining
+    : [...remaining, record]
 }
 
 function present(...keys: Array<QueryKey | undefined>) {
@@ -116,7 +154,7 @@ export function queryKeysForRealtimeEvent(
       return [messageKeys.unreadSummaries]
     case 'typing':
       return [record.channel ? messageKeys.typing(record.channel) : messageKeys.typingAll]
-    case 'presence':
+    case 'community_presence':
       return [memberKeys.directories]
     case 'conversations':
       return [conversationKeys.all, searchKeys.all]

@@ -9,8 +9,12 @@ export interface PresenceRecord {
   readonly id: string
   readonly user: string
   readonly status: PresenceStatus
-  readonly deviceId: string
-  readonly expiresAt: string
+}
+
+export interface PresenceUpdateResult {
+  readonly accepted: boolean
+  readonly sequence: number
+  readonly status: PresenceStatus
 }
 
 export interface CommunityMemberPage {
@@ -24,8 +28,10 @@ export interface CommunityMemberPage {
 
 export const memberApi = {
   findByHandle(client: PocketBase, handle: string) {
-    return client.collection('users').getFirstListItem(
-      client.filter('handle = {:handle}', { handle }),
+    const search = new URLSearchParams({ handle })
+    return client.send(
+      `/api/thiscord/users/by-handle?${search}`,
+      {},
     )
   },
   list(
@@ -81,8 +87,17 @@ export const memberApi = {
   },
   updatePresence(
     client: PocketBase,
-    input: { readonly deviceId: string; readonly status: 'online' | 'idle' | 'dnd' | 'offline' },
+    input: {
+      readonly leaseId: string
+      readonly sequence: number
+      readonly status: PresenceStatus
+      readonly signal?: AbortSignal
+    },
   ) {
-    return client.send('/api/thiscord/presence', { method: 'POST', body: input })
+    const { signal, ...body } = input
+    return client.send<PresenceUpdateResult>(
+      '/api/thiscord/presence',
+      { method: 'POST', body, requestKey: null, signal },
+    )
   },
 } as const

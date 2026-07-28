@@ -7,6 +7,13 @@ function initials(value: string) {
   return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?'
 }
 
+const presenceLabels: Record<string, string> = {
+  online: 'Online',
+  idle: 'Idle',
+  dnd: 'Do not disturb',
+  offline: 'Offline',
+}
+
 export function Avatar({
   user,
   size = 'medium',
@@ -24,7 +31,14 @@ export function Avatar({
   return (
     <span className={`avatar avatar-${size}`} style={{ '--avatar-color': color } as CSSProperties} aria-label={user.displayName}>
       {url ? <img src={url} alt="" /> : initials(user.displayName || user.handle)}
-      {status ? <span className={`presence-dot presence-${status}`} /> : null}
+      {status ? (
+        <span
+          className={`presence-dot presence-${status}`}
+          role="img"
+          aria-label={presenceLabels[status] ?? status}
+          title={presenceLabels[status] ?? status}
+        />
+      ) : null}
     </span>
   )
 }

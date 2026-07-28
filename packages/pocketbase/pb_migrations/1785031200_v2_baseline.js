@@ -19,10 +19,10 @@ migrate((app) => {
   // PocketBase initializes a users auth collection on first boot. Extend that
   // canonical collection so a clean install and an existing install behave alike.
   const users = app.findCollectionByNameOrId("users");
-  users.listRule = authenticated;
-  users.viewRule = authenticated;
+  users.listRule = "id = @request.auth.id";
+  users.viewRule = "id = @request.auth.id";
   users.createRule = "";
-  users.updateRule = "id = @request.auth.id && @request.body.preferences:isset = false";
+  users.updateRule = "id = @request.auth.id && @request.body.preferences:isset = false && @request.body.status:isset = false";
   // Account deletion requires ordered cleanup and ownership transfer.
   users.deleteRule = null;
   users.authRule = "";
@@ -41,6 +41,7 @@ migrate((app) => {
     required: true,
     maxSelect: 1,
     values: ["online", "idle", "dnd", "offline"],
+    hidden: true,
   }));
   users.fields.add(new TextField({ name: "customStatus", max: 120 }));
   users.fields.add(new DateField({ name: "lastSeenAt" }));
@@ -346,23 +347,63 @@ migrate((app) => {
   const presence = new Collection({
     type: "base",
     name: "presence",
-    listRule: authenticated,
-    viewRule: authenticated,
+    listRule: "user = @request.auth.id",
+    viewRule: "user = @request.auth.id",
     createRule: null,
     updateRule: null,
     deleteRule: null,
     fields: [
       { type: "relation", name: "user", required: true, maxSelect: 1, collectionId: users.id, cascadeDelete: true },
-      { type: "select", name: "status", required: true, maxSelect: 1, values: ["online", "idle", "dnd", "offline"] },
-      { type: "text", name: "deviceId", required: true, max: 120 },
-      { type: "date", name: "expiresAt", required: true },
+      { type: "select", name: "status", required: true, maxSelect: 1, values: ["online", "idle", "dnd"] },
     ],
     indexes: [
-      "CREATE UNIQUE INDEX idx_presence_user_device ON presence (user, deviceId)",
-      "CREATE INDEX idx_presence_expires ON presence (expiresAt)",
+      "CREATE UNIQUE INDEX idx_presence_user ON presence (user)",
     ],
   });
   saveCollection(presence);
+
+  const communityPresence = new Collection({
+    type: "base",
+    name: "community_presence",
+    listRule: relatedCommunityMember,
+    viewRule: relatedCommunityMember,
+    createRule: null,
+    updateRule: null,
+    deleteRule: null,
+    fields: [
+      { type: "relation", name: "community", required: true, maxSelect: 1, collectionId: communities.id, cascadeDelete: true },
+      { type: "relation", name: "user", required: true, maxSelect: 1, collectionId: users.id, cascadeDelete: true },
+      { type: "select", name: "status", required: true, maxSelect: 1, values: ["online", "idle", "dnd"] },
+    ],
+    indexes: [
+      "CREATE UNIQUE INDEX idx_community_presence_pair ON community_presence (community, user)",
+      "CREATE INDEX idx_community_presence_user ON community_presence (user)",
+    ],
+  });
+  saveCollection(communityPresence);
+
+  const presenceLeases = new Collection({
+    type: "base",
+    name: "presence_leases",
+    listRule: null,
+    viewRule: null,
+    createRule: null,
+    updateRule: null,
+    deleteRule: null,
+    fields: [
+      { type: "relation", name: "user", required: true, maxSelect: 1, collectionId: users.id, cascadeDelete: true },
+      { type: "text", name: "leaseId", required: true, max: 120, hidden: true },
+      { type: "number", name: "sequence", required: true, min: 1, onlyInt: true, hidden: true },
+      { type: "select", name: "status", required: true, maxSelect: 1, values: ["online", "idle", "dnd", "offline"], hidden: true },
+      { type: "date", name: "expiresAt", required: true, hidden: true },
+      { type: "date", name: "closedAt", hidden: true },
+    ],
+    indexes: [
+      "CREATE UNIQUE INDEX idx_presence_leases_user_lease ON presence_leases (user, leaseId)",
+      "CREATE INDEX idx_presence_leases_expires ON presence_leases (expiresAt)",
+    ],
+  });
+  saveCollection(presenceLeases);
 
   const typing = new Collection({
     type: "base",
@@ -628,7 +669,7 @@ migrate((app) => {
       { type: "bool", name: "deafened" },
       { type: "bool", name: "camera" },
       { type: "bool", name: "sharing" },
-      { type: "json", name: "devices", maxSize: 16 * 1024 },
+      { type: "json", name: "devices", maxSize: 16 * 1024, hidden: true },
       { type: "date", name: "expiresAt" },
     ],
     indexes: [
@@ -638,6 +679,30 @@ migrate((app) => {
     ],
   });
   saveCollection(callParticipants);
+
+  const callPresenceLeases = new Collection({
+    type: "base",
+    name: "call_presence_leases",
+    listRule: null,
+    viewRule: null,
+    createRule: null,
+    updateRule: null,
+    deleteRule: null,
+    fields: [
+      { type: "relation", name: "room", required: true, maxSelect: 1, collectionId: callRooms.id, cascadeDelete: true },
+      { type: "relation", name: "user", required: true, maxSelect: 1, collectionId: users.id, cascadeDelete: true },
+      { type: "text", name: "leaseId", required: true, max: 120, hidden: true },
+      { type: "number", name: "sequence", required: true, min: 1, onlyInt: true, hidden: true },
+      { type: "date", name: "expiresAt", required: true, hidden: true },
+      { type: "date", name: "closedAt", hidden: true },
+      { type: "select", name: "closedReason", maxSelect: 1, values: ["left", "expired", "revoked"], hidden: true },
+    ],
+    indexes: [
+      "CREATE UNIQUE INDEX idx_call_presence_leases_room_user_lease ON call_presence_leases (room, user, leaseId)",
+      "CREATE INDEX idx_call_presence_leases_expires ON call_presence_leases (expiresAt)",
+    ],
+  });
+  saveCollection(callPresenceLeases);
 
   const callTokenVersions = new Collection({
     type: "base",
@@ -722,6 +787,7 @@ migrate((app) => {
   const names = [
     "notifications",
     "call_ejections",
+    "call_presence_leases",
     "call_participants",
     "call_sessions",
     "call_token_versions",
@@ -732,6 +798,8 @@ migrate((app) => {
     "direct_messages",
     "conversations",
     "typing",
+    "presence_leases",
+    "community_presence",
     "presence",
     "audit_events",
     "bans",

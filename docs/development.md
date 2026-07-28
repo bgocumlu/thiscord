@@ -102,7 +102,8 @@ actions belong in `packages/pocketbase/pb_hooks`.
 
 The single `1785031200_v2_baseline.js` migration creates the complete current
 schema directly, including channel and conversation messaging, generic call
-rooms, per-device call presence, final access rules, and quality repairs. If a
+rooms, ordered private presence leases, privacy-safe presence aggregates, final
+access rules, and quality repairs. If a
 local database was created from any earlier migration set, remove only that
 disposable local PocketBase data and recreate it from the baseline. There is
 intentionally no legacy call-schema migration or compatibility route.

@@ -5,6 +5,8 @@ import {
   callOccupancyQueryMatches,
   callTargetForRealtimeEvent,
   queryKeysForRealtimeEvent,
+  updateCallOccupancyCache,
+  updatePresenceDirectoryCache,
 } from '../src/features/realtime/invalidation.ts'
 import {
   realtimeFilterFor,
@@ -14,6 +16,7 @@ import {
 test('realtime collection events map to explicit feature query contracts', () => {
   assert.deepEqual(queryKeysForRealtimeEvent('call_participants'), [['call_occupancy']])
   assert.deepEqual(queryKeysForRealtimeEvent('call_rooms'), [['call_occupancy']])
+  assert.deepEqual(queryKeysForRealtimeEvent('community_presence'), [['community_members']])
   assert.deepEqual(queryKeysForRealtimeEvent('channel_permissions', { channel: 'channel-one' }), [
     ['channel_permissions', 'channel-one'],
     ['effective_permissions'],
@@ -75,6 +78,34 @@ test('call realtime events only invalidate occupancy queries containing their ta
   assert.equal(callOccupancyQueryMatches(['call_occupancy', 'conversation:direct-one'], target), false)
 })
 
+test('presence and call realtime events patch cached rows without directory refetches', () => {
+  const directory = {
+    pageParams: [1],
+    pages: [{
+      page: 1,
+      perPage: 50,
+      hasMore: false,
+      items: [{ id: 'membership', user: 'member' }],
+      memberRoles: [],
+      presence: [],
+    }],
+  }
+  const online = { id: 'presence', user: 'member', status: 'online' }
+  const patched = updatePresenceDirectoryCache(directory, 'create', online)
+  assert.deepEqual(patched.pages[0].presence, [online])
+  assert.deepEqual(
+    updatePresenceDirectoryCache(patched, 'delete', online).pages[0].presence,
+    [],
+  )
+
+  const participant = { id: 'participant', leftAt: '', user: 'member' }
+  assert.deepEqual(updateCallOccupancyCache([], 'create', participant), [participant])
+  assert.deepEqual(
+    updateCallOccupancyCache([participant], 'update', { ...participant, leftAt: 'now' }),
+    [],
+  )
+})
+
 test('private realtime collections always receive user or community filters', () => {
   const client = {
     filter(template, values) {
@@ -100,6 +131,10 @@ test('private realtime collections always receive user or community filters', ()
   assert.match(
     realtimeFilterFor(client, directScope, 'conversation_members'),
     /user = \{:user\}/,
+  )
+  assert.match(
+    realtimeFilterFor(client, communityScope, 'community_presence'),
+    /community-one/,
   )
 })
 

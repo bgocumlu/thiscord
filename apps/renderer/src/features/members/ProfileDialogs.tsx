@@ -46,7 +46,6 @@ export function ProfileDialog({ user, onClose, onLogout }: {
         displayName: data.get('displayName'),
         handle: data.get('handle'),
         bio: data.get('bio'),
-        status: data.get('status'),
         customStatus: data.get('customStatus'),
         ...(data.get('avatarRemove') === '1'
           ? { avatar: null }
@@ -62,6 +61,7 @@ export function ProfileDialog({ user, onClose, onLogout }: {
         compactMode: data.get('compactMode') === 'on',
         reduceMotion: data.get('reduceMotion') === 'on',
         notificationSound: data.get('notificationSound') === 'on',
+        presenceStatus: data.get('status') as User['status'],
       }, record)
       setSaved(true)
     } catch (caught) {

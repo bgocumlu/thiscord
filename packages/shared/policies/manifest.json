@@ -161,12 +161,17 @@
     "presenceExpiryMs": 120000,
     "presenceHeartbeatMs": 25000,
     "presencePollMs": 30000,
+    "presenceIdleMs": 300000,
+    "presenceLeaseTombstoneMs": 600000,
     "callParticipantExpiryMs": 120000,
     "callHeartbeatMs": 25000,
     "callOccupancyPollMs": 20000,
+    "callLeaseTombstoneMs": 600000,
     "callTokenLifetimeMs": 300000,
+    "transientRequestTimeoutMs": 8000,
     "transientCleanupCron": "* * * * *",
     "jitsiReloadCooldownMs": 30000,
+    "automaticReconnectStableMs": 10000,
     "automaticReconnectDelaysMs": [750, 1500, 3000]
   }
 }

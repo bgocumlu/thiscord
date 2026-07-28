@@ -430,8 +430,8 @@ Call-room releases additionally require:
 
 The completed V2 architecture was verified on 2026-07-28 with:
 
-- `npm run check`, including renderer lint, all workspace type checks, 39
-  renderer tests, 55 PocketBase authorization and migration tests, and policy
+- `npm run check`, including renderer lint, all workspace type checks, 48
+  renderer tests, 75 PocketBase authorization and migration tests, and policy
   drift checks;
 - `npm run build`;
 - `git diff --check`;
@@ -478,4 +478,5 @@ The Phase 3 prerequisites are resolved in
 `docs/v2-phase3-decisions.md`. The final implementation uses lazy durable rooms
 for conversations, one active session per target, membership-based
 conversation call access, immediate revoked-participant cleanup, muted/DND
-notification filtering, per-device presence, and the clean V2 baseline.
+notification filtering, ordered private page leases with public aggregates,
+and the clean V2 baseline.

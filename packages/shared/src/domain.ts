@@ -18,6 +18,7 @@ export type UserPreferences = ThemePreference & {
   readonly compactMode: boolean;
   readonly reduceMotion: boolean;
   readonly notificationSound: boolean;
+  readonly presenceStatus?: PresenceStatus;
   readonly mutedChannels?: readonly Id[];
   readonly mutedConversations?: readonly Id[];
 };
@@ -367,13 +368,6 @@ export interface CallParticipantRecord {
   readonly deafened: boolean;
   readonly camera: boolean;
   readonly sharing: boolean;
-  readonly devices: Readonly<Record<string, {
-    readonly expiresAt: IsoDate;
-    readonly muted: boolean;
-    readonly deafened: boolean;
-    readonly camera: boolean;
-    readonly sharing: boolean;
-  }>>;
   readonly created: IsoDate;
   readonly updated: IsoDate;
   readonly expand?: {

@@ -83,7 +83,10 @@ revocation by muting or disposing its local tracks and leaves the call if local
   the token lifetime. Reconnecting with any revoked version cannot restore
   removed access or stale publishing authority; a newly authorized token gets
   a higher version and remains usable.
-Each device heartbeat records only media state and expiry. When membership or
+Each in-memory page lease heartbeat records only media state and expiry. The
+lease identifier, ordering sequence, and per-lease media JSON are private
+server fields; shared occupancy exposes only the logical participant aggregate.
+When membership or
 voice access is revoked, PocketBase calls a private, shared-secret Prosody
 endpoint with the affected PocketBase user ID. Prosody removes every matching
 occupant by the user identity verified from its JWT session before PocketBase
@@ -104,14 +107,15 @@ users, communities, memberships, roles, member_roles
 channels, channel_permissions
 messages, reactions, read_states
 invites, bans, audit_events
-presence, typing, direct_typing, notifications
+presence, presence_leases, community_presence, typing, direct_typing, notifications
 conversations, conversation_members, direct_messages, direct_reactions
-call_rooms, call_sessions, call_participants, call_ejections
+call_rooms, call_sessions, call_participants, call_presence_leases, call_ejections
 ```
 
-Presence, typing, and call-participant heartbeats expire automatically. PocketBase
-aggregates per-device call heartbeats into one logical occupant per account,
-stores per-device media state, derives shared occupancy, and revokes both
+Presence, typing, and call-participant heartbeats expire automatically.
+PocketBase reduces private account leases to one public status per community
+and private call leases to one logical occupant per account. It derives shared
+occupancy without exposing browser/device state and revokes both
 product presence and live media access when membership ends. Jitsi remains the
 source of live tracks. Messages are soft-deleted so replies and audit history remain
 coherent. File records use PocketBase storage and can be moved to its

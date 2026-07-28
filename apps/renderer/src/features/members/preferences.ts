@@ -14,6 +14,7 @@ export function resolvedPreferences(
     compactMode: preferences?.compactMode ?? false,
     reduceMotion: preferences?.reduceMotion ?? false,
     notificationSound: preferences?.notificationSound ?? true,
+    presenceStatus: preferences?.presenceStatus ?? 'online',
     mutedChannels: preferences?.mutedChannels ?? [],
     mutedConversations: preferences?.mutedConversations ?? [],
   }
@@ -39,6 +40,7 @@ export async function updateOwnPreferences(
   if (baseRecord) {
     client.authStore.save(client.authStore.token, {
       ...baseRecord,
+      status: result.preferences.presenceStatus ?? 'online',
       preferences: result.preferences,
     })
   }

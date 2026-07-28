@@ -25,25 +25,26 @@ routerAdd("GET", "/api/thiscord/communities/{id}/members", (e) => {
   const items = records.slice(0, perPage);
   $apis.enrichRecords(e, items, "user");
 
-  const memberRoles = [];
-  const presence = [];
-  const now = new Date().toISOString();
-  for (const membership of items) {
-    memberRoles.push(...h.findAllRecordsByFilter(
-      e.app,
-      "member_roles",
-      "membership = {:membership}",
-      "",
-      { membership: membership.id },
-    ));
-    presence.push(...h.findAllRecordsByFilter(
-      e.app,
-      "presence",
-      "user = {:user}",
-      "",
-      { user: membership.getString("user") },
-    ).filter((item) => new Date(item.getString("expiresAt")).getTime() > new Date(now).getTime()));
-  }
+  const membershipFilter = h.filterAny("membership", items.map((item) => item.id), "membership");
+  const memberRoles = h.findAllRecordsByFilter(
+    e.app,
+    "member_roles",
+    membershipFilter.filter,
+    "",
+    membershipFilter.params,
+  );
+  const presenceFilter = h.filterAny(
+    "user",
+    items.map((item) => item.getString("user")),
+    "user",
+  );
+  const presence = h.findAllRecordsByFilter(
+    e.app,
+    "presence",
+    presenceFilter.filter,
+    "",
+    presenceFilter.params,
+  );
 
   return e.json(200, {
     page,
@@ -53,6 +54,17 @@ routerAdd("GET", "/api/thiscord/communities/{id}/members", (e) => {
     memberRoles,
     presence,
   });
+}, $apis.requireAuth("users"));
+
+routerAdd("GET", "/api/thiscord/users/by-handle", (e) => {
+  const h = require(`${__hooks}/lib/permissions.js`);
+  const handle = h.requiredText(
+    e.request.url.query().get("handle"),
+    "handle",
+    h.POLICY_LIMITS.profile.handleMax,
+  ).toLowerCase();
+  const user = e.app.findFirstRecordByData("users", "handle", handle);
+  return e.json(200, user);
 }, $apis.requireAuth("users"));
 
 routerAdd("PUT", "/api/thiscord/memberships/{id}/roles", (e) => {
@@ -145,35 +157,73 @@ routerAdd("PATCH", "/api/thiscord/memberships/{id}", (e) => {
 function registerPresence() {
 routerAdd("POST", "/api/thiscord/presence", (e) => {
   const h = require(`${__hooks}/lib/permissions.js`);
+  const presenceService = require(`${__hooks}/lib/presence.js`);
   const body = e.requestInfo().body;
-  const deviceId = h.requiredText(body.deviceId, "device identifier", 120);
+  const leaseId = h.requiredText(body.leaseId, "presence lease", 120);
   const allowed = ["online", "idle", "dnd", "offline"];
-  const status = allowed.includes(body.status) ? body.status : "online";
-  e.app.runInTransaction((txApp) => {
-    let presence;
+  const status = String(body.status || "");
+  if (!allowed.includes(status)) throw new BadRequestError("Invalid presence status.");
+  const sequence = Number(body.sequence);
+  if (!Number.isSafeInteger(sequence) || sequence < 1) {
+    throw new BadRequestError("Invalid presence sequence.");
+  }
+  let result = { accepted: false, sequence, status: "offline" };
+  const update = () => e.app.runInTransaction((txApp) => {
+    const now = new Date().toISOString();
+    let lease;
+    let leaseFound = true;
     try {
-      presence = txApp.findFirstRecordByFilter(
-        "presence",
-        "user = {:user} && deviceId = {:device}",
-        { user: e.auth.id, device: deviceId },
+      lease = txApp.findFirstRecordByFilter(
+        "presence_leases",
+        "user = {:user} && leaseId = {:lease}",
+        { user: e.auth.id, lease: leaseId },
       );
     } catch {
-      presence = new Record(txApp.findCollectionByNameOrId("presence"));
-      presence.set("user", e.auth.id);
-      presence.set("deviceId", deviceId);
+      leaseFound = false;
+      lease = new Record(txApp.findCollectionByNameOrId("presence_leases"));
+      lease.set("user", e.auth.id);
+      lease.set("leaseId", leaseId);
     }
-    if (status === "offline") {
-      if (presence.id) txApp.delete(presence);
-      const user = txApp.findRecordById("users", e.auth.id);
-      user.set("lastSeenAt", new Date().toISOString());
-      txApp.save(user);
+    if (
+      leaseFound
+      && (sequence <= lease.getInt("sequence") || Boolean(lease.getString("closedAt")))
+    ) {
+      result = {
+        accepted: false,
+        sequence: lease.getInt("sequence"),
+        status: presenceService.syncUserPresence(txApp, e.auth.id, now),
+      };
       return;
     }
-    presence.set("status", status);
-    presence.set("expiresAt", new Date(Date.now() + h.TRANSIENT_TIMINGS.presenceExpiryMs).toISOString());
-    txApp.save(presence);
+    lease.set("sequence", sequence);
+    lease.set("status", status);
+    if (status === "offline") {
+      lease.set("closedAt", now);
+      lease.set(
+        "expiresAt",
+        new Date(Date.now() + h.TRANSIENT_TIMINGS.presenceLeaseTombstoneMs).toISOString(),
+      );
+    } else {
+      lease.set("closedAt", "");
+      lease.set(
+        "expiresAt",
+        new Date(Date.now() + h.TRANSIENT_TIMINGS.presenceExpiryMs).toISOString(),
+      );
+    }
+    txApp.save(lease);
+    result = {
+      accepted: true,
+      sequence,
+      status: presenceService.syncUserPresence(txApp, e.auth.id, now),
+    };
   });
-  return e.noContent(204);
+  try {
+    update();
+  } catch (error) {
+    if (!/unique|constraint|locked/i.test(String(error?.message || error))) throw error;
+    update();
+  }
+  return e.json(200, result);
 }, $apis.requireAuth("users"));
 
 }

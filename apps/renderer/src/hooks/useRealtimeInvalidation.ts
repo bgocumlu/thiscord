@@ -1,14 +1,24 @@
 import { useQueryClient } from '@tanstack/react-query'
+import type { CallParticipantRecord } from '@thiscord/shared'
+import type { InfiniteData } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import {
   callOccupancyQueryMatches,
   callTargetForRealtimeEvent,
   queryKeysForRealtimeEvent,
   realtimeCollections,
+  updateCallOccupancyCache,
+  updatePresenceDirectoryCache,
   type RealtimeCollection,
 } from '../features/realtime/invalidation'
 import { usePocketBase } from '../lib/contexts'
 import type PocketBase from 'pocketbase'
+import type {
+  CommunityMemberPage,
+  PresenceRecord,
+} from '../features/members/api'
+import { memberKeys } from '../features/members/queryKeys'
+import { callKeys } from '../features/calls/queryKeys'
 
 export interface RealtimeScope {
   readonly enabled: boolean
@@ -25,7 +35,7 @@ const communityScopedCollections = new Set<RealtimeCollection>([
   'reactions',
   'read_states',
   'typing',
-  'presence',
+  'community_presence',
 ])
 
 export function realtimeFilterFor(
@@ -69,10 +79,8 @@ export function realtimeFilterFor(
             community: scope.communityId,
           })
         : ''
-    case 'presence':
-      return scope.communityId
-        ? client.filter('user.memberships_via_user.community ?= {:community}', { community: scope.communityId })
-        : client.filter('user = {:user}', { user: scope.userId })
+    case 'community_presence':
+      return communityFilter
     case 'notifications':
       return client.filter('user = {:user}', { user: scope.userId })
     case 'conversations':
@@ -172,6 +180,16 @@ export function useRealtimeInvalidation(scope: RealtimeScope) {
     const unsubscribers: Array<() => void> = []
     let cancelled = false
     let retryTimer: number | undefined
+    let realtimeConnected = false
+
+    const closeSubscriptionRace = () => {
+      if (scope.communityId) {
+        void queryClient.invalidateQueries({
+          queryKey: memberKeys.directory(scope.communityId),
+        })
+      }
+      void queryClient.invalidateQueries({ queryKey: callKeys.all })
+    }
 
     const connect = async () => {
       try {
@@ -186,7 +204,40 @@ export function useRealtimeInvalidation(scope: RealtimeScope) {
           }, collection)
           const expand = realtimeExpandFor(collection)
           const unsubscribe = await client.collection(collection).subscribe('*', (event) => {
+            if (!['create', 'update', 'delete'].includes(event.action)) return
+            const action = event.action as 'create' | 'update' | 'delete'
+            if (collection === 'community_presence') {
+              queryClient.setQueriesData<InfiniteData<CommunityMemberPage>>(
+                {
+                  queryKey: event.record.community
+                    ? memberKeys.directory(event.record.community)
+                    : memberKeys.directories,
+                },
+                (current) => updatePresenceDirectoryCache(
+                  current,
+                  action,
+                  event.record as unknown as PresenceRecord,
+                ),
+              )
+              return
+            }
             const callTarget = callTargetForRealtimeEvent(collection, event.record)
+            if (collection === 'call_participants' && callTarget) {
+              queryClient.setQueriesData<readonly CallParticipantRecord[]>(
+                {
+                  predicate: (query) => callOccupancyQueryMatches(
+                    query.queryKey,
+                    callTarget,
+                  ),
+                },
+                (current) => updateCallOccupancyCache(
+                  current,
+                  action,
+                  event.record as unknown as CallParticipantRecord,
+                ),
+              )
+              return
+            }
             if (callTarget) {
               void queryClient.invalidateQueries({
                 predicate: (query) => callOccupancyQueryMatches(query.queryKey, callTarget),
@@ -200,7 +251,11 @@ export function useRealtimeInvalidation(scope: RealtimeScope) {
           return unsubscribe
         }), () => cancelled)
         unsubscribers.push(...connected)
-        if (!cancelled) setStatus('connected')
+        if (!cancelled) {
+          realtimeConnected = true
+          setStatus('connected')
+          closeSubscriptionRace()
+        }
       } catch {
         if (!cancelled) {
           for (const unsubscribe of unsubscribers.splice(0)) void unsubscribe()
@@ -210,9 +265,17 @@ export function useRealtimeInvalidation(scope: RealtimeScope) {
       }
     }
     void connect()
+    const connectionCheck = window.setInterval(() => {
+      if (cancelled) return
+      const connected = client.realtime.isConnected
+      if (connected && !realtimeConnected) closeSubscriptionRace()
+      realtimeConnected = connected
+      setStatus(connected ? 'connected' : 'degraded')
+    }, 2_000)
 
     return () => {
       cancelled = true
+      window.clearInterval(connectionCheck)
       if (retryTimer) window.clearTimeout(retryTimer)
       for (const unsubscribe of unsubscribers) void unsubscribe()
     }

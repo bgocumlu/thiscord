@@ -15,13 +15,11 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { usePocketBase } from '../../lib/contexts'
 import { errorMessage } from '../../lib/pocketbase'
 import { callAccessWasRevoked, callApi } from './api'
 import { startConferenceLifecycle } from './conferenceLifecycle'
 import { recoverJoinFailure } from './joinFailure'
-import { callKeys } from './queryKeys'
 import { sameCallTarget } from './targets'
 import {
   LOCAL_PARTICIPANT,
@@ -65,7 +63,6 @@ export function CallProvider({ user, children }: {
   readonly children: ReactNode
 }) {
   const client = usePocketBase()
-  const queryClient = useQueryClient()
   const resources = useRef<JitsiEngineResources>(createEngineResources())
   const participants = useRef(new Map<string, MutableParticipant>())
   const generation = useRef(0)
@@ -78,6 +75,9 @@ export function CallProvider({ user, children }: {
   const recoveryRetryRef = useRef<() => void>(() => undefined)
   const terminalFailureRef = useRef<(message: string) => Promise<void>>(async () => undefined)
   const terminalCleanup = useRef<Promise<void> | null>(null)
+  const callLease = useRef<{ id: string; sequence: number } | null>(null)
+  const callClosing = useRef(false)
+  const recoveryStableTimer = useRef<number | null>(null)
   const observedTracks = useRef(new WeakSet<JitsiTrack>())
   const localVideoKinds = useRef(new WeakMap<JitsiTrack, 'video' | 'desktop'>())
   const {
@@ -199,44 +199,98 @@ export function CallProvider({ user, children }: {
     setTrack(track, false, localVideoKind)
   }, [publish, setTrack])
 
-  const reportCallPresence = useCallback(async (state: 'joined' | 'update' | 'left') => {
+  const prepareCallPresence = useCallback((state: 'joined' | 'update' | 'left') => {
     const target = activeTarget.current
-    if (!target) return
+    const lease = callLease.current
+    if (!target || !lease || (state === 'update' && callClosing.current)) return null
+    const leaseId = lease.id
+    const sequence = ++lease.sequence
     const local = participants.current.get(LOCAL_PARTICIPANT)
-    const result = await callApi.reportPresence(client, target.target, {
+    const body = {
       state,
+      leaseId,
+      sequence,
       muted: local?.audioTrack?.isMuted() ?? true,
       deafened: deafenedRef.current,
       camera: Boolean(local?.videoTrack),
       sharing: Boolean(local?.screenTrack),
-    })
-    if (state !== 'left' && activeTarget.current && sameCallTarget(activeTarget.current.target, target.target)) {
-      publish({
-        canSpeak: result.canSpeak ?? false,
-        canStreamVideo: result.canStreamVideo ?? false,
-        canMuteMembers: result.canMuteMembers ?? false,
-        canRemoveMembers: result.canRemoveMembers ?? false,
-      })
-      const refreshedAccess = {
-        canSpeak: result.canSpeak ?? false,
-        canStreamVideo: result.canStreamVideo ?? false,
-      }
-      for (const mediaType of rejectedLocalMedia(local, refreshedAccess)) {
-        if (!rejectedLocalMedia(
-          participants.current.get(LOCAL_PARTICIPANT),
-          refreshedAccess,
-        ).includes(mediaType)) continue
-        await mediaPolicyRejectedRef.current(mediaType)
+    } as const
+    return async () => {
+      const controller = new AbortController()
+      const timeout = window.setTimeout(
+        () => controller.abort(),
+        transientTimings.transientRequestTimeoutMs,
+      )
+      try {
+        const result = await callApi.reportPresence(
+          client,
+          target.target,
+          body,
+          controller.signal,
+        )
+        if (
+          !result.accepted
+          && state === 'update'
+          && !callClosing.current
+          && activeTarget.current
+          && callLease.current?.id === leaseId
+          && sameCallTarget(activeTarget.current.target, target.target)
+        ) {
+          callLease.current = { id: crypto.randomUUID(), sequence: 0 }
+          await reportCallPresenceRef.current('joined')
+          return
+        }
+        if (
+          state !== 'left'
+          && activeTarget.current
+          && callLease.current?.id === leaseId
+          && sameCallTarget(activeTarget.current.target, target.target)
+        ) {
+          publish({
+            canSpeak: result.canSpeak ?? false,
+            canStreamVideo: result.canStreamVideo ?? false,
+            canMuteMembers: result.canMuteMembers ?? false,
+            canRemoveMembers: result.canRemoveMembers ?? false,
+          })
+          const refreshedAccess = {
+            canSpeak: result.canSpeak ?? false,
+            canStreamVideo: result.canStreamVideo ?? false,
+          }
+          for (const mediaType of rejectedLocalMedia(local, refreshedAccess)) {
+            if (!rejectedLocalMedia(
+              participants.current.get(LOCAL_PARTICIPANT),
+              refreshedAccess,
+            ).includes(mediaType)) continue
+            await mediaPolicyRejectedRef.current(mediaType)
+          }
+        }
+      } finally {
+        window.clearTimeout(timeout)
       }
     }
-    await queryClient.invalidateQueries({ queryKey: callKeys.all })
-  }, [client, deafenedRef, publish, queryClient])
-  useEffect(() => {
-    reportCallPresenceRef.current = reportCallPresence
-  }, [reportCallPresence])
+  }, [client, deafenedRef, publish])
+  const reportCallPresence = useCallback(async (state: 'joined' | 'update' | 'left') => {
+    const prepared = prepareCallPresence(state)
+    if (prepared) await prepared()
+  }, [prepareCallPresence])
   const handlePresenceFailure = useCallback((error: unknown) => {
     if (callAccessWasRevoked(error)) void leaveRef.current()
   }, [])
+  const queueCallPresence = useCallback((state: 'joined' | 'update' = 'update') => {
+    presenceHeartbeat.update(
+      () => prepareCallPresence(state),
+      handlePresenceFailure,
+    )
+  }, [handlePresenceFailure, prepareCallPresence, presenceHeartbeat])
+  useEffect(() => {
+    reportCallPresenceRef.current = async (state) => {
+      if (state === 'update') {
+        queueCallPresence()
+        return
+      }
+      await reportCallPresence(state)
+    }
+  }, [queueCallPresence, reportCallPresence])
   const {
     screenSources,
     screenPickerError,
@@ -266,7 +320,7 @@ export function CallProvider({ user, children }: {
     publish,
     setTrack,
     observeTrack,
-    reportPresence: reportCallPresence,
+    reportPresence: async () => queueCallPresence(),
     registerStopScreenAudio,
   })
 
@@ -283,12 +337,12 @@ export function CallProvider({ user, children }: {
         stopScreenAudio: () => stopScreenAudioRef.current(),
       })
       publish()
-      await reportCallPresence('update').catch(handlePresenceFailure)
+      queueCallPresence()
     } catch {
       // A client that cannot drop revoked media must fail closed.
       await leaveRef.current()
     }
-  }, [handlePresenceFailure, mediaRuntime.removeTrack, publish, reportCallPresence, setTrack])
+  }, [mediaRuntime.removeTrack, publish, queueCallPresence, setTrack])
   useEffect(() => {
     mediaPolicyRejectedRef.current = handleMediaPolicyRejected
   }, [handleMediaPolicyRejected])
@@ -301,14 +355,13 @@ export function CallProvider({ user, children }: {
     readonly announceDeparture?: boolean
   } = {}) => {
     recovery.cancel()
-    await presenceHeartbeat.stop()
-    if (activeTarget.current && announceDeparture) {
-      try {
-        await reportCallPresence('left')
-      } catch {
-        // Expiry cleanup removes a stale participant if the final request cannot be delivered.
-      }
+    if (recoveryStableTimer.current !== null) {
+      window.clearTimeout(recoveryStableTimer.current)
+      recoveryStableTimer.current = null
     }
+    presenceHeartbeat.stop()
+    const departing = Boolean(activeTarget.current && callLease.current && announceDeparture)
+    callClosing.current = departing
     const current = resources.current
     resources.current = createEngineResources()
     const { retained: retainedMedia } = await releaseEngineResources(
@@ -316,6 +369,14 @@ export function CallProvider({ user, children }: {
       preserveLocalTracks,
     )
     participants.current.clear()
+    if (departing) {
+      try {
+        await reportCallPresence('left')
+      } catch {
+        // Expiry cleanup removes a stale participant if the bounded final request cannot be delivered.
+      }
+      callLease.current = null
+    }
     return preserveLocalTracks ? retainedMedia : { localTracks: [], screenAudio: null }
   }, [presenceHeartbeat, recovery, reportCallPresence])
 
@@ -379,6 +440,10 @@ export function CallProvider({ user, children }: {
     }
 
     activeTarget.current = target
+    if (!automatic || !callLease.current) {
+      callLease.current = { id: crypto.randomUUID(), sequence: 0 }
+    }
+    callClosing.current = false
     rememberDeafened(preferredDeafened)
     participants.current.set(LOCAL_PARTICIPANT, {
       id: LOCAL_PARTICIPANT,
@@ -485,7 +550,13 @@ export function CallProvider({ user, children }: {
         },
         onMediaPolicyRejected: handleMediaPolicyRejected,
         onJoined: (conference) => {
-          recovery.reset()
+          if (recoveryStableTimer.current !== null) {
+            window.clearTimeout(recoveryStableTimer.current)
+          }
+          recoveryStableTimer.current = window.setTimeout(() => {
+            if (generation.current === requestGeneration) recovery.reset()
+            recoveryStableTimer.current = null
+          }, transientTimings.automaticReconnectStableMs)
           conference.setReceiverConstraints({
             lastN: 25,
             defaultConstraints: { maxHeight: 720 },
@@ -493,10 +564,10 @@ export function CallProvider({ user, children }: {
           })
           publish({ status: 'connected', error: '' })
           presenceHeartbeat.start(
-            () => reportCallPresence('update'),
+            () => prepareCallPresence('update'),
             handlePresenceFailure,
             true,
-            () => reportCallPresence('joined'),
+            () => prepareCallPresence('joined'),
           )
         },
         onRejected: () => {
@@ -516,7 +587,7 @@ export function CallProvider({ user, children }: {
         await terminalFailureRef.current(errorMessage(caught))
       }
     }
-  }, [client, handleMediaPolicyRejected, handlePresenceFailure, microphoneDeviceId, observeTrack, preferredDeafened, preferredMicrophoneMuted, presenceHeartbeat, publish, recovery, refreshDevices, releaseResources, rememberDeafened, reportCallPresence, session, setTrack, user.displayName, user.id])
+  }, [client, handleMediaPolicyRejected, handlePresenceFailure, microphoneDeviceId, observeTrack, preferredDeafened, preferredMicrophoneMuted, prepareCallPresence, presenceHeartbeat, publish, recovery, refreshDevices, releaseResources, rememberDeafened, session, setTrack, user.displayName, user.id])
 
   useEffect(() => {
     joinRef.current = join

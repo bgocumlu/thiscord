@@ -706,12 +706,36 @@ function ensureRoom(app, target) {
   }
 }
 
-function endParticipant(app, participant, now = new Date().toISOString()) {
+function endParticipant(
+  app,
+  participant,
+  now = new Date().toISOString(),
+  closedReason = "revoked",
+) {
   participant.set("leftAt", now);
   participant.set("expiresAt", "");
   participant.set("devices", {});
   app.save(participant);
   const call = app.findRecordById("call_sessions", participant.getString("call"));
+  const leases = permissions.findAllRecordsByFilter(
+    app,
+    "call_presence_leases",
+    "room = {:room} && user = {:user} && closedAt = ''",
+    "",
+    {
+      room: call.getString("room"),
+      user: participant.getString("user"),
+    },
+  );
+  for (const lease of leases) {
+    lease.set("closedAt", now);
+    lease.set("closedReason", closedReason);
+    lease.set(
+      "expiresAt",
+      new Date(Date.now() + permissions.TRANSIENT_TIMINGS.callLeaseTombstoneMs).toISOString(),
+    );
+    app.save(lease);
+  }
   const remaining = app.findRecordsByFilter(
     "call_participants",
     "call = {:call} && leftAt = '' && expiresAt > {:now}",

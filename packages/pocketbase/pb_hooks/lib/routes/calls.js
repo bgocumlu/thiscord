@@ -16,32 +16,46 @@ routerAdd("POST", "/api/thiscord/calls/occupancy", (e) => {
   }
   if (targets.length > 200) throw new BadRequestError("Too many call targets.");
 
-  const participants = [];
+  const authorizedTargets = [];
   const now = Date.now();
   for (const target of targets) {
     calls.authorizeTarget(e.app, target, e.auth.id, "view");
-    let room;
-    let call;
-    try {
-      room = calls.findRoom(e.app, target);
-      call = e.app.findFirstRecordByFilter(
-        "call_sessions",
-        "room = {:room} && endedAt = ''",
-        { room: room.id },
-      );
-    } catch {
-      continue;
-    }
-    const active = h.findAllRecordsByFilter(
-      e.app,
-      "call_participants",
-      "call = {:call} && leftAt = ''",
-      "+joinedAt",
-      { call: call.id },
-    ).filter((participant) => new Date(participant.getString("expiresAt")).getTime() > now);
-    $apis.enrichRecords(e, active, "user", "call", "call.room");
-    participants.push(...active);
+    authorizedTargets.push(target);
   }
+  const roomQueries = [
+    ["channel", authorizedTargets.filter((target) => target.kind === "channel").map((target) => target.id)],
+    ["conversation", authorizedTargets.filter((target) => target.kind === "conversation").map((target) => target.id)],
+  ];
+  const rooms = [];
+  for (const [field, ids] of roomQueries) {
+    if (!ids.length) continue;
+    const targetFilter = h.filterAny(field, ids, field);
+    rooms.push(...h.findAllRecordsByFilter(
+      e.app,
+      "call_rooms",
+      targetFilter.filter,
+      "",
+      targetFilter.params,
+    ));
+  }
+  const roomFilter = h.filterAny("room", rooms.map((room) => room.id), "room");
+  const activeCalls = h.findAllRecordsByFilter(
+    e.app,
+    "call_sessions",
+    `${roomFilter.filter} && endedAt = ''`,
+    "",
+    roomFilter.params,
+  );
+  const activeCallIds = activeCalls.map((call) => call.id);
+  const callFilter = h.filterAny("call", activeCallIds, "call");
+  const participants = h.findAllRecordsByFilter(
+    e.app,
+    "call_participants",
+    `${callFilter.filter} && leftAt = ''`,
+    "+joinedAt",
+    callFilter.params,
+  ).filter((participant) => new Date(participant.getString("expiresAt")).getTime() > now);
+  $apis.enrichRecords(e, participants, "user", "call", "call.room");
   return e.json(200, { participants });
 }, $apis.requireAuth("users"), $apis.bodyLimit(128 * 1024));
 
@@ -160,7 +174,11 @@ routerAdd("POST", "/api/thiscord/calls/{kind}/{id}/presence", (e) => {
   if (!["joined", "update", "left"].includes(state)) {
     throw new BadRequestError("Invalid call presence state.");
   }
-  const deviceId = h.requiredText(body.deviceId, "deviceId", 120);
+  const leaseId = h.requiredText(body.leaseId, "call presence lease", 120);
+  const sequence = Number(body.sequence);
+  if (!Number.isSafeInteger(sequence) || sequence < 1) {
+    throw new BadRequestError("Invalid call presence sequence.");
+  }
   let result = null;
   let refreshedPermissions = null;
   const updatePresence = () => e.app.runInTransaction((tx) => {
@@ -173,6 +191,86 @@ routerAdd("POST", "/api/thiscord/calls/{kind}/{id}/presence", (e) => {
       target.kind === "conversation" && state !== "left",
     );
     refreshedPermissions = calls.callCapabilities(target.kind, context);
+    const now = new Date().toISOString();
+    let lease;
+    let leaseFound = true;
+    try {
+      lease = tx.findFirstRecordByFilter(
+        "call_presence_leases",
+        "room = {:room} && user = {:user} && leaseId = {:lease}",
+        { room: context.room.id, user: e.auth.id, lease: leaseId },
+      );
+    } catch {
+      leaseFound = false;
+      lease = new Record(tx.findCollectionByNameOrId("call_presence_leases"));
+      lease.set("room", context.room.id);
+      lease.set("user", e.auth.id);
+      lease.set("leaseId", leaseId);
+    }
+
+    const currentResult = () => {
+      try {
+        const currentCall = tx.findFirstRecordByFilter(
+          "call_sessions",
+          "room = {:room} && endedAt = ''",
+          { room: context.room.id },
+        );
+        const currentParticipant = tx.findFirstRecordByFilter(
+          "call_participants",
+          "call = {:call} && user = {:user} && leftAt = ''",
+          { call: currentCall.id, user: e.auth.id },
+        );
+        return { active: true, call: currentCall, participant: currentParticipant };
+      } catch {
+        return { active: false };
+      }
+    };
+
+    const existingResult = currentResult();
+    const canRepairInterruptedJoin = leaseFound
+      && state === "joined"
+      && sequence === lease.getInt("sequence")
+      && !lease.getString("closedAt")
+      && (
+        !existingResult.active
+        || !calls.deviceStates(existingResult.participant)[leaseId]
+      );
+    const canReopenExpired = leaseFound
+      && state === "joined"
+      && lease.getString("closedReason") === "expired"
+      && sequence > lease.getInt("sequence");
+    if (
+      leaseFound
+      && !canRepairInterruptedJoin
+      && !canReopenExpired
+      && (sequence <= lease.getInt("sequence") || Boolean(lease.getString("closedAt")))
+    ) {
+      result = {
+        ...existingResult,
+        accepted: false,
+        sequence: lease.getInt("sequence"),
+      };
+      return;
+    }
+
+    lease.set("sequence", sequence);
+    if (state === "left") {
+      lease.set("closedAt", now);
+      lease.set("closedReason", "left");
+      lease.set(
+        "expiresAt",
+        new Date(Date.now() + h.TRANSIENT_TIMINGS.callLeaseTombstoneMs).toISOString(),
+      );
+    } else {
+      lease.set("closedAt", "");
+      lease.set("closedReason", "");
+      lease.set(
+        "expiresAt",
+        new Date(Date.now() + h.TRANSIENT_TIMINGS.callParticipantExpiryMs).toISOString(),
+      );
+    }
+    tx.save(lease);
+
     let call;
     try {
       call = tx.findFirstRecordByFilter(
@@ -181,7 +279,10 @@ routerAdd("POST", "/api/thiscord/calls/{kind}/{id}/presence", (e) => {
         { room: context.room.id },
       );
     } catch {
-      if (state === "left") return;
+      if (state === "left") {
+        result = { active: false, accepted: true, sequence };
+        return;
+      }
       call = new Record(tx.findCollectionByNameOrId("call_sessions"));
       call.set("room", context.room.id);
       call.set("startedBy", e.auth.id);
@@ -198,8 +299,8 @@ routerAdd("POST", "/api/thiscord/calls/{kind}/{id}/presence", (e) => {
           const userId = member.getString("user");
           try {
             const user = tx.findRecordById("users", userId);
-            if (user.getString("status") === "dnd") continue;
             const preferences = h.recordPreferences(user);
+            if (String(preferences.presenceStatus || "online") === "dnd") continue;
             const muted = Array.isArray(preferences.mutedConversations)
               ? preferences.mutedConversations.map(String)
               : [];
@@ -226,7 +327,10 @@ routerAdd("POST", "/api/thiscord/calls/{kind}/{id}/presence", (e) => {
         { call: call.id, user: e.auth.id },
       );
     } catch {
-      if (state === "left") return;
+      if (state === "left") {
+        result = { active: false, accepted: true, sequence };
+        return;
+      }
       participant = new Record(tx.findCollectionByNameOrId("call_participants"));
       participantCreated = true;
       participant.set("call", call.id);
@@ -234,31 +338,30 @@ routerAdd("POST", "/api/thiscord/calls/{kind}/{id}/presence", (e) => {
       participant.set("joinedAt", new Date().toISOString());
     }
 
-    const now = new Date().toISOString();
     let devices = participantCreated ? {} : calls.deviceStates(participant);
     devices = calls.applyDeviceStates(participant, devices, now);
     if (state === "left") {
-      delete devices[deviceId];
+      delete devices[leaseId];
       devices = calls.applyDeviceStates(participant, devices, now);
       if (Object.keys(devices).length) {
         tx.save(participant);
-        result = { active: true, call, participant };
+        result = { active: true, call, participant, accepted: true, sequence };
         return;
       }
-      calls.endParticipant(tx, participant, now);
-      result = { active: false };
+      calls.endParticipant(tx, participant, now, "left");
+      result = { active: false, accepted: true, sequence };
       return;
     }
 
     participant.set("leftAt", "");
     const expiresAt = new Date(Date.now() + h.TRANSIENT_TIMINGS.callParticipantExpiryMs).toISOString();
-    const previous = devices[deviceId] || {
+    const previous = devices[leaseId] || {
       muted: true,
       deafened: false,
       camera: false,
       sharing: false,
     };
-    devices[deviceId] = {
+    devices[leaseId] = {
       expiresAt,
       muted: body.muted === undefined ? previous.muted : Boolean(body.muted),
       deafened: body.deafened === undefined ? previous.deafened : Boolean(body.deafened),
@@ -267,7 +370,7 @@ routerAdd("POST", "/api/thiscord/calls/{kind}/{id}/presence", (e) => {
     };
     calls.applyDeviceStates(participant, devices, now);
     tx.save(participant);
-    result = { active: true, call, participant };
+    result = { active: true, call, participant, accepted: true, sequence };
   });
   try {
     updatePresence();
@@ -298,7 +401,7 @@ routerAdd("POST", "/api/thiscord/calls/{kind}/{id}/presence", (e) => {
   }
 
   return e.json(200, {
-    ...(result || { active: false }),
+    ...(result || { active: false, accepted: false, sequence }),
     ...(refreshedPermissions || {}),
   });
 }, $apis.requireAuth("users"));

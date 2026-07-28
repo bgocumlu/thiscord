@@ -1,30 +1,31 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { callDeviceId } from '../src/features/calls/api.ts'
+import { callApi } from '../src/features/calls/api.ts'
 import { setAudioOutputDevice } from '../src/features/calls/speakerOutput.ts'
 
-function storage() {
-  const values = new Map()
-  return {
-    getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => values.set(key, String(value)),
+test('call presence sends an explicit in-memory lease and sequence', async () => {
+  const requests = []
+  const client = {
+    send(path, options) {
+      requests.push({ path, options })
+      return Promise.resolve({ active: true, accepted: true, sequence: 7 })
+    },
   }
-}
-
-test('call presence identity is stable per tab and distinct across tabs', () => {
-  const original = globalThis.sessionStorage
-  try {
-    globalThis.sessionStorage = storage()
-    const first = callDeviceId()
-    assert.equal(callDeviceId(), first)
-
-    globalThis.sessionStorage = storage()
-    const second = callDeviceId()
-    assert.notEqual(second, first)
-  } finally {
-    globalThis.sessionStorage = original
-  }
+  await callApi.reportPresence(client, { kind: 'channel', id: 'voice' }, {
+    state: 'update',
+    leaseId: 'page-call-lease',
+    sequence: 7,
+    muted: false,
+  })
+  assert.equal(requests[0].path, '/api/thiscord/calls/channel/voice/presence')
+  assert.deepEqual(requests[0].options.body, {
+    state: 'update',
+    leaseId: 'page-call-lease',
+    sequence: 7,
+    muted: false,
+  })
+  assert.equal(requests[0].options.requestKey, null)
 })
 
 test('speaker output explicitly resets to the system default sink', async () => {

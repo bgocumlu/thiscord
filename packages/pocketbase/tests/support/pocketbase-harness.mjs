@@ -22,10 +22,12 @@ export class FakeRecord {
   }
 
   get(field) {
+    if (field === 'id') return this.id
     return this.values[field]
   }
 
   getString(field) {
+    if (field === 'id') return this.id
     const value = this.values[field]
     return value === undefined || value === null ? '' : String(value)
   }
@@ -85,8 +87,22 @@ export class MemoryApp {
           || (created === String(params.beforeCreated) && record.id < String(params.beforeId))
       })
     }
+    const orParameters = new Set()
+    for (const [, group] of filter.matchAll(/\(([^()]*(?:\|\|)[^()]*)\)/g)) {
+      const clauses = [...group.matchAll(
+        /([A-Za-z][A-Za-z0-9]*)\s*(=|!=)\s*\{:(\w+)\}/g,
+      )]
+      if (clauses.length < 2) continue
+      for (const [, , , parameter] of clauses) orParameters.add(parameter)
+      records = records.filter((record) => clauses.some(([, field, operator, parameter]) => {
+        const actual = record.getString(field)
+        const expected = String(params[parameter])
+        return operator === '!=' ? actual !== expected : actual === expected
+      }))
+    }
     for (const [parameter, expected] of Object.entries(params)) {
       if (parameter === 'beforeCreated' || parameter === 'beforeId') continue
+      if (orParameters.has(parameter)) continue
       const escaped = parameter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
       const comparedFields = [...filter.matchAll(
         new RegExp(`([A-Za-z][A-Za-z0-9]*)\\s*(!=|>=|<=|=|>)\\s*\\{:${escaped}\\}`, 'g'),

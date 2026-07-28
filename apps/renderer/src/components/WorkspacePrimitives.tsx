@@ -40,9 +40,7 @@ export function DataFailure({ error, onRetry, label = 'Could not load this conte
 }
 
 export function resolvedPresence(userId: string, presence: PresenceRecord[]): User['status'] {
-  const active = presence.filter((item) => (
-    item.user === userId && new Date(item.expiresAt).getTime() > Date.now()
-  ))
+  const active = presence.filter((item) => item.user === userId)
   if (active.some((item) => item.status === 'dnd')) return 'dnd'
   if (active.some((item) => item.status === 'online')) return 'online'
   if (active.some((item) => item.status === 'idle')) return 'idle'

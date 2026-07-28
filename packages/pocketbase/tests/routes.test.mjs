@@ -20,6 +20,7 @@ test('preference patches merge transactionally without erasing unrelated fields'
       compactMode: false,
       reduceMotion: false,
       notificationSound: true,
+      presenceStatus: 'online',
       mutedChannels: ['channel-a'],
       mutedConversations: ['conversation-a'],
     },
@@ -49,6 +50,12 @@ test('preference patches merge transactionally without erasing unrelated fields'
   assert.deepEqual(mute.value.preferences.mutedChannels, ['channel-a', 'channel-b'])
   assert.equal(mute.value.preferences.theme, 'light')
   assert.equal(mute.value.preferences.notificationSound, true)
+  const invisible = routes.get('PATCH /api/thiscord/account/preferences')(event({
+    app,
+    auth,
+    body: { preferences: { presenceStatus: 'offline' } },
+  }))
+  assert.equal(invisible.value.preferences.presenceStatus, 'offline')
 })
 
 test('route-specific channel and conversation lookups authorize deep links independently of list pages', () => {
@@ -903,12 +910,14 @@ test('call occupancy reuses active records, refreshes expiry, and ends when empt
   })
   const auth = record('users', 'owner', { email: 'owner@example.test' })
   const handler = routes.get('POST /api/thiscord/calls/{kind}/{id}/presence')
+  let sequence = 0
   const join = () => handler(event({
     app: fixture.app,
     auth,
     body: {
       state: 'joined',
-      deviceId: 'device-one',
+      leaseId: 'device-one',
+      sequence: ++sequence,
       muted: true,
       camera: false,
       sharing: false,
@@ -931,12 +940,77 @@ test('call occupancy reuses active records, refreshes expiry, and ends when empt
   const left = handler(event({
     app: fixture.app,
     auth,
-    body: { state: 'left', deviceId: 'device-one' },
+    body: { state: 'left', leaseId: 'device-one', sequence: ++sequence },
     path: { kind: 'channel', id: fixture.channel.id },
   }))
   assert.equal(left.value.active, false)
   assert.ok(first.value.participant.getString('leftAt'))
   assert.ok(first.value.call.getString('endedAt'))
+})
+
+test('account presence leases reject late writes and update last seen only after the final lease', () => {
+  const auth = record('users', 'presence-user', { lastSeenAt: 'before' })
+  const app = new MemoryApp({
+    users: [auth],
+    presence: [],
+    presence_leases: [],
+  })
+  const handler = routes.get('POST /api/thiscord/presence')
+  const send = (leaseId, sequence, status) => handler(event({
+    app,
+    auth,
+    body: { leaseId, sequence, status },
+  }))
+
+  send('desktop', 1, 'online')
+  send('phone', 1, 'idle')
+  assert.equal(app.collection('presence').length, 1)
+  send('desktop', 2, 'offline')
+  assert.equal(app.collection('presence')[0].getString('status'), 'idle')
+  assert.equal(auth.getString('lastSeenAt'), 'before')
+  send('phone', 3, 'offline')
+  const finalLastSeen = auth.getString('lastSeenAt')
+  assert.notEqual(finalLastSeen, 'before')
+  const late = send('phone', 2, 'online')
+  assert.equal(late.value.accepted, false)
+  assert.equal(late.value.status, 'offline')
+  assert.equal(app.collection('presence').length, 0)
+  assert.equal(auth.getString('lastSeenAt'), finalLastSeen)
+
+  assert.throws(
+    () => send('invalid', 1, 'definitely-online'),
+    /invalid presence status/i,
+  )
+})
+
+test('a late call update cannot recreate a participant after its lease leaves', () => {
+  const fixture = communityFixture({
+    userId: 'lease-user',
+    permissions: ['view_channels', 'connect_voice'],
+    channelKind: 'voice',
+  })
+  const auth = record('users', 'lease-user')
+  const handler = routes.get('POST /api/thiscord/calls/{kind}/{id}/presence')
+  const send = (state, sequence) => handler(event({
+    app: fixture.app,
+    auth,
+    body: { state, leaseId: 'page-call', sequence },
+    path: { kind: 'channel', id: fixture.channel.id },
+  }))
+
+  send('joined', 1)
+  send('left', 3)
+  const late = send('update', 2)
+  assert.equal(late.value.accepted, false)
+  assert.equal(late.value.active, false)
+  assert.equal(
+    fixture.app.collection('call_participants').filter((item) => !item.getString('leftAt')).length,
+    0,
+  )
+  assert.equal(
+    fixture.app.collection('call_sessions').filter((item) => !item.getString('endedAt')).length,
+    0,
+  )
 })
 
 test('call presence reauthorizes inside the write transaction', () => {
@@ -955,7 +1029,7 @@ test('call presence reauthorizes inside the write transaction', () => {
     () => routes.get('POST /api/thiscord/calls/{kind}/{id}/presence')(event({
       app: fixture.app,
       auth,
-      body: { state: 'joined', deviceId: 'stale-device' },
+      body: { state: 'joined', leaseId: 'stale-device', sequence: 1 },
       path: { kind: 'channel', id: fixture.channel.id },
     })),
     /active member/i,
@@ -967,12 +1041,13 @@ test('call presence reauthorizes inside the write transaction', () => {
 test('simultaneous first joins recover active-call and active-participant uniqueness races', () => {
   const handler = routes.get('POST /api/thiscord/calls/{kind}/{id}/presence')
   const auth = record('users', 'member')
-  const join = (app, channelId, deviceId) => handler(event({
+  const join = (app, channelId, leaseId) => handler(event({
     app,
     auth,
     body: {
       state: 'joined',
-      deviceId,
+      leaseId,
+      sequence: 1,
     },
     path: { kind: 'channel', id: channelId },
   }))
@@ -1061,7 +1136,7 @@ test('conversation calls notify eligible members and aggregate simultaneous devi
   })
   const dndMember = record('users', 'dnd-member', {
     status: 'dnd',
-    preferences: {},
+    preferences: { presenceStatus: 'dnd' },
   })
   const conversation = record('conversations', 'conversation', {
     kind: 'direct',
@@ -1082,19 +1157,25 @@ test('conversation calls notify eligible members and aggregate simultaneous devi
     notifications: [],
   })
   const handler = routes.get('POST /api/thiscord/calls/{kind}/{id}/presence')
-  const presence = (deviceId, state, media = {}) => handler(event({
-    app,
-    auth: caller,
-    body: {
-      state,
-      deviceId,
-      muted: true,
-      camera: false,
-      sharing: false,
-      ...media,
-    },
-    path: { kind: 'conversation', id: conversation.id },
-  }))
+  const sequences = new Map()
+  const presence = (leaseId, state, media = {}) => {
+    const sequence = (sequences.get(leaseId) ?? 0) + 1
+    sequences.set(leaseId, sequence)
+    return handler(event({
+      app,
+      auth: caller,
+      body: {
+        state,
+        leaseId,
+        sequence,
+        muted: true,
+        camera: false,
+        sharing: false,
+        ...media,
+      },
+      path: { kind: 'conversation', id: conversation.id },
+    }))
+  }
 
   const first = presence('laptop', 'joined', { muted: false, camera: true })
   const second = presence('phone', 'joined')
@@ -1147,7 +1228,8 @@ test('group membership changes revoke call presence and preserve ownership trans
     auth: owner,
     body: {
       state: 'joined',
-      deviceId: 'owner-device',
+      leaseId: 'owner-device',
+      sequence: 1,
       jitsiId: member.id,
     },
     path: { kind: 'conversation', id: conversation.id },
@@ -1241,6 +1323,38 @@ test('transient cleanup expires stale participants and ends empty calls', () => 
   assert.ok(participant.getString('leftAt'))
   assert.equal(participant.getString('expiresAt'), '')
   assert.ok(call.getString('endedAt'))
+})
+
+test('transient cleanup turns expired presence leases into tombstones and records final last seen', () => {
+  const user = record('users', 'expired-presence-user', { lastSeenAt: 'before' })
+  const aggregate = record('presence', 'expired-presence', {
+    user: user.id,
+    status: 'online',
+  })
+  const lease = record('presence_leases', 'expired-presence-lease', {
+    user: user.id,
+    leaseId: 'expired-page',
+    sequence: 4,
+    status: 'online',
+    expiresAt: new Date(Date.now() - 60_000).toISOString(),
+    closedAt: '',
+  })
+  const app = new MemoryApp({
+    users: [user],
+    presence: [aggregate],
+    presence_leases: [lease],
+    typing: [],
+    direct_typing: [],
+    call_sessions: [],
+    call_participants: [],
+  })
+
+  loadLifecycleCron()(app)
+
+  assert.equal(app.collection('presence').length, 0)
+  assert.ok(lease.getString('closedAt'))
+  assert.equal(lease.getString('status'), 'offline')
+  assert.notEqual(user.getString('lastSeenAt'), 'before')
 })
 
 test('account deletion removes private roots and transfers retained ownership', () => {
@@ -2292,7 +2406,7 @@ test('call heartbeats refresh live moderation capabilities', () => {
   const joined = handler(event({
     app: fixture.app,
     auth,
-    body: { state: 'joined', deviceId: 'capability-device' },
+    body: { state: 'joined', leaseId: 'capability-device', sequence: 1 },
     path: { kind: 'channel', id: fixture.channel.id },
   }))
   assert.equal(joined.value.canMuteMembers, true)
@@ -2301,7 +2415,7 @@ test('call heartbeats refresh live moderation capabilities', () => {
   const updated = handler(event({
     app: fixture.app,
     auth,
-    body: { state: 'update', deviceId: 'capability-device' },
+    body: { state: 'update', leaseId: 'capability-device', sequence: 2 },
     path: { kind: 'channel', id: fixture.channel.id },
   }))
   assert.equal(updated.value.canMuteMembers, false)

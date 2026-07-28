@@ -114,14 +114,7 @@ export function mergeCallParticipants(
     })
   }
   for (const participant of liveParticipants) {
-    let key = participant.userId ? `user:${participant.userId}` : `jitsi:${participant.id}`
-    if (!participant.userId) {
-      const normalizedName = participant.name.trim().toLocaleLowerCase()
-      const nameMatches = [...merged.entries()].filter(([, existing]) => (
-        existing.name.trim().toLocaleLowerCase() === normalizedName
-      ))
-      if (nameMatches.length === 1) key = nameMatches[0][0]
-    }
+    const key = participant.userId ? `user:${participant.userId}` : `jitsi:${participant.id}`
     merged.set(key, participant)
   }
   return [...merged.values()]

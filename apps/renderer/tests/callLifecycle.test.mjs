@@ -12,6 +12,7 @@ import {
 } from '../src/features/calls/localMediaPolicy.ts'
 import {
   LOCAL_PARTICIPANT,
+  mergeCallParticipants,
   synchronizeParticipantTrack,
 } from '../src/features/calls/participantSync.ts'
 import { createPresenceHeartbeat } from '../src/features/calls/presenceHeartbeat.ts'
@@ -79,7 +80,7 @@ test('recovery coordinator schedules one retry at a time and exhausts after thre
   assert.equal(recovery.scheduled(), false)
 })
 
-test('presence heartbeat orders joined before updates and stop waits for both', async () => {
+test('presence heartbeat coalesces updates and stop drops backlog without waiting', async () => {
   const callbacks = new Map()
   const cleared = []
   let nextId = 1
@@ -96,37 +97,48 @@ test('presence heartbeat orders joined before updates and stop waits for both', 
   })
   const reports = []
   let releaseFirst
-  heartbeat.start(async () => {
-    reports.push('update')
-  }, assert.fail, true, async () => {
-    reports.push('joined:start')
-    await new Promise((resolve) => {
-      releaseFirst = resolve
-    })
-    reports.push('joined:end')
-  })
+  heartbeat.start(
+    () => async () => {
+      reports.push('update')
+    },
+    assert.fail,
+    true,
+    () => async () => {
+      reports.push('joined:start')
+      await new Promise((resolve) => {
+        releaseFirst = resolve
+      })
+      reports.push('joined:end')
+    },
+  )
   await Promise.resolve()
   assert.deepEqual(reports, ['joined:start'])
   callbacks.get(1)()
   await Promise.resolve()
   assert.deepEqual(reports, ['joined:start'])
   assert.equal(heartbeat.active(), true)
-  const stopped = heartbeat.stop()
+  heartbeat.stop()
   assert.deepEqual(cleared, [1])
   assert.equal(heartbeat.active(), false)
   releaseFirst()
-  await stopped
-  assert.deepEqual(reports, ['joined:start', 'joined:end', 'update'])
+  await heartbeat.idle()
+  assert.deepEqual(reports, ['joined:start', 'joined:end'])
 })
 
 test('resource release retains reconnect tracks but disposes final-leave tracks', async () => {
   const events = []
   const track = {
+    getTrack() {
+      return { stop() { events.push('media-stop') } }
+    },
     async dispose() {
       events.push('track')
     },
   }
   const capturedTrack = {
+    getTrack() {
+      return { stop() { events.push('screen-media-stop') } }
+    },
     async dispose() {
       events.push('screen-audio')
     },
@@ -141,16 +153,30 @@ test('resource release retains reconnect tracks but disposes final-leave tracks'
   assert.deepEqual(events, ['leave', 'disconnect'])
   assert.deepEqual(retained.retained.localTracks, [track])
   await disposeRetainedMedia(retained.retained)
-  assert.deepEqual(events, ['leave', 'disconnect', 'track', 'screen-audio'])
+  assert.deepEqual(events, [
+    'leave',
+    'disconnect',
+    'media-stop',
+    'track',
+    'screen-media-stop',
+    'screen-audio',
+  ])
 
   events.length = 0
   await releaseEngineResources({
-    connection: null,
-    conference: null,
+    connection: { async disconnect() { events.push('disconnect') } },
+    conference: { async leave() { events.push('leave') } },
     localTracks: [track],
     screenAudio: { capturedTrack, microphoneTrack: track },
   }, false)
-  assert.deepEqual(events, ['track', 'screen-audio'])
+  assert.deepEqual(events, [
+    'media-stop',
+    'track',
+    'screen-media-stop',
+    'screen-audio',
+    'leave',
+    'disconnect',
+  ])
 })
 
 test('retained tracks are filtered by current call permissions and ended state', () => {
@@ -341,6 +367,43 @@ test('participant synchronization keeps camera and desktop tracks distinct', () 
   })
   assert.equal(participants.get(LOCAL_PARTICIPANT).videoTrack, camera)
   assert.equal(participants.get(LOCAL_PARTICIPANT).screenTrack, null)
+})
+
+test('unsigned Jitsi participants are never matched to occupancy by display name', () => {
+  const merged = mergeCallParticipants(
+    [{
+      id: 'unsigned-jitsi',
+      userId: '',
+      name: 'Same Name',
+      local: false,
+      audioTrack: null,
+      videoTrack: null,
+      screenTrack: null,
+      muted: true,
+      speaking: false,
+    }],
+    [{
+      id: 'occupancy',
+      call: 'call',
+      user: 'signed-user',
+      joinedAt: '',
+      leftAt: '',
+      expiresAt: '',
+      muted: true,
+      deafened: false,
+      camera: false,
+      sharing: false,
+      created: '',
+      updated: '',
+      expand: {
+        user: { id: 'signed-user', displayName: 'Same Name' },
+        call: { expand: { room: { channel: 'voice' } } },
+      },
+    }],
+    { kind: 'channel', id: 'voice' },
+  )
+  assert.equal(merged.length, 2)
+  assert.deepEqual(merged.map((item) => item.id).sort(), ['presence:occupancy', 'unsigned-jitsi'])
 })
 
 test('conference lifecycle binds generic engine events and classifies recovery failures', () => {

@@ -16,6 +16,7 @@ routerAdd("PATCH", "/api/thiscord/account/preferences", (e) => {
     "compactMode",
     "reduceMotion",
     "notificationSound",
+    "presenceStatus",
     "mutedChannels",
     "mutedConversations",
   ]);
@@ -24,6 +25,12 @@ routerAdd("PATCH", "/api/thiscord/account/preferences", (e) => {
   }
   if (patch.theme !== undefined && !["dark", "light", "system"].includes(String(patch.theme))) {
     throw new BadRequestError("Invalid theme preference.");
+  }
+  if (
+    patch.presenceStatus !== undefined
+    && !["online", "idle", "dnd", "offline"].includes(String(patch.presenceStatus))
+  ) {
+    throw new BadRequestError("Invalid presence preference.");
   }
   for (const key of ["compactMode", "reduceMotion", "notificationSound"]) {
     if (patch[key] !== undefined && typeof patch[key] !== "boolean") {
