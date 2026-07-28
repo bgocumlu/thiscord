@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { RecordModel } from 'pocketbase'
 import { usePocketBase } from '../lib/contexts'
 import { getOwnPreferences } from '../features/members/preferences'
+import { normalizeAuthIdentity } from './identity'
 
 interface RegisterInput {
   readonly email: string
@@ -48,7 +49,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
   }, [client])
 
   const login = useCallback(async (identity: string, password: string) => {
-    await client.collection('users').authWithPassword(identity.trim(), password)
+    await client.collection('users').authWithPassword(normalizeAuthIdentity(identity), password)
   }, [client])
 
   const register = useCallback(async (input: RegisterInput) => {
