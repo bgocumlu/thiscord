@@ -476,7 +476,7 @@ V2 is complete when:
 ## Recorded call decisions
 
 The Phase 3 prerequisites are resolved in
-`docs/v2-phase3-decisions.md`. The final implementation uses lazy durable rooms
+`docs/archive/v2/phase3-decisions.md`. The final implementation uses lazy durable rooms
 for conversations, one active session per target, membership-based
 conversation call access, immediate revoked-participant cleanup, muted/DND
 notification filtering, ordered private page leases with public aggregates,

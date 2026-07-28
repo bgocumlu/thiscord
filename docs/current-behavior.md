@@ -1,7 +1,7 @@
-# V2 preserved behavior and regression baseline
+# Current behavior and regression baseline
 
 This document records the authorization and lifecycle behavior preserved by the
-completed V2 architecture. It is both the current behavior reference and the
+current architecture. It is both the current behavior reference and the
 regression contract for future changes.
 
 ## Community and channel authorization
