@@ -713,7 +713,8 @@ try {
       headers,
       body: {
         state: "joined",
-        deviceId: "conversation-laptop",
+        leaseId: "conversation-laptop",
+        sequence: 1,
         muted: true,
         camera: false,
         sharing: false,
@@ -727,7 +728,8 @@ try {
       headers,
       body: {
         state: "joined",
-        deviceId: "conversation-phone",
+        leaseId: "conversation-phone",
+        sequence: 1,
         muted: true,
         camera: false,
         sharing: false,
@@ -765,14 +767,14 @@ try {
     {
       method: "POST",
       headers,
-      body: { state: "left", deviceId: "conversation-laptop" },
+      body: { state: "left", leaseId: "conversation-laptop", sequence: 2 },
     },
   );
   if (!oneDeviceLeft.active) throw new Error("One device leaving removed another active device.");
   const finalConversationPresence = await request(`/api/thiscord/calls/conversation/${conversation.id}/presence`, {
     method: "POST",
     headers,
-    body: { state: "left", deviceId: "conversation-phone" },
+    body: { state: "left", leaseId: "conversation-phone", sequence: 2 },
   });
   if (finalConversationPresence.active) {
     throw new Error(`Final conversation device remained active: ${JSON.stringify(finalConversationPresence)}`);
@@ -823,7 +825,8 @@ try {
       headers: secondHeaders,
       body: {
         state: "joined",
-        deviceId: "removed-member-device",
+        leaseId: "removed-member-device",
+        sequence: 1,
       },
     },
   );
@@ -899,7 +902,8 @@ try {
     headers,
     body: {
       state: "joined",
-      deviceId: "voice-smoke-device",
+      leaseId: "voice-smoke-device",
+      sequence: 1,
       muted: true,
       camera: false,
       sharing: false,
@@ -925,7 +929,7 @@ try {
   await request(`/api/thiscord/calls/channel/${voiceChannel.id}/presence`, {
     method: "POST",
     headers,
-    body: { state: "left", deviceId: "voice-smoke-device" },
+    body: { state: "left", leaseId: "voice-smoke-device", sequence: 2 },
   });
   const endedCall = await request(`/api/collections/call_sessions/records/${callPresence.call.id}`, { headers });
   if (!endedCall.endedAt) throw new Error("Empty voice call session did not end.");
@@ -933,19 +937,21 @@ try {
     request("/api/thiscord/presence", {
       method: "POST",
       headers,
-      body: { deviceId: "smoke-concurrent-device", status: "online" },
+      body: { leaseId: "smoke-concurrent-device", sequence: 1, status: "online" },
     }),
     request("/api/thiscord/presence", {
       method: "POST",
       headers,
-      body: { deviceId: "smoke-concurrent-device", status: "online" },
+      body: { leaseId: "smoke-concurrent-device", sequence: 1, status: "online" },
     }),
   ]);
   const concurrentPresence = await request(
-    `/api/collections/presence/records?filter=${encodeURIComponent(`user = '${user.id}' && deviceId = 'smoke-concurrent-device'`)}`,
+    `/api/collections/presence/records?filter=${encodeURIComponent(`user = '${user.id}'`)}`,
     { headers },
   );
-  if (concurrentPresence.totalItems !== 1) throw new Error("Concurrent presence heartbeats created duplicate records.");
+  if (concurrentPresence.totalItems !== 1 || concurrentPresence.items[0]?.status !== "online") {
+    throw new Error("Concurrent presence heartbeats did not produce one online aggregate.");
+  }
   const communityPresence = await request(
     `/api/collections/presence/records?filter=${encodeURIComponent(`user.memberships_via_user.community ?= '${community.id}'`)}`,
     { headers },
@@ -1048,7 +1054,8 @@ try {
     headers: deletionUser.headers,
     body: {
       state: "joined",
-      deviceId: "deletion-smoke-device",
+      leaseId: "deletion-smoke-device",
+      sequence: 1,
       muted: true,
       camera: false,
       sharing: false,
