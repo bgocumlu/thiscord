@@ -6,7 +6,6 @@ const channelScopedCollections = [
   "messages",
   "reactions",
   "read_states",
-  "typing",
 ];
 const callScopedCollections = ["call_rooms", "call_sessions", "call_participants"];
 

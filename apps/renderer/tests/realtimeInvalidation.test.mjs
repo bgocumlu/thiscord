@@ -102,6 +102,20 @@ test('presence and call realtime events patch cached rows without directory refe
 
   const participant = { id: 'participant', leftAt: '', user: 'member' }
   assert.deepEqual(updateCallOccupancyCache([], 'create', participant), [participant])
+  const expandedParticipant = {
+    ...participant,
+    expand: {
+      user: { id: 'member', displayName: 'Correct name' },
+      call: { id: 'call', expand: { room: { channel: 'voice-one' } } },
+    },
+  }
+  const patchedParticipant = updateCallOccupancyCache(
+    [expandedParticipant],
+    'update',
+    { ...participant, muted: true },
+  )
+  assert.equal(patchedParticipant[0].expand.user.displayName, 'Correct name')
+  assert.equal(patchedParticipant[0].expand.call.expand.room.channel, 'voice-one')
   assert.deepEqual(
     updateCallOccupancyCache([participant], 'update', { ...participant, leftAt: 'now' }),
     [],
@@ -135,6 +149,7 @@ test('message realtime events merge into paginated history without duplicates', 
 test('message realtime subscriptions request the expansions required to render rows', () => {
   assert.equal(realtimeExpandFor('messages'), 'author,replyTo,replyTo.author')
   assert.equal(realtimeExpandFor('direct_messages'), 'author,replyTo,replyTo.author')
+  assert.equal(realtimeExpandFor('call_participants'), 'user,call.room')
   assert.equal(realtimeExpandFor('community_presence'), '')
 })
 

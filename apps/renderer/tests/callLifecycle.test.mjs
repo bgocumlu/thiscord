@@ -369,7 +369,7 @@ test('participant synchronization keeps camera and desktop tracks distinct', () 
   assert.equal(participants.get(LOCAL_PARTICIPANT).screenTrack, null)
 })
 
-test('unsigned Jitsi participants are never matched to occupancy by display name', () => {
+test('unsigned Jitsi placeholders do not duplicate authoritative account occupancy', () => {
   const merged = mergeCallParticipants(
     [{
       id: 'unsigned-jitsi',
@@ -402,8 +402,36 @@ test('unsigned Jitsi participants are never matched to occupancy by display name
     }],
     { kind: 'channel', id: 'voice' },
   )
-  assert.equal(merged.length, 2)
-  assert.deepEqual(merged.map((item) => item.id).sort(), ['presence:occupancy', 'unsigned-jitsi'])
+  assert.equal(merged.length, 1)
+  assert.equal(merged[0].id, 'presence:occupancy')
+  assert.equal(merged[0].name, 'Same Name')
+})
+
+test('occupancy without an expanded user is not rendered with an invented name', () => {
+  const merged = mergeCallParticipants(
+    [],
+    [{
+      id: 'thin-occupancy',
+      call: 'call',
+      user: 'signed-user',
+      joinedAt: '',
+      leftAt: '',
+      expiresAt: '',
+      muted: true,
+      serverMuted: false,
+      deafened: false,
+      camera: false,
+      sharing: false,
+      created: '',
+      updated: '',
+      expand: {
+        call: { id: 'call', room: 'room', startedBy: '', endedAt: '', created: '', updated: '', expand: { room: { id: 'room', channel: 'voice', conversation: '', created: '', updated: '' } } },
+      },
+    }],
+    { kind: 'channel', id: 'voice' },
+  )
+
+  assert.deepEqual(merged, [])
 })
 
 test('signed Jitsi participants inherit server-mute state and user identity from occupancy', () => {
@@ -449,6 +477,49 @@ test('signed Jitsi participants inherit server-mute state and user identity from
   assert.equal(merged[0].serverMuted, true)
   assert.equal(merged[0].user, user)
   assert.equal(merged[0].audioTrack, live.audioTrack)
+})
+
+test('the local device remains the single account tile when the same user joins twice', () => {
+  const user = { id: 'same-account', displayName: 'Same account' }
+  const participant = (id, local) => ({
+    id,
+    userId: user.id,
+    name: user.displayName,
+    local,
+    audioTrack: null,
+    videoTrack: null,
+    screenTrack: null,
+    muted: true,
+    serverMuted: false,
+    speaking: false,
+  })
+  const merged = mergeCallParticipants(
+    [participant(LOCAL_PARTICIPANT, true), participant('second-device', false)],
+    [{
+      id: 'occupancy',
+      call: 'call',
+      user: user.id,
+      joinedAt: '',
+      leftAt: '',
+      expiresAt: '',
+      muted: true,
+      serverMuted: false,
+      deafened: false,
+      camera: false,
+      sharing: false,
+      created: '',
+      updated: '',
+      expand: {
+        user,
+        call: { expand: { room: { channel: 'voice' } } },
+      },
+    }],
+    { kind: 'channel', id: 'voice' },
+  )
+
+  assert.equal(merged.length, 1)
+  assert.equal(merged[0].id, LOCAL_PARTICIPANT)
+  assert.equal(merged[0].local, true)
 })
 
 test('conference lifecycle binds generic engine events and classifies recovery failures', () => {

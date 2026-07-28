@@ -1,4 +1,4 @@
-import { policyLimits, transientTimings } from '@thiscord/shared'
+import { policyLimits } from '@thiscord/shared'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import {
   ExternalLink,
@@ -51,7 +51,6 @@ export interface MessageSurfaceProps<TMessage extends SurfaceMessage> {
   readonly adapter: MessageSurfaceAdapter<TMessage>
   readonly history: MessageHistory<TMessage>
   readonly currentUser: Parameters<MessageSurfaceAdapter<TMessage>['policy']['canEdit']>[1]
-  readonly typingUsers: readonly string[]
   readonly intro: ReactNode
   readonly placeholder: string
   readonly searchLabel: string
@@ -291,7 +290,6 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
   editing,
   onCancelContext,
   onSend,
-  onTyping,
   disabledReason,
 }: {
   readonly placeholder: string
@@ -299,7 +297,6 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
   readonly editing: TMessage | null
   readonly onCancelContext: () => void
   readonly onSend: (content: string, files: readonly File[]) => Promise<void>
-  readonly onTyping: () => void
   readonly disabledReason?: string
 }) {
   const [draft, setDraft] = useState(editing?.content ?? '')
@@ -388,10 +385,7 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
         <input
           value={draft}
           disabled={Boolean(disabledReason) || busy}
-          onChange={(event) => {
-            setDraft(event.target.value)
-            onTyping()
-          }}
+          onChange={(event) => setDraft(event.target.value)}
           placeholder={disabledReason || placeholder}
           maxLength={policyLimits.message.contentMax}
         />
@@ -425,7 +419,6 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
   adapter,
   history,
   currentUser,
-  typingUsers,
   intro,
   placeholder,
   searchLabel,
@@ -442,7 +435,6 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
   const [search, setSearch] = useState('')
   const [pinnedOnly, setPinnedOnly] = useState(false)
   const deferredSearch = useDeferredValue(search.trim())
-  const typingTimer = useRef<number | undefined>(undefined)
   const readCoordinator = useRef(createReadReceiptCoordinator())
   const listRef = useRef<HTMLDivElement>(null)
   const priorHeight = useRef(0)
@@ -520,17 +512,6 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
     void adapter.markRead(lastMessageId).catch(() => coordinator.failed(lastMessageId))
   }, [adapter, lastMessageId])
 
-  useEffect(() => () => {
-    if (typingTimer.current !== undefined) window.clearTimeout(typingTimer.current)
-  }, [])
-
-  const reportTyping = () => {
-    if (typingTimer.current !== undefined) return
-    void adapter.reportTyping().catch(() => undefined)
-    typingTimer.current = window.setTimeout(() => {
-      typingTimer.current = undefined
-    }, transientTimings.typingRefreshMs)
-  }
   const send = async (content: string, files: readonly File[]) => {
     await adapter.save({ content, files, reply, editing })
     setReply(null)
@@ -655,14 +636,8 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
           setEditing(null)
         }}
         onSend={send}
-        onTyping={reportTyping}
         disabledReason={adapter.policy.disabledReason}
       />
-      <div className="typing-line">
-        {typingUsers.length ? (
-          <><strong>{typingUsers.join(', ')}</strong> {typingUsers.length === 1 ? 'is' : 'are'} typing…</>
-        ) : null}
-      </div>
     </div>
   )
 }

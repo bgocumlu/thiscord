@@ -218,7 +218,7 @@ cronAdd(
     presenceService.syncUserPresence($app, userId, now);
   }
 
-  for (const collection of ["typing", "direct_typing", "call_token_versions"]) {
+  for (const collection of ["call_token_versions"]) {
     h.deleteRecordsByFilter(
       $app,
       collection,

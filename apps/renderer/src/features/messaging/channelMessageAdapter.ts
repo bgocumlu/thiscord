@@ -99,8 +99,5 @@ export function createChannelMessageAdapter({
       await messageApi.markRead(client, channel.id, messageId)
       await queryClient.invalidateQueries({ queryKey: messageKeys.unreadSummary(channel.community) })
     },
-    async reportTyping() {
-      await messageApi.typing(client, channel.id)
-    },
   }
 }

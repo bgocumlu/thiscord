@@ -35,7 +35,7 @@ media stack.
 ### Features
 
 - **Community chat:** text and announcement channels, Markdown messages,
-  replies, reactions, pins, attachments, typing indicators, presence, and
+  replies, reactions, pins, attachments, presence, and
   notifications.
 - **Private conversations:** real-time direct messages with search, reactions,
   read state, and file sharing.

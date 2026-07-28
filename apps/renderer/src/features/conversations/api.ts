@@ -3,7 +3,6 @@ import type {
   ConversationMember,
   DirectMessage,
   DirectReaction,
-  User,
 } from '@thiscord/shared'
 import type PocketBase from 'pocketbase'
 
@@ -35,16 +34,6 @@ export interface ConversationCursor {
 export interface ConversationTarget {
   readonly conversation: Conversation
   readonly members: ConversationMember[]
-}
-
-export interface DirectTypingRecord {
-  readonly id: string
-  readonly conversation: string
-  readonly user: string
-  readonly expiresAt: string
-  readonly expand?: {
-    readonly user?: User
-  }
 }
 
 export interface DirectMessageCursor {
@@ -90,15 +79,6 @@ export const conversationApi = {
     return await client.collection('direct_messages').getOne(messageId, {
       expand: 'author,replyTo,replyTo.author',
     }) as unknown as DirectMessage
-  },
-  async activeTyping(client: PocketBase, conversationId: string) {
-    return await client.collection('direct_typing').getFullList({
-      filter: client.filter('conversation = {:conversation} && expiresAt > {:now}', {
-        conversation: conversationId,
-        now: new Date(),
-      }),
-      expand: 'user',
-    }) as unknown as DirectTypingRecord[]
   },
   list(client: PocketBase, cursor: ConversationCursor | null, perPage = 50) {
     const search = new URLSearchParams({ perPage: String(perPage) })
@@ -158,11 +138,6 @@ export const conversationApi = {
     return client.send(`/api/thiscord/direct-messages/${encodeURIComponent(messageId)}/reactions`, {
       method: 'POST',
       body: { emoji },
-    })
-  },
-  typing(client: PocketBase, conversationId: string) {
-    return client.send(`/api/thiscord/conversations/${encodeURIComponent(conversationId)}/typing`, {
-      method: 'POST',
     })
   },
   async searchMessages(

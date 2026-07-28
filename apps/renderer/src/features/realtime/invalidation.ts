@@ -24,13 +24,11 @@ export const realtimeCollections = [
   'messages',
   'reactions',
   'read_states',
-  'typing',
   'community_presence',
   'conversations',
   'conversation_members',
   'direct_messages',
   'direct_reactions',
-  'direct_typing',
   'call_rooms',
   'call_sessions',
   'call_participants',
@@ -79,10 +77,37 @@ export function updateCallOccupancyCache(
   record: CallParticipantRecord,
 ) {
   if (!current) return current
+  const existing = current.find((item) => item.id === record.id)
   const remaining = current.filter((item) => item.id !== record.id)
+  const existingCall = existing?.expand?.call
+  const incomingCall = record.expand?.call
+  const mergedExpand: CallParticipantRecord['expand'] = existing?.expand || record.expand
+    ? {
+        user: record.expand?.user ?? existing?.expand?.user,
+        call: incomingCall
+          ? {
+              ...incomingCall,
+              expand: incomingCall.expand || existingCall?.expand
+                ? {
+                    ...existingCall?.expand,
+                    ...incomingCall.expand,
+                    room: incomingCall.expand?.room ?? existingCall?.expand?.room,
+                  }
+                : undefined,
+            }
+          : existingCall,
+      }
+    : undefined
+  const mergedRecord: CallParticipantRecord = existing
+    ? {
+        ...existing,
+        ...record,
+        expand: mergedExpand,
+      }
+    : record
   return action === 'delete' || Boolean(record.leftAt)
     ? remaining
-    : [...remaining, record]
+    : [...remaining, mergedRecord]
 }
 
 export function updateMessageHistoryCache<
@@ -189,8 +214,6 @@ export function queryKeysForRealtimeEvent(
       return [messageKeys.reactionsAll]
     case 'read_states':
       return [messageKeys.unreadSummaries]
-    case 'typing':
-      return [record.channel ? messageKeys.typing(record.channel) : messageKeys.typingAll]
     case 'community_presence':
       return [memberKeys.directories]
     case 'conversations':
@@ -210,8 +233,6 @@ export function queryKeysForRealtimeEvent(
       )
     case 'direct_reactions':
       return [conversationKeys.reactionsAll]
-    case 'direct_typing':
-      return [record.conversation ? conversationKeys.typing(record.conversation) : conversationKeys.typingAll]
     case 'call_rooms':
     case 'call_sessions':
     case 'call_participants':

@@ -100,13 +100,16 @@ export function mergeCallParticipants(
   target: CallTarget,
 ) {
   const merged = new Map<string, CallParticipant>()
+  let hasAuthoritativeOccupancy = false
   for (const record of occupancy) {
     if (!participantBelongsToTarget(record, target)) continue
     const user = record.expand?.user
+    if (!user) continue
+    hasAuthoritativeOccupancy = true
     merged.set(`user:${record.user}`, {
       id: `presence:${record.id}`,
       userId: record.user,
-      name: user?.displayName || user?.handle || 'Member',
+      name: user.displayName || user.handle,
       user,
       local: false,
       audioTrack: null,
@@ -118,8 +121,10 @@ export function mergeCallParticipants(
     })
   }
   for (const participant of liveParticipants) {
+    if (!participant.userId && hasAuthoritativeOccupancy) continue
     const key = participant.userId ? `user:${participant.userId}` : `jitsi:${participant.id}`
     const occupancyParticipant = merged.get(key)
+    if (occupancyParticipant?.local && !participant.local) continue
     merged.set(key, occupancyParticipant
       ? {
           ...participant,

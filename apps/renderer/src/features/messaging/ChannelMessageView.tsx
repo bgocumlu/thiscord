@@ -20,17 +20,10 @@ export function ChannelMessageView({
   const client = usePocketBase()
   const queryClient = useQueryClient()
   const { search } = useAppRouter()
-  const { messages, typing } = useChannelMessages(channel.id)
+  const { messages } = useChannelMessages(channel.id)
   const adapter = useMemo(
     () => createChannelMessageAdapter({ client, queryClient, channel, permissions }),
     [channel, client, permissions, queryClient],
-  )
-  const typingUsers = useMemo(
-    () => (typing.data ?? [])
-      .filter((item) => item.user !== currentUser.id)
-      .map((item) => item.expand?.user?.displayName)
-      .filter((name): name is string => Boolean(name)),
-    [currentUser.id, typing.data],
   )
   const highlightedMessageId = new URLSearchParams(search).get('message') ?? ''
 
@@ -40,7 +33,6 @@ export function ChannelMessageView({
       adapter={adapter}
       history={messages}
       currentUser={currentUser}
-      typingUsers={typingUsers}
       intro={(
         <div className="channel-intro">
           <span>{channel.kind === 'announcement' ? <Megaphone size={24} /> : <Hash size={24} />}</span>

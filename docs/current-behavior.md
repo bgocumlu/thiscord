@@ -37,7 +37,7 @@ routes authorize records before filling stable pages. Request hooks still apply
 channel-specific resolution to exact views, file downloads, and realtime
 delivery:
 
-- channel records and call/typing records require `view_channels`;
+- channel and call records require `view_channels`;
 - messages, reactions, and read states require `read_history`;
 - message attachments require `read_history`;
 - unauthorized realtime events are dropped rather than sent.
@@ -97,7 +97,7 @@ notification fan-out is performed only when the author has that permission.
 Conversation access is based on an exact `conversation_members` record; a
 community membership or client-supplied conversation identifier is
 insufficient. The same membership check protects conversation records, direct
-messages, reactions, typing state, attachments, read state, and search results.
+messages, reactions, attachments, read state, and search results.
 
 A new conversation contains 2–25 unique users including its creator. Two users
 produce an idempotent direct conversation keyed by the sorted user IDs; three
@@ -109,7 +109,7 @@ member; an empty group is deleted.
 
 Direct messages use the same 4,000-character and non-empty rules as channel
 messages, and replies must stay in the conversation. Any member can react, mark
-read, publish typing state, and pin. Only the author can edit or soft-delete.
+read and pin. Only the author can edit or soft-delete.
 Each direct message notifies every other current member.
 
 Conversation ordering is persisted in `lastMessageAt` in the same transaction
@@ -122,7 +122,7 @@ their cached conversation without exposing other conversations.
 
 The renderer supplies both contexts through one message-surface lifecycle for
 pagination, search, composing, attachments, edits, soft deletion, replies,
-reactions, pins, typing, read state, and failure states. The channel and
+reactions, pins, read state, and failure states. The channel and
 conversation adapters remain separate: channel disabled states and moderation
 come from resolved permissions, while conversation behavior comes from exact
 membership and ownership rules. Their PocketBase collections remain separate.

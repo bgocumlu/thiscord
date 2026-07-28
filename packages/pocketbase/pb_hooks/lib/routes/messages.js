@@ -312,56 +312,6 @@ routerAdd("POST", "/api/thiscord/channels/{id}/read", (e) => {
   return e.json(200, state);
 }, $apis.requireAuth("users"));
 
-routerAdd("POST", "/api/thiscord/channels/{id}/typing", (e) => {
-  const h = require(`${__hooks}/lib/permissions.js`);
-  const channelId = e.request.pathValue("id");
-  const updateTyping = () => {
-    e.app.runInTransaction((tx) => {
-      h.channelContext(tx, channelId, e.auth.id, "send_messages");
-      let typing;
-      try {
-        typing = tx.findFirstRecordByFilter(
-          "typing",
-          "channel = {:channel} && user = {:user}",
-          { channel: channelId, user: e.auth.id },
-        );
-      } catch {
-        typing = new Record(tx.findCollectionByNameOrId("typing"));
-        typing.set("channel", channelId);
-        typing.set("user", e.auth.id);
-      }
-      typing.set("expiresAt", new Date(Date.now() + h.TRANSIENT_TIMINGS.typingExpiryMs).toISOString());
-      tx.save(typing);
-    });
-  };
-  try {
-    updateTyping();
-  } catch (error) {
-    try {
-      // A concurrent first update may have won the unique channel/user key.
-      updateTyping();
-    } catch {
-      throw error;
-    }
-  }
-  return e.noContent(204);
-}, $apis.requireAuth("users"));
-
-routerAdd("GET", "/api/thiscord/channels/{id}/typing", (e) => {
-  const h = require(`${__hooks}/lib/permissions.js`);
-  const channelId = e.request.pathValue("id");
-  h.channelContext(e.app, channelId, e.auth.id, "view_channels");
-  const items = h.findAllRecordsByFilter(
-    e.app,
-    "typing",
-    "channel = {:channel}",
-    "+created",
-    { channel: channelId },
-  ).filter((typing) => new Date(typing.getString("expiresAt")).getTime() > Date.now());
-  $apis.enrichRecords(e, items, "user");
-  return e.json(200, { items });
-}, $apis.requireAuth("users"));
-
 }
 
 module.exports = {

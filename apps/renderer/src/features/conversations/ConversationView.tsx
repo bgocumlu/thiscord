@@ -27,7 +27,6 @@ import { GroupSettingsDialog } from './ConversationDialogs'
 import { createConversationMessageAdapter } from './conversationMessageAdapter'
 import {
   useDirectMessages,
-  useDirectTyping,
 } from './queries'
 
 export function ConversationView({
@@ -59,7 +58,6 @@ export function ConversationView({
   const queryClient = useQueryClient()
   const { search } = useAppRouter()
   const messages = useDirectMessages(conversation?.id ?? '')
-  const typing = useDirectTyping(conversation?.id ?? '')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const conversationMembers = useMemo(
     () => members.filter((item) => item.conversation === conversation?.id),
@@ -84,13 +82,6 @@ export function ConversationView({
   const callParticipantCount = callTarget
     ? callOccupancy.filter((participant) => participantBelongsToTarget(participant, callTarget.target)).length
     : 0
-  const typingUsers = useMemo(
-    () => (typing.data ?? [])
-      .filter((item) => item.user !== currentUser.id)
-      .map((item) => item.expand?.user?.displayName)
-      .filter((name): name is string => Boolean(name)),
-    [currentUser.id, typing.data],
-  )
   const highlightedMessageId = new URLSearchParams(search).get('directMessage') ?? ''
 
   if (!conversation) {
@@ -168,7 +159,6 @@ export function ConversationView({
         adapter={adapter}
         history={messages}
         currentUser={currentUser}
-        typingUsers={typingUsers}
         intro={(
           <div className="channel-intro">
             <span><MessageSquareText size={24} /></span>

@@ -1,4 +1,3 @@
-import { transientTimings } from '@thiscord/shared'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { usePocketBase } from '../../lib/contexts'
@@ -22,15 +21,8 @@ export function useChannelMessages(channelId: string) {
     () => pages.data?.pages.flatMap((page) => page.items).reverse(),
     [pages.data],
   )
-  const typing = useQuery({
-    queryKey: messageKeys.typing(channelId),
-    enabled,
-    refetchInterval: transientTimings.typingPollMs,
-    queryFn: async () => (await messageApi.activeTyping(client, channelId)).items,
-  })
   return {
     messages: { ...pages, data: messages },
-    typing,
   }
 }
 

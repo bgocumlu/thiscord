@@ -8,8 +8,6 @@ export const messageKeys = {
   reactions: (channelId: string, messageIds: string) => (
     [...messageKeys.reactionsRoot(channelId), messageIds] as const
   ),
-  typingAll: ['typing'] as const,
-  typing: (channelId: string) => [...messageKeys.typingAll, channelId] as const,
   searchAll: ['message_search'] as const,
   searchRoot: (communityId: string, channelId: string) => (
     [...messageKeys.searchAll, communityId, channelId] as const

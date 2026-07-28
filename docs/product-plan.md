@@ -80,8 +80,6 @@ invites
 bans
 audit_events
 presence
-typing
-direct_typing
 notifications
 conversations
 conversation_members
@@ -97,7 +95,7 @@ Protected route groups:
 
 ```text
 communities, channels, ordering, permissions
-messages, reactions, typing, read state, search
+messages, reactions, read state, search
 roles, memberships, invites, bans, moderation, audit
 conversations, direct messages, notifications
 presence, Jitsi tokens, call occupancy, account deletion
@@ -128,7 +126,7 @@ Recording through Jibri is optional and not part of the first release.
 - Roles and per-channel permissions
 - Invites, kicks, bans, and timeouts
 - Messages, edits, deletion, replies, reactions, pins, and attachments
-- Presence, typing, unread markers, and mentions
+- Presence, unread markers, and mentions
 - Direct messages and small group messages
 - Voice, video, mute, deafen, camera, and screen sharing
 - Member list, settings, search, and notifications
@@ -202,6 +200,6 @@ This is a target layout, not a requirement to create empty packages before they 
 
 - PocketBase remains pre-1.0, so upgrades must be pinned, reviewed, backed up, and tested.
 - The initial architecture favors a simple single-server backend but does not enforce a user cap.
-- Presence and typing use conservative heartbeat/expiry behavior to avoid needless SQLite writes.
+- Presence uses conservative heartbeat/expiry behavior to avoid needless SQLite writes.
 - Jitsi capacity is driven by simultaneous media usage, not registered Thiscord users.
 - A branded macOS or Windows desktop release requires that distribution's signing and update configuration.

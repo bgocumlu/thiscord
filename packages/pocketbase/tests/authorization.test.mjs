@@ -164,7 +164,7 @@ test('authorized pagination fills pages after hidden records instead of filterin
   assert.equal(page.hasMore, true)
 })
 
-test('the V2 migrations contain the baseline and data-preserving presence upgrade', async () => {
+test('the V2 migrations contain the baseline, presence upgrade, and feature removals', async () => {
   const migrationsDirectory = resolve(import.meta.dirname, '../pb_migrations')
   const migrationFiles = (await readdir(migrationsDirectory)).filter((name) => name.endsWith('.js'))
   assert.deepEqual(migrationFiles, [
@@ -172,6 +172,7 @@ test('the V2 migrations contain the baseline and data-preserving presence upgrad
     '1785254000_presence_schema_upgrade.js',
     '1785256000_user_directory_access.js',
     '1785260000_call_server_mute.js',
+    '1785262000_remove_typing_presence.js',
   ])
   const migration = await readFile(
     resolve(migrationsDirectory, '1785031200_v2_baseline.js'),
@@ -187,6 +188,10 @@ test('the V2 migrations contain the baseline and data-preserving presence upgrad
   )
   const callServerMute = await readFile(
     resolve(migrationsDirectory, '1785260000_call_server_mute.js'),
+    'utf8',
+  )
+  const typingRemoval = await readFile(
+    resolve(migrationsDirectory, '1785262000_remove_typing_presence.js'),
     'utf8',
   )
   assert.match(migration, /CREATE UNIQUE INDEX idx_call_rooms_room_name ON call_rooms \(roomName\)/)
@@ -225,6 +230,8 @@ test('the V2 migrations contain the baseline and data-preserving presence upgrad
   assert.match(directoryAccess, /users\.fields\.getByName\(name\)\.hidden = true/)
   assert.match(callServerMute, /name: "serverMuted"/)
   assert.match(callServerMute, /fields\.removeByName\("serverMuted"\)/)
+  assert.match(typingRemoval, /for \(const name of \["typing", "direct_typing"\]\)/)
+  assert.match(typingRemoval, /app\.delete\(app\.findCollectionByNameOrId\(name\)\)/)
   assert.match(migration, /ownMembership/)
   assert.match(migration, /user = @request\.auth\.id \|\| \(@collection\.conversation_members:viewer/)
   assert.match(migration, /name: "lastMessageAt", required: true/)

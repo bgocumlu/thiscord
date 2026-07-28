@@ -1,4 +1,3 @@
-import { transientTimings } from '@thiscord/shared'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { usePocketBase } from '../../lib/contexts'
@@ -64,14 +63,4 @@ export function useDirectMessages(conversationId: string) {
     [query.data],
   )
   return { ...query, data: messages }
-}
-
-export function useDirectTyping(conversationId: string) {
-  const client = usePocketBase()
-  return useQuery({
-    queryKey: conversationKeys.typing(conversationId),
-    enabled: Boolean(conversationId),
-    refetchInterval: transientTimings.typingPollMs,
-    queryFn: () => conversationApi.activeTyping(client, conversationId),
-  })
 }

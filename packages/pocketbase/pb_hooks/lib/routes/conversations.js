@@ -350,41 +350,6 @@ routerAdd("GET", "/api/thiscord/conversations/{id}/messages", (e) => {
   });
 }, $apis.requireAuth("users"));
 
-routerAdd("POST", "/api/thiscord/conversations/{id}/typing", (e) => {
-  const h = require(`${__hooks}/lib/permissions.js`);
-  const conversationId = e.request.pathValue("id");
-  const updateTyping = () => {
-    e.app.runInTransaction((tx) => {
-      h.conversationMembership(tx, conversationId, e.auth.id);
-      let typing;
-      try {
-        typing = tx.findFirstRecordByFilter(
-          "direct_typing",
-          "conversation = {:conversation} && user = {:user}",
-          { conversation: conversationId, user: e.auth.id },
-        );
-      } catch {
-        typing = new Record(tx.findCollectionByNameOrId("direct_typing"));
-        typing.set("conversation", conversationId);
-        typing.set("user", e.auth.id);
-      }
-      typing.set("expiresAt", new Date(Date.now() + h.TRANSIENT_TIMINGS.typingExpiryMs).toISOString());
-      tx.save(typing);
-    });
-  };
-  try {
-    updateTyping();
-  } catch (error) {
-    try {
-      // A concurrent first update may have won the unique conversation/user key.
-      updateTyping();
-    } catch {
-      throw error;
-    }
-  }
-  return e.noContent(204);
-}, $apis.requireAuth("users"));
-
 routerAdd("POST", "/api/thiscord/direct-messages", (e) => {
   const h = require(`${__hooks}/lib/permissions.js`);
   const body = e.requestInfo().body;

@@ -300,9 +300,6 @@ const POLICY_MANIFEST = {
     }
   },
   "transientTimings": {
-    "typingExpiryMs": 10000,
-    "typingRefreshMs": 5000,
-    "typingPollMs": 8000,
     "presenceExpiryMs": 120000,
     "presenceHeartbeatMs": 25000,
     "presencePollMs": 30000,

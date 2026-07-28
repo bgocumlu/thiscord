@@ -14,8 +14,6 @@ export const conversationKeys = {
   reactions: (conversationId: string, messageIds: string) => (
     [...conversationKeys.reactionsRoot(conversationId), messageIds] as const
   ),
-  typingAll: ['direct_typing'] as const,
-  typing: (conversationId: string) => [...conversationKeys.typingAll, conversationId] as const,
   searchAll: ['direct_message_search'] as const,
   searchRoot: (conversationId: string) => [...conversationKeys.searchAll, conversationId] as const,
   search: (conversationId: string, query: string, pinned: boolean) => (

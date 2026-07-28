@@ -1440,8 +1440,6 @@ test('transient cleanup expires stale participants and ends empty calls', () => 
   })
   const app = new MemoryApp({
     presence: [],
-    typing: [],
-    direct_typing: [],
     call_sessions: [call],
     call_participants: [participant],
   })
@@ -1471,8 +1469,6 @@ test('transient cleanup turns expired presence leases into tombstones and record
     users: [user],
     presence: [aggregate],
     presence_leases: [lease],
-    typing: [],
-    direct_typing: [],
     call_sessions: [],
     call_participants: [],
   })
@@ -2047,83 +2043,6 @@ test('invite codes are listed only through the permission-checked route', () => 
     })),
     /cannot view/i,
   )
-})
-
-test('typing upserts reauthorize in-transaction and recover concurrent first writes', () => {
-  const auth = record('users', 'typing-race-user')
-  const channelFixture = communityFixture({
-    userId: auth.id,
-    permissions: ['view_channels', 'send_messages'],
-  })
-  const channelTransaction = channelFixture.app.runInTransaction.bind(channelFixture.app)
-  channelFixture.app.runInTransaction = (callback) => {
-    channelFixture.everyone.set('permissions', ['view_channels'])
-    return channelTransaction(callback)
-  }
-  assert.throws(
-    () => routes.get('POST /api/thiscord/channels/{id}/typing')(event({
-      app: channelFixture.app,
-      auth,
-      path: { id: channelFixture.channel.id },
-    })),
-    /send_messages/i,
-  )
-  assert.equal(channelFixture.app.collection('typing').length, 0)
-
-  const conversation = record('conversations', 'typing-race-conversation', {
-    kind: 'group',
-    owner: auth.id,
-  })
-  const membership = record('conversation_members', 'typing-race-member', {
-    conversation: conversation.id,
-    user: auth.id,
-  })
-  const conversationApp = new MemoryApp({
-    conversations: [conversation],
-    conversation_members: [membership],
-    direct_typing: [],
-  })
-  const conversationTransaction = conversationApp.runInTransaction.bind(conversationApp)
-  conversationApp.runInTransaction = (callback) => {
-    conversationApp.delete(membership)
-    return conversationTransaction(callback)
-  }
-  assert.throws(
-    () => routes.get('POST /api/thiscord/conversations/{id}/typing')(event({
-      app: conversationApp,
-      auth,
-      path: { id: conversation.id },
-    })),
-    /not a member/i,
-  )
-  assert.equal(conversationApp.collection('direct_typing').length, 0)
-
-  const recoveryFixture = communityFixture({
-    userId: auth.id,
-    permissions: ['view_channels', 'send_messages'],
-  })
-  const save = recoveryFixture.app.save.bind(recoveryFixture.app)
-  let raced = false
-  recoveryFixture.app.save = (candidate) => {
-    if (candidate.collection().name === 'typing' && !candidate.id.startsWith('winner') && !raced) {
-      raced = true
-      recoveryFixture.app.collection('typing').push(record('typing', 'winner-typing', {
-        channel: recoveryFixture.channel.id,
-        user: auth.id,
-        expiresAt: '',
-      }))
-      throw new Error('unique typing race')
-    }
-    return save(candidate)
-  }
-  const recovered = routes.get('POST /api/thiscord/channels/{id}/typing')(event({
-    app: recoveryFixture.app,
-    auth,
-    path: { id: recoveryFixture.channel.id },
-  }))
-  assert.equal(recovered.status, 204)
-  assert.equal(recoveryFixture.app.collection('typing').length, 1)
-  assert.ok(recoveryFixture.app.collection('typing')[0].getString('expiresAt'))
 })
 
 test('invite preview is public and returns an authoritative active member count', () => {

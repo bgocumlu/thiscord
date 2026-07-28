@@ -308,14 +308,6 @@ try {
   if (focusedMessage.id !== message.id || focusedMessage.channel !== textChannel.id) {
     throw new Error("A focused channel message could not be loaded independently of its page.");
   }
-  await request(`/api/thiscord/channels/${textChannel.id}/typing`, {
-    method: "POST",
-    headers,
-  });
-  const channelTyping = await request(`/api/thiscord/channels/${textChannel.id}/typing`, { headers });
-  if (!channelTyping.items?.some((item) => item.user === user.id)) {
-    throw new Error("Aggregated channel typing did not return the active author.");
-  }
   await request(`/api/thiscord/messages/${message.id}/reactions`, {
     method: "POST",
     headers,
@@ -657,15 +649,6 @@ try {
     body: { pinned: true },
   });
   if (!pinnedDirectMessage.pinned) throw new Error("Direct-message pinning did not persist.");
-  await request(`/api/thiscord/conversations/${conversation.id}/typing`, {
-    method: "POST",
-    headers: secondHeaders,
-  });
-  const directTyping = await request(
-    `/api/collections/direct_typing/records?filter=${encodeURIComponent(`conversation = '${conversation.id}' && user = '${secondUser.id}'`)}`,
-    { headers },
-  );
-  if (directTyping.totalItems !== 1) throw new Error("Direct-message typing was not visible to conversation members.");
   const unreadDirectNotifications = await request(
     `/api/collections/notifications/records?filter=${encodeURIComponent(`user = '${secondUser.id}' && readAt = ''`)}`,
     { headers: secondHeaders },
@@ -1156,7 +1139,7 @@ try {
     directAttachmentAccess: true,
     stableDirectHistoryCursor: true,
     stableConversationDirectoryCursor: true,
-    directReactionTypingPinAndReadState: true,
+    directReactionPinAndReadState: true,
     notificationReadAll: true,
     authoritativeNotificationCount: true,
     conversationCallLifecycle: true,

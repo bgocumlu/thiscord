@@ -52,5 +52,4 @@ export interface MessageSurfaceAdapter<TMessage extends SurfaceMessage> {
   readonly react: (message: TMessage, emoji: string) => Promise<void>
   readonly pin: (message: TMessage) => Promise<void>
   readonly markRead: (messageId: string) => Promise<void>
-  readonly reportTyping: () => Promise<void>
 }

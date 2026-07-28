@@ -104,8 +104,5 @@ export function createConversationMessageAdapter({
       await conversationApi.markRead(client, conversation.id, messageId)
       await queryClient.invalidateQueries({ queryKey: conversationKeys.members })
     },
-    async reportTyping() {
-      await conversationApi.typing(client, conversation.id)
-    },
   }
 }

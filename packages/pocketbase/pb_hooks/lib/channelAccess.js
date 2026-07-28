@@ -6,7 +6,6 @@ const CHANNEL_SCOPED_COLLECTIONS = [
   "messages",
   "reactions",
   "read_states",
-  "typing",
 ];
 
 function channelIdForRecord(app, record) {
@@ -16,7 +15,6 @@ function channelIdForRecord(app, record) {
     case "channel_permissions":
     case "messages":
     case "read_states":
-    case "typing":
       return record.getString("channel");
     case "reactions": {
       const message = app.findRecordById("messages", record.getString("message"));
@@ -50,7 +48,6 @@ function channelIdForRealtimeRecord(app, collection, record) {
     case "channel_permissions":
     case "messages":
     case "read_states":
-    case "typing":
       return String(record.channel || "");
     case "reactions": {
       const message = app.findRecordById("messages", String(record.message || ""));

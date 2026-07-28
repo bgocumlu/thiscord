@@ -43,7 +43,6 @@ const communityScopedCollections = new Set<RealtimeCollection>([
   'messages',
   'reactions',
   'read_states',
-  'typing',
   'community_presence',
 ])
 
@@ -82,7 +81,6 @@ export function realtimeFilterFor(
     case 'messages':
     case 'reactions':
     case 'read_states':
-    case 'typing':
       return scope.communityId
         ? client.filter(`${collection === 'messages' ? 'channel' : collection === 'reactions' ? 'message.channel' : 'channel'}.community = {:community}`, {
             community: scope.communityId,
@@ -103,7 +101,6 @@ export function realtimeFilterFor(
         { user: scope.userId },
       )
     case 'direct_messages':
-    case 'direct_typing':
       return client.filter(
         'conversation.conversation_members_via_conversation.user ?= {:user}',
         { user: scope.userId },
@@ -153,7 +150,7 @@ export function realtimeExpandFor(collection: RealtimeCollection) {
     return 'author,replyTo,replyTo.author'
   }
   if (collection === 'call_sessions') return 'room'
-  if (collection === 'call_participants') return 'call.room'
+  if (collection === 'call_participants') return 'user,call.room'
   return ''
 }
 

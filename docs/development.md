@@ -81,7 +81,7 @@ npm run smoke --workspace @thiscord/pocketbase
 This suite creates an isolated temporary database and covers ordinary-member
 channel access, persisted permissions after restart, channel history denial,
 role hierarchy, transactional invites, attachments, search, unread and
-notification state, direct messages and reactions, typing, concurrent presence,
+notification state, direct messages and reactions, concurrent presence,
 account deletion relationships, and the voice occupancy lifecycle. It removes
 the temporary database when finished.
 

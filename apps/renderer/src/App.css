@@ -1424,18 +1424,6 @@
   cursor: not-allowed;
 }
 
-.typing-line {
-  position: absolute;
-  left: 20px;
-  bottom: 2px;
-  color: #777a84;
-  font-size: 9px;
-}
-
-.typing-line strong {
-  color: #a8abb4;
-}
-
 .empty-channel {
   min-height: 250px;
   display: flex;

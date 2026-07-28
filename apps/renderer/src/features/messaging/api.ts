@@ -1,4 +1,4 @@
-import type { Message, Reaction, User } from '@thiscord/shared'
+import type { Message, Reaction } from '@thiscord/shared'
 import type PocketBase from 'pocketbase'
 
 export interface ChannelMessageDraft {
@@ -6,16 +6,6 @@ export interface ChannelMessageDraft {
   readonly content: string
   readonly replyTo: string
   readonly attachments: readonly File[]
-}
-
-export interface ChannelTyping {
-  readonly id: string
-  readonly channel: string
-  readonly user: string
-  readonly expiresAt: string
-  readonly expand?: {
-    readonly user?: User
-  }
 }
 
 export interface UnreadSummaryItem {
@@ -50,12 +40,6 @@ export const messageApi = {
       readonly items: Message[]
     }>(
       `/api/thiscord/channels/${encodeURIComponent(channelId)}/messages?${search}`,
-      {},
-    )
-  },
-  activeTyping(client: PocketBase, channelId: string) {
-    return client.send<{ readonly items: ChannelTyping[] }>(
-      `/api/thiscord/channels/${encodeURIComponent(channelId)}/typing`,
       {},
     )
   },
@@ -110,9 +94,6 @@ export const messageApi = {
       method: 'POST',
       body: { emoji },
     })
-  },
-  typing(client: PocketBase, channelId: string) {
-    return client.send(`/api/thiscord/channels/${encodeURIComponent(channelId)}/typing`, { method: 'POST' })
   },
   unreadSummary(client: PocketBase, communityId: string) {
     return client.send<{ readonly items: UnreadSummaryItem[] }>(
