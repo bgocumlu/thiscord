@@ -26,6 +26,7 @@ x-jitsi-environment: &jitsi-environment
   XMPP_INTERNAL_MUC_DOMAIN: internal-muc.meet.jitsi
   XMPP_HIDDEN_DOMAIN: hidden.meet.jitsi
   XMPP_RECORDER_DOMAIN: recorder.meet.jitsi
+  XMPP_MODULES: presence_identity
   XMPP_SERVER: prosody
   XMPP_PORT: "5222"
   XMPP_BOSH_URL_BASE: http://prosody:5280

@@ -177,7 +177,10 @@ configured PocketBase public origin, but never the account email.
 Browser JWTs never receive Jitsi's coarse moderator role. Server-mute,
 server-unmute, and remove actions use an authenticated PocketBase route and the private Prosody control
 channel, where the target occupant is resolved from its signed Thiscord user
-identity. Call moderation rechecks the actor's channel permission and community
+identity. Prosody's `presence_identity` module removes client-supplied identity
+and publishes the verified JWT account ID with each media participant, allowing
+remote tracks to merge with the correct product occupancy row. Call moderation
+rechecks the actor's channel permission and community
 role hierarchy inside its write transaction. A server mute is stored on the
 logical call participant, survives reconnects within that live call, and keeps
 the target outside the speaking whitelist until an authorized moderator removes

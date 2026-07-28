@@ -91,6 +91,9 @@ voice access is revoked, PocketBase calls a private, shared-secret Prosody
 endpoint with the affected PocketBase user ID. Prosody removes every matching
 occupant by the user identity verified from its JWT session before PocketBase
 clears product presence. Client-reported media identifiers are not trusted.
+The same verified identity is injected into occupant presence through
+`presence_identity`, so renderer media tracks reconcile to account-level
+occupancy without trusting display names.
 This prevents an already-connected client from remaining in the media room
 until its short-lived join token expires. Heartbeat authorization and the
 presence write share one database transaction, so a stale request cannot

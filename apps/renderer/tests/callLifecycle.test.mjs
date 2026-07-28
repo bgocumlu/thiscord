@@ -13,6 +13,7 @@ import {
 import {
   LOCAL_PARTICIPANT,
   mergeCallParticipants,
+  participantFromJitsi,
   synchronizeParticipantTrack,
 } from '../src/features/calls/participantSync.ts'
 import { createPresenceHeartbeat } from '../src/features/calls/presenceHeartbeat.ts'
@@ -477,6 +478,51 @@ test('signed Jitsi participants inherit server-mute state and user identity from
   assert.equal(merged[0].serverMuted, true)
   assert.equal(merged[0].user, user)
   assert.equal(merged[0].audioTrack, live.audioTrack)
+})
+
+test('verified Jitsi identity keeps remote camera and screen tracks on the account tile', () => {
+  const user = { id: 'signed-media-user', displayName: 'Signed media user' }
+  const camera = { kind: 'camera' }
+  const screen = { kind: 'screen' }
+  const live = {
+    ...participantFromJitsi({
+      getId: () => 'jitsi-media-participant',
+      getIdentity: () => ({ user: { id: user.id } }),
+      getDisplayName: () => user.displayName,
+    }),
+    videoTrack: camera,
+    screenTrack: screen,
+  }
+  const merged = mergeCallParticipants(
+    [live],
+    [{
+      id: 'occupancy',
+      call: 'call',
+      user: user.id,
+      joinedAt: '',
+      leftAt: '',
+      expiresAt: '',
+      muted: true,
+      serverMuted: false,
+      deafened: false,
+      camera: true,
+      sharing: true,
+      created: '',
+      updated: '',
+      expand: {
+        user,
+        call: { expand: { room: { channel: 'voice' } } },
+      },
+    }],
+    { kind: 'channel', id: 'voice' },
+  )
+
+  assert.equal(live.userId, user.id)
+  assert.equal(merged.length, 1)
+  assert.equal(merged[0].userId, user.id)
+  assert.equal(merged[0].name, user.displayName)
+  assert.equal(merged[0].videoTrack, camera)
+  assert.equal(merged[0].screenTrack, screen)
 })
 
 test('the local device remains the single account tile when the same user joins twice', () => {
