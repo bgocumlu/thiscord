@@ -8,7 +8,7 @@ import type {
 import type PocketBase from 'pocketbase'
 import type { RecordModel } from 'pocketbase'
 
-export interface MembershipWithCommunity extends Membership {
+interface MembershipWithCommunity extends Membership {
   readonly expand?: {
     readonly user?: User
     readonly community?: Community

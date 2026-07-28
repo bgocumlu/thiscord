@@ -3035,6 +3035,19 @@
   padding: 16px;
 }
 
+dialog.modal-backdrop {
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  border: 0;
+}
+
+dialog.modal-backdrop::backdrop {
+  background: transparent;
+}
+
 .modal-card {
   width: min(460px, 100%);
   max-height: calc(100dvh - 32px);

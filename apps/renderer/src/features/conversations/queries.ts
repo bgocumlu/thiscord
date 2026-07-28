@@ -19,7 +19,16 @@ export function useConversationTarget(conversationId: string, enabled = true) {
 export function useConversations(userId: string) {
   const client = usePocketBase()
   const enabled = Boolean(userId)
-  const pages = useInfiniteQuery({
+  const {
+    data,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isError,
+    isFetchingNextPage,
+    isLoading,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: conversationKeys.list(userId),
     enabled,
     initialPageParam: null as ConversationCursor | null,
@@ -29,27 +38,45 @@ export function useConversations(userId: string) {
       : undefined,
   })
   const conversations = useMemo(
-    () => pages.data?.pages.flatMap((page) => page.conversations),
-    [pages.data],
+    () => data?.pages.flatMap((page) => page.conversations),
+    [data],
   )
   const members = useMemo(
-    () => pages.data?.pages.flatMap((page) => page.members),
-    [pages.data],
+    () => data?.pages.flatMap((page) => page.members),
+    [data],
   )
   const unreadConversationIds = useMemo(
-    () => new Set(pages.data?.pages.flatMap((page) => page.unreadConversationIds) ?? []),
-    [pages.data],
+    () => new Set(data?.pages.flatMap((page) => page.unreadConversationIds) ?? []),
+    [data],
   )
+  const queryState = {
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isError,
+    isFetchingNextPage,
+    isLoading,
+    refetch,
+  }
   return {
-    conversations: { ...pages, data: conversations },
-    members: { ...pages, data: members },
+    conversations: { ...queryState, data: conversations },
+    members: { ...queryState, data: members },
     unreadConversationIds,
   }
 }
 
 export function useDirectMessages(conversationId: string) {
   const client = usePocketBase()
-  const query = useInfiniteQuery({
+  const {
+    data,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isError,
+    isFetchingNextPage,
+    isLoading,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: conversationKeys.messages(conversationId),
     enabled: Boolean(conversationId),
     initialPageParam: null as DirectMessageCursor | null,
@@ -59,8 +86,17 @@ export function useDirectMessages(conversationId: string) {
       : undefined,
   })
   const messages = useMemo(
-    () => query.data?.pages.flatMap((page) => page.items).reverse(),
-    [query.data],
+    () => data?.pages.flatMap((page) => page.items).reverse(),
+    [data],
   )
-  return { ...query, data: messages }
+  return {
+    data: messages,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isError,
+    isFetchingNextPage,
+    isLoading,
+    refetch,
+  }
 }

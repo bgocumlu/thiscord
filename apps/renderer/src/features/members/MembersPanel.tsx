@@ -5,7 +5,8 @@ import type {
 } from '@thiscord/shared'
 import { MoreVertical } from 'lucide-react'
 import { useState } from 'react'
-import { DataFailure, resolvedPresence } from '../../components/WorkspacePrimitives'
+import { DataFailure } from '../../components/WorkspacePrimitives'
+import { resolvedPresence } from '../../components/workspaceUtils'
 import {
   ContextMenu,
   type ContextMenuPoint,
@@ -128,7 +129,7 @@ export function MembersPanel({
     )
   }
   const statusFor = (user: User) => resolvedPresence(user.id, presence)
-  const sorted = [...memberships].sort((left, right) => {
+  const sorted = memberships.toSorted((left, right) => {
     const leftStatus = left.expand?.user ? statusFor(left.expand.user) : 'offline'
     const rightStatus = right.expand?.user ? statusFor(right.expand.user) : 'offline'
     return Number(rightStatus !== 'offline') - Number(leftStatus !== 'offline')

@@ -33,6 +33,23 @@ import { MemberContextMenuItems } from '../members/MemberContextMenuItems'
 import type { MemberInteractions } from '../members/memberInteractions'
 import type { RemoteAudioPreference } from './remoteAudioPreferences'
 
+function deviceOptions(
+  devices: readonly MediaDeviceInfo[],
+  kind: MediaDeviceKind,
+  fallbackLabel: string,
+) {
+  let index = 0
+  return devices.flatMap((device) => {
+    if (device.kind !== kind) return []
+    index += 1
+    return [
+      <option value={device.deviceId} key={device.deviceId}>
+        {device.label || `${fallbackLabel} ${index}`}
+      </option>,
+    ]
+  })
+}
+
 function initials(value: string) {
   return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?'
 }
@@ -60,12 +77,16 @@ function TrackElement({ track, audio = false, muted = false, volume = 100, scree
     if (audio && element.current) element.current.volume = Math.max(0, Math.min(1, volume / 100))
   }, [audio, volume])
   return audio
-    ? <audio ref={(node) => { element.current = node }} autoPlay muted={muted} />
+    ? (
+        // Remote WebRTC audio has no static timed-text source; live captions require a transcription pipeline.
+        // oxlint-disable-next-line react-doctor/media-has-caption
+        <audio ref={(node) => { element.current = node }} autoPlay muted={muted} />
+      )
     : <video
         className={`${screen ? 'screen-media' : 'camera-media'} ${track.isLocal() && !screen ? 'local-camera-media' : ''}`.trim()}
         ref={(node) => { element.current = node }}
         autoPlay
-        muted={track.isLocal()}
+        muted
         onLoadedMetadata={(event) => void event.currentTarget.play().catch(() => undefined)}
         playsInline
       />
@@ -406,9 +427,9 @@ export function CallSurface({
       {session.error && session.status !== 'error' ? <div className="call-warning">{session.error}</div> : null}
       {devicesOpen ? (
         <section className="call-device-panel" aria-label="Call devices">
-          <label><Mic size={14} /><span>Microphone</span><select value={call.microphoneDeviceId} onChange={(event) => void call.selectMicrophone(event.target.value)}><option value="">System default</option>{call.devices.filter((device) => device.kind === 'audioinput').map((device, index) => <option value={device.deviceId} key={device.deviceId}>{device.label || `Microphone ${index + 1}`}</option>)}</select></label>
-          <label><Video size={14} /><span>Camera</span><select value={call.cameraDeviceId} onChange={(event) => void call.selectCamera(event.target.value)}><option value="">System default</option>{call.devices.filter((device) => device.kind === 'videoinput').map((device, index) => <option value={device.deviceId} key={device.deviceId}>{device.label || `Camera ${index + 1}`}</option>)}</select></label>
-          <label><Volume2 size={14} /><span>Speaker</span><select value={call.speakerDeviceId} onChange={(event) => void call.selectSpeaker(event.target.value)}><option value="">System default</option>{call.devices.filter((device) => device.kind === 'audiooutput').map((device, index) => <option value={device.deviceId} key={device.deviceId}>{device.label || `Speaker ${index + 1}`}</option>)}</select></label>
+          <label><Mic size={14} /><span>Microphone</span><select value={call.microphoneDeviceId} onChange={(event) => void call.selectMicrophone(event.target.value)}><option value="">System default</option>{deviceOptions(call.devices, 'audioinput', 'Microphone')}</select></label>
+          <label><Video size={14} /><span>Camera</span><select value={call.cameraDeviceId} onChange={(event) => void call.selectCamera(event.target.value)}><option value="">System default</option>{deviceOptions(call.devices, 'videoinput', 'Camera')}</select></label>
+          <label><Volume2 size={14} /><span>Speaker</span><select value={call.speakerDeviceId} onChange={(event) => void call.selectSpeaker(event.target.value)}><option value="">System default</option>{deviceOptions(call.devices, 'audiooutput', 'Speaker')}</select></label>
         </section>
       ) : null}
       <div className="voice-controls">
@@ -478,21 +499,22 @@ export function CallDock({ onOpen }: { readonly onOpen: (target: CallTargetDescr
         ) : null}
       </div>
       <div className="call-audio" aria-hidden="true">
-        {session.participants
-          .filter((participant) => !participant.local && participant.audioTrack)
-          .map((participant) => {
-            const preference = call.remoteAudioFor(participant.userId)
-            return (
+        {session.participants.flatMap((participant) => {
+          if (participant.local || !participant.audioTrack) return []
+          const preference = call.remoteAudioFor(participant.userId)
+          return [
+            (
               <TrackElement
-                track={participant.audioTrack!}
+                track={participant.audioTrack}
                 audio
                 muted={session.deafened || preference.muted}
                 volume={preference.volume}
                 speakerDeviceId={call.speakerDeviceId}
                 key={participant.id}
               />
-            )
-          })}
+            ),
+          ]
+        })}
       </div>
     </div>
   )

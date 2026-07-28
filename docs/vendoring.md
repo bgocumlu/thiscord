@@ -26,9 +26,10 @@ vendor/jitsi/
 The PocketBase Docker build selects the binary using Docker's `TARGETARCH` and
 verifies its extracted-binary checksum before installing it.
 
-The renderer uses local npm `file:` dependencies for lib-jitsi-meet and
-rtcstats. Their runtime dependencies remain normal lockfile-controlled npm
-packages.
+The renderer uses a local npm `file:` dependency for lib-jitsi-meet. A root npm
+override pins lib-jitsi-meet's transitive rtcstats dependency to the local
+security-patched copy. Their other runtime dependencies remain normal
+lockfile-controlled npm packages.
 
 ## What remains external
 

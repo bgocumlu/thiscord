@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "entry": [
+    "apps/desktop/src/preload.ts",
+    "apps/renderer/public/sw.js",
+    "electron-builder.config.cjs",
+    "packages/pocketbase/pb_hooks/**/*.js",
+    "packages/pocketbase/pb_migrations/*.js"
+  ],
+  "ignorePatterns": [
+    "vendor/**"
+  ],
+  "usedClassMembers": [
+    {
+      "implements": "JitsiStreamEffect",
+      "members": [
+        "isEnabled",
+        "startEffect",
+        "stopEffect",
+        "setMuted",
+        "isMuted"
+      ]
+    },
+    "findCollectionByNameOrId",
+    "findFirstRecordByFilter",
+    "findFirstRecordByData"
+  ],
+  "duplicates": {
+    "threshold": 5,
+    "ignore": [
+      "**/*.generated.{js,ts}",
+      "packages/pocketbase/pb_migrations/**"
+    ]
+  },
+  "health": {
+    // Current high-water marks: fail only when complexity regresses.
+    "maxCyclomatic": 135,
+    "maxCognitive": 189,
+    "maxCrap": 18091,
+    "maxUnitSize": 800,
+    "ignore": [
+      "**/*.generated.{js,ts}",
+      "packages/pocketbase/pb_migrations/**"
+    ]
+  }
+}

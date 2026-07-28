@@ -15,7 +15,7 @@ import {
   Settings,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { initials } from '../../components/WorkspacePrimitives'
+import { initials } from '../../components/workspaceUtils'
 import { usePocketBase } from '../../lib/contexts'
 import { useAppRouter } from '../../lib/router'
 import { CallSurface } from '../calls/CallSurface'

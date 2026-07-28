@@ -7,7 +7,7 @@ const hooksRoot = resolve(packageRoot, 'pb_hooks')
 
 let nextId = 1
 
-export class FakeRecord {
+class FakeRecord {
   constructor(collection, values = {}) {
     this._collection = typeof collection === 'string'
       ? { name: collection, id: collection }
@@ -181,7 +181,7 @@ export function record(collection, id, values = {}) {
   return new FakeRecord(collection, { id, ...values })
 }
 
-export function installPocketBaseGlobals() {
+function installPocketBaseGlobals() {
   globalThis.__hooks = hooksRoot
   globalThis.Record = FakeRecord
   for (const name of [

@@ -12,7 +12,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@jitsi/rtcstats": "file:../../vendor/jitsi/rtcstats",
     "@tanstack/react-query": "^5.101.2",
     "@thiscord/shared": "0.1.0",
     "lib-jitsi-meet": "file:../../vendor/jitsi/lib-jitsi-meet",

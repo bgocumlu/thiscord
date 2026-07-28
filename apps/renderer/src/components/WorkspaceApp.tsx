@@ -83,7 +83,8 @@ import { Inbox } from '../features/notifications/Inbox'
 import { roleKeys } from '../features/roles/queryKeys'
 import { useCommunityRoles } from '../features/roles/queries'
 import { GlobalSearch } from '../features/search/GlobalSearch'
-import { DataFailure, resolvedPresence } from './WorkspacePrimitives'
+import { DataFailure } from './WorkspacePrimitives'
+import { resolvedPresence } from './workspaceUtils'
 
 type Modal =
   | { readonly kind: 'community' }
@@ -101,7 +102,7 @@ type Modal =
   | { readonly kind: 'direct' }
   | null
 
-export function WorkspaceApp() {
+function useWorkspaceApp() {
   const { pathname, navigate } = useAppRouter()
   const route = parseAppRoute(pathname)
   const communityId = route.kind === 'channel' ? route.communityId : ''
@@ -118,7 +119,9 @@ export function WorkspaceApp() {
   const currentUser = user!
   useUserAppearance(currentUser.preferences)
   const memberships = useMemberships(currentUser.id)
-  const communities = (memberships.data ?? []).map((membership) => membership.expand?.community).filter(Boolean) as Community[]
+  const communities = (memberships.data ?? []).flatMap((membership) => (
+    membership.expand?.community ? [membership.expand.community] : []
+  ))
   const community = communities.find((item) => item.id === communityId)
   const channelsData = useCommunityChannels(community?.id ?? '')
   const memberData = useCommunityMembers(community?.id ?? '')
@@ -173,7 +176,9 @@ export function WorkspaceApp() {
     [listedChannels, routeChannel],
   )
   const channelCallTargets = useMemo(
-    () => channels.filter((channel) => channel.kind === 'voice').map(channelCallTarget),
+    () => channels.flatMap((channel) => (
+      channel.kind === 'voice' ? [channelCallTarget(channel)] : []
+    )),
     [channels],
   )
   const conversationCallTargets = useMemo(
@@ -361,11 +366,11 @@ export function WorkspaceApp() {
 
   const unreadChannelIds = new Set<string>(
     (communityData.unreadSummary.data?.items ?? [])
-      .filter((item) => {
-        if (item.author === currentUser.id || item.channel === activeChannel?.id) return false
-        return true
-      })
-      .map((item) => item.channel),
+      .flatMap((item) => (
+        item.author === currentUser.id || item.channel === activeChannel?.id
+          ? []
+          : [item.channel]
+      )),
   )
   const actionError = channelMute.error || conversationMute.error || directConversation.error
   const clearActionError = () => {
@@ -669,9 +674,13 @@ export function WorkspaceApp() {
           navigate(appRoutes.conversations(created.id))
         }} />
       ) : null}
-      {actionError ? <div className="toast-error" role="alert">{actionError}<button type="button" onClick={clearActionError}><X size={14} /></button></div> : null}
+      {actionError ? <div className="toast-error" role="alert">{actionError}<button type="button" aria-label="Dismiss error" onClick={clearActionError}><X size={14} /></button></div> : null}
       {backgroundFailure ? <div className="toast-error" role="alert"><span><strong>{backgroundFailure.label}</strong> {errorMessage(backgroundFailure.error)}</span><button type="button" onClick={() => void backgroundFailure.retry()}>Retry</button></div> : null}
       {!backgroundFailure && (presence.error || realtimeStatus === 'degraded') ? <div className="toast-error connection-warning" role="status"><span>{presence.error || 'Live updates are reconnecting…'}</span></div> : null}
     </div>
   )
+}
+
+export function WorkspaceApp() {
+  return useWorkspaceApp()
 }

@@ -1,7 +1,7 @@
 import type { CallJoin, CallParticipantRecord, CallTarget } from '@thiscord/shared'
 import type PocketBase from 'pocketbase'
 
-export interface CallPresence {
+interface CallPresence {
   readonly state: 'joined' | 'update' | 'left'
   readonly leaseId: string
   readonly sequence: number
@@ -11,7 +11,7 @@ export interface CallPresence {
   readonly sharing?: boolean
 }
 
-export interface CallPresenceResult {
+interface CallPresenceResult {
   readonly active: boolean
   readonly accepted: boolean
   readonly sequence: number

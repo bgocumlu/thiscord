@@ -138,7 +138,7 @@ export function ContextMenuItem({
 }
 
 export function ContextMenuSeparator() {
-  return <div className="context-menu-separator" role="separator" />
+  return <hr className="context-menu-separator" />
 }
 
 export function ContextMenuSlider({
@@ -151,7 +151,7 @@ export function ContextMenuSlider({
   readonly onChange: (value: number) => void
 }) {
   return (
-    <label className="context-menu-slider">
+    <div className="context-menu-slider">
       <span><span>{label}</span><output>{value}%</output></span>
       <input
         type="range"
@@ -162,6 +162,6 @@ export function ContextMenuSlider({
         aria-label={label}
         onChange={(event) => onChange(Number(event.currentTarget.value))}
       />
-    </label>
+    </div>
   )
 }

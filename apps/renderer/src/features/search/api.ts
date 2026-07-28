@@ -9,14 +9,14 @@ import type {
 } from '@thiscord/shared'
 import type PocketBase from 'pocketbase'
 
-export type SearchChannel = Channel & { readonly expand?: { readonly community?: Community } }
-export type SearchMessage = Omit<Message, 'expand'> & {
+type SearchChannel = Channel & { readonly expand?: { readonly community?: Community } }
+type SearchMessage = Omit<Message, 'expand'> & {
   readonly expand?: {
     readonly author?: User
     readonly channel?: SearchChannel
   }
 }
-export type SearchDirectMessage = Omit<DirectMessage, 'expand'> & {
+type SearchDirectMessage = Omit<DirectMessage, 'expand'> & {
   readonly expand?: {
     readonly author?: User
     readonly conversation?: Conversation

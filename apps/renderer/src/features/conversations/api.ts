@@ -6,18 +6,18 @@ import type {
 } from '@thiscord/shared'
 import type PocketBase from 'pocketbase'
 
-export interface DirectMessageDraft {
+interface DirectMessageDraft {
   readonly conversation: string
   readonly content: string
   readonly replyTo: string
   readonly attachments: readonly File[]
 }
 
-export type CreateConversationInput =
+type CreateConversationInput =
   | { readonly kind: 'direct'; readonly userIds: readonly [string] | readonly string[] }
   | { readonly kind: 'group'; readonly userIds: readonly string[]; readonly name: string }
 
-export interface ConversationPage {
+interface ConversationPage {
   readonly perPage: number
   readonly hasMore: boolean
   readonly nextCursor: ConversationCursor | null
@@ -31,7 +31,7 @@ export interface ConversationCursor {
   readonly id: string
 }
 
-export interface ConversationTarget {
+interface ConversationTarget {
   readonly conversation: Conversation
   readonly members: ConversationMember[]
 }

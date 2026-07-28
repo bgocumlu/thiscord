@@ -158,6 +158,7 @@ export function DirectDialog({ onClose, onCreated }: {
       ))
     } catch (caught) {
       setError(errorMessage(caught))
+    } finally {
       setBusy(false)
     }
   }
@@ -171,7 +172,7 @@ export function DirectDialog({ onClose, onCreated }: {
             <option value="group">Group conversation</option>
           </select>
         </label>
-        <label><span>{kind === 'direct' ? 'Handle' : 'Handles'}</span><input name="handles" placeholder={kind === 'direct' ? '@handle' : '@handle, @another'} required autoFocus /></label>
+        <label><span>{kind === 'direct' ? 'Handle' : 'Handles'}</span><input name="handles" placeholder={kind === 'direct' ? '@handle' : '@handle, @another'} required /></label>
         {kind === 'group' ? <label><span>Group name</span><input name="name" required maxLength={policyLimits.conversation.nameMax} /></label> : null}
         {error ? <p className="form-error">{error}</p> : null}
         <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Starting…' : 'Start conversation'}</button>

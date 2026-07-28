@@ -57,7 +57,7 @@ export function RoleSettings({
     }
   }
   const move = async (role: Role, direction: -1 | 1) => {
-    const ordered = [...editable].sort((left, right) => right.position - left.position)
+    const ordered = editable.toSorted((left, right) => right.position - left.position)
     const index = ordered.findIndex((item) => item.id === role.id)
     const target = index + direction
     if (index < 0 || target < 0 || target >= ordered.length) return
@@ -77,7 +77,7 @@ export function RoleSettings({
   return (
     <div className="roles-settings">
       <form className="role-create" onSubmit={(event) => void create(event)}>
-        <input name="name" placeholder="Role name" required maxLength={policyLimits.role.nameMax} />
+        <label><span>Role name</span><input name="name" required maxLength={policyLimits.role.nameMax} /></label>
         <input name="color" type="color" defaultValue="#aeb4c0" aria-label="Role color" />
         <button className="primary-action" type="submit" disabled={busy}>
           <Plus size={15} />{busy ? 'Working…' : 'Create'}
@@ -86,7 +86,7 @@ export function RoleSettings({
       <div className="role-layout">
         <nav>
           {roles.map((role) => {
-            const ordered = [...editable].sort((left, right) => right.position - left.position)
+            const ordered = editable.toSorted((left, right) => right.position - left.position)
             const index = ordered.findIndex((item) => item.id === role.id)
             return (
               <div className="role-nav-row" key={role.id}>
@@ -137,6 +137,7 @@ function RoleEditor({
   const editablePermissionDefinitions = permissionDefinitions.filter(
     (permission) => permissions.has('administrator') || permissions.has(permission.id),
   )
+  const assignedPermissions = new Set(role.permissions)
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (busy) return
@@ -174,14 +175,14 @@ function RoleEditor({
   return (
     <form className="role-editor" onSubmit={(event) => void submit(event)}>
       <div className="role-fields">
-        <input name="name" defaultValue={role.name} required maxLength={policyLimits.role.nameMax} />
+        <input name="name" aria-label="Role name" defaultValue={role.name} required maxLength={policyLimits.role.nameMax} />
         <input name="color" type="color" defaultValue={role.color || '#aeb4c0'} aria-label="Role color" />
       </div>
       <div className="permission-grid">
         {editablePermissionDefinitions
           .map((permission) => (
             <label key={permission.id}>
-              <input name="permissions" type="checkbox" value={permission.id} defaultChecked={role.permissions.includes(permission.id)} />
+              <input name="permissions" type="checkbox" value={permission.id} defaultChecked={assignedPermissions.has(permission.id)} />
               <span>{permission.label}</span>
             </label>
           ))}

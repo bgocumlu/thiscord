@@ -212,88 +212,92 @@ export function useRealtimeInvalidation(scope: RealtimeScope) {
       void queryClient.invalidateQueries({ queryKey: callKeys.all })
     }
 
+    const subscribeToCollection = async (collection: RealtimeCollection) => {
+      const filter = realtimeFilterFor(client, {
+        enabled: scope.enabled,
+        userId: scope.userId,
+        communityId: scope.communityId,
+      }, collection)
+      const expand = realtimeExpandFor(collection)
+      return client.collection(collection).subscribe('*', (event) => {
+        if (!['create', 'update', 'delete'].includes(event.action)) return
+        const action = event.action as 'create' | 'update' | 'delete'
+        if (collection === 'community_presence') {
+          queryClient.setQueriesData<InfiniteData<CommunityMemberPage>>(
+            {
+              queryKey: event.record.community
+                ? memberKeys.directory(event.record.community)
+                : memberKeys.directories,
+            },
+            (current) => updatePresenceDirectoryCache(
+              current,
+              action,
+              event.record as unknown as PresenceRecord,
+            ),
+          )
+          return
+        }
+        let patchedMessageKey: QueryKey | undefined
+        if (collection === 'messages' && event.record.channel) {
+          patchedMessageKey = messageKeys.channel(event.record.channel)
+          queryClient.setQueryData<InfiniteData<MessagePage<Message, MessageCursor>>>(
+            patchedMessageKey,
+            (current) => updateMessageHistoryCache(
+              current,
+              action,
+              event.record as unknown as Message,
+            ),
+          )
+        } else if (collection === 'direct_messages' && event.record.conversation) {
+          patchedMessageKey = conversationKeys.messages(event.record.conversation)
+          queryClient.setQueryData<InfiniteData<MessagePage<DirectMessage, DirectMessageCursor>>>(
+            patchedMessageKey,
+            (current) => updateMessageHistoryCache(
+              current,
+              action,
+              event.record as unknown as DirectMessage,
+            ),
+          )
+        }
+        const callTarget = callTargetForRealtimeEvent(collection, event.record)
+        if (collection === 'call_participants' && callTarget) {
+          queryClient.setQueriesData<readonly CallParticipantRecord[]>(
+            {
+              predicate: (query) => callOccupancyQueryMatches(
+                query.queryKey,
+                callTarget,
+              ),
+            },
+            (current) => updateCallOccupancyCache(
+              current,
+              action,
+              event.record as unknown as CallParticipantRecord,
+            ),
+          )
+          return
+        }
+        if (callTarget) {
+          void queryClient.invalidateQueries({
+            predicate: (query) => callOccupancyQueryMatches(query.queryKey, callTarget),
+          })
+          return
+        }
+        for (const queryKey of queryKeysForRealtimeEvent(collection, event.record)) {
+          if (patchedMessageKey && queryKeysEqual(queryKey, patchedMessageKey)) continue
+          void queryClient.invalidateQueries({ queryKey })
+        }
+      }, filter || expand ? { filter, expand } : undefined)
+    }
+
     const connect = async () => {
       try {
         const collections = scope.communityId
           ? realtimeCollections
           : realtimeCollections.filter((collection) => !communityScopedCollections.has(collection))
-        const connected = await settleRealtimeSubscriptions(collections.map(async (collection) => {
-          const filter = realtimeFilterFor(client, {
-            enabled: scope.enabled,
-            userId: scope.userId,
-            communityId: scope.communityId,
-          }, collection)
-          const expand = realtimeExpandFor(collection)
-          const unsubscribe = await client.collection(collection).subscribe('*', (event) => {
-            if (!['create', 'update', 'delete'].includes(event.action)) return
-            const action = event.action as 'create' | 'update' | 'delete'
-            if (collection === 'community_presence') {
-              queryClient.setQueriesData<InfiniteData<CommunityMemberPage>>(
-                {
-                  queryKey: event.record.community
-                    ? memberKeys.directory(event.record.community)
-                    : memberKeys.directories,
-                },
-                (current) => updatePresenceDirectoryCache(
-                  current,
-                  action,
-                  event.record as unknown as PresenceRecord,
-                ),
-              )
-              return
-            }
-            let patchedMessageKey: QueryKey | undefined
-            if (collection === 'messages' && event.record.channel) {
-              patchedMessageKey = messageKeys.channel(event.record.channel)
-              queryClient.setQueryData<InfiniteData<MessagePage<Message, MessageCursor>>>(
-                patchedMessageKey,
-                (current) => updateMessageHistoryCache(
-                  current,
-                  action,
-                  event.record as unknown as Message,
-                ),
-              )
-            } else if (collection === 'direct_messages' && event.record.conversation) {
-              patchedMessageKey = conversationKeys.messages(event.record.conversation)
-              queryClient.setQueryData<InfiniteData<MessagePage<DirectMessage, DirectMessageCursor>>>(
-                patchedMessageKey,
-                (current) => updateMessageHistoryCache(
-                  current,
-                  action,
-                  event.record as unknown as DirectMessage,
-                ),
-              )
-            }
-            const callTarget = callTargetForRealtimeEvent(collection, event.record)
-            if (collection === 'call_participants' && callTarget) {
-              queryClient.setQueriesData<readonly CallParticipantRecord[]>(
-                {
-                  predicate: (query) => callOccupancyQueryMatches(
-                    query.queryKey,
-                    callTarget,
-                  ),
-                },
-                (current) => updateCallOccupancyCache(
-                  current,
-                  action,
-                  event.record as unknown as CallParticipantRecord,
-                ),
-              )
-              return
-            }
-            if (callTarget) {
-              void queryClient.invalidateQueries({
-                predicate: (query) => callOccupancyQueryMatches(query.queryKey, callTarget),
-              })
-              return
-            }
-            for (const queryKey of queryKeysForRealtimeEvent(collection, event.record)) {
-              if (patchedMessageKey && queryKeysEqual(queryKey, patchedMessageKey)) continue
-              void queryClient.invalidateQueries({ queryKey })
-            }
-          }, filter || expand ? { filter, expand } : undefined)
-          return unsubscribe
-        }), () => cancelled)
+        const connected = await settleRealtimeSubscriptions(
+          collections.map(subscribeToCollection),
+          () => cancelled,
+        )
         unsubscribers.push(...connected)
         if (!cancelled) {
           realtimeConnected = true

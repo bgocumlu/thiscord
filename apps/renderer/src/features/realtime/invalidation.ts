@@ -263,5 +263,3 @@ export function callOccupancyQueryMatches(queryKey: QueryKey, target: string) {
     && typeof queryKey[1] === 'string'
     && queryKey[1].split(',').includes(target)
 }
-
-export const queryKeysForRealtimeCollection = queryKeysForRealtimeEvent

@@ -7,7 +7,16 @@ import { memberKeys } from './queryKeys'
 
 export function useCommunityMembers(communityId: string) {
   const client = usePocketBase()
-  const query = useInfiniteQuery({
+  const {
+    data,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isError,
+    isFetchingNextPage,
+    isLoading,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: memberKeys.directory(communityId),
     enabled: Boolean(communityId),
     initialPageParam: 1,
@@ -16,20 +25,29 @@ export function useCommunityMembers(communityId: string) {
     refetchInterval: transientTimings.presencePollMs,
   })
   const members = useMemo(
-    () => query.data?.pages.flatMap((page) => page.items),
-    [query.data],
+    () => data?.pages.flatMap((page) => page.items),
+    [data],
   )
   const memberRoles = useMemo(
-    () => query.data?.pages.flatMap((page) => page.memberRoles),
-    [query.data],
+    () => data?.pages.flatMap((page) => page.memberRoles),
+    [data],
   )
   const presence = useMemo(
-    () => query.data?.pages.flatMap((page) => page.presence),
-    [query.data],
+    () => data?.pages.flatMap((page) => page.presence),
+    [data],
   )
+  const queryState = {
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isError,
+    isFetchingNextPage,
+    isLoading,
+    refetch,
+  }
   return {
-    members: { ...query, data: members },
-    memberRoles: { ...query, data: memberRoles },
-    presence: { ...query, data: presence },
+    members: { ...queryState, data: members },
+    memberRoles: { ...queryState, data: memberRoles },
+    presence: { ...queryState, data: presence },
   }
 }

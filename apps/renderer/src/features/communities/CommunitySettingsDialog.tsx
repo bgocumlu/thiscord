@@ -10,14 +10,14 @@ import { policyLimits } from '@thiscord/shared'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { Search, X } from 'lucide-react'
 import type { RecordModel } from 'pocketbase'
-import { useRef, useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
   DataFailure,
-  formatTime,
   ImageFileField,
-  useDialogAccessibility,
 } from '../../components/WorkspacePrimitives'
+import { formatTime } from '../../components/workspaceUtils'
+import { useDialogAccessibility } from '../../hooks/useDialogAccessibility'
 import { usePocketBase, useRuntimeConfig } from '../../lib/contexts'
 import { errorMessage } from '../../lib/pocketbase'
 import { MemberAdminRow } from '../members/MemberAdministration'
@@ -26,6 +26,7 @@ import { communityApi, type BanRecord } from './api'
 import { communityKeys } from './queryKeys'
 
 type SettingsTab = 'general' | 'invites' | 'roles' | 'members' | 'audit'
+type AuditEvent = RecordModel & { readonly expand?: { readonly actor?: User } }
 
 export function CommunitySettingsDialog({
   community,
@@ -66,7 +67,7 @@ export function CommunitySettingsDialog({
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [memberSearch, setMemberSearch] = useState('')
-  const dialogRef = useRef<HTMLElement>(null)
+  const dialogRef = useRef<HTMLDialogElement>(null)
   useDialogAccessibility(dialogRef, onClose)
   const iconUrl = community.icon
     ? client.files.getURL(community as unknown as RecordModel, community.icon, { thumb: '256x256' })
@@ -120,7 +121,7 @@ export function CommunitySettingsDialog({
     ].some((value) => value?.toLowerCase().includes(normalizedMemberSearch))
   })
   const administratorRoleIds = new Set(
-    roles.filter((role) => role.permissions.includes('administrator')).map((role) => role.id),
+    roles.flatMap((role) => role.permissions.includes('administrator') ? [role.id] : []),
   )
   const transferCandidates = memberships.filter((membership) => (
     membership.user !== currentUser.id
@@ -219,6 +220,7 @@ export function CommunitySettingsDialog({
       onDeleted()
     } catch (caught) {
       setError(errorMessage(caught))
+    } finally {
       setBusy(false)
     }
   }
@@ -231,6 +233,7 @@ export function CommunitySettingsDialog({
       onDeleted()
     } catch (caught) {
       setError(errorMessage(caught))
+    } finally {
       setBusy(false)
     }
   }
@@ -256,28 +259,181 @@ export function CommunitySettingsDialog({
     }
   }
 
+  return (
+    <CommunitySettingsView
+      dialogRef={dialogRef}
+      community={community}
+      roles={roles}
+      memberships={memberships}
+      filteredMemberships={filteredMemberships}
+      currentUser={currentUser}
+      permissions={permissions}
+      highestRolePosition={highestRolePosition}
+      owner={owner}
+      tab={tab}
+      availableTabs={availableTabs}
+      error={error}
+      notice={notice}
+      iconUrl={iconUrl}
+      bannerUrl={bannerUrl}
+      busy={busy}
+      memberSearch={memberSearch}
+      transferCandidates={transferCandidates}
+      memberPagination={{ hasMore: hasMoreMembers, loadingMore: loadingMoreMembers }}
+      invites={invites.data?.pages.flatMap((page) => page.items) ?? []}
+      inviteState={{
+        loading: invites.isLoading,
+        hasMore: invites.hasNextPage,
+        loadingMore: invites.isFetchingNextPage,
+      }}
+      bans={bans.data?.pages.flatMap((page) => page.items) ?? []}
+      banState={{
+        loading: bans.isLoading,
+        error: bans.isError ? bans.error : undefined,
+        hasMore: bans.hasNextPage,
+        loadingMore: bans.isFetchingNextPage,
+      }}
+      auditEvents={audit.data?.pages.flatMap((page) => page.items) ?? []}
+      auditState={{
+        loading: audit.isLoading,
+        hasMore: audit.hasNextPage,
+        loadingMore: audit.isFetchingNextPage,
+      }}
+      onTabChange={(nextTab) => {
+        setTab(nextTab)
+        setError('')
+        setNotice('')
+      }}
+      onClose={onClose}
+      onSave={saveGeneral}
+      onTransfer={transferOwnership}
+      onLoadMoreMembers={onLoadMoreMembers}
+      onDelete={deleteCommunity}
+      onLeave={leaveCommunity}
+      onCreateInvite={createInvite}
+      onCopyInvite={copyInvite}
+      onRevokeInvite={revokeInvite}
+      onLoadMoreInvites={() => void invites.fetchNextPage()}
+      onSearchChange={setMemberSearch}
+      onChanged={onChanged}
+      onUnban={unban}
+      onRetryBans={() => void bans.refetch()}
+      onLoadMoreBans={() => void bans.fetchNextPage()}
+      onLoadMoreAudit={() => void audit.fetchNextPage()}
+    />
+  )
+}
+
+function CommunitySettingsView({
+  dialogRef,
+  community,
+  roles,
+  memberships,
+  filteredMemberships,
+  currentUser,
+  permissions,
+  highestRolePosition,
+  owner,
+  tab,
+  availableTabs,
+  error,
+  notice,
+  iconUrl,
+  bannerUrl,
+  busy,
+  memberSearch,
+  transferCandidates,
+  memberPagination,
+  invites,
+  inviteState,
+  bans,
+  banState,
+  auditEvents,
+  auditState,
+  onTabChange,
+  onClose,
+  onSave,
+  onTransfer,
+  onLoadMoreMembers,
+  onDelete,
+  onLeave,
+  onCreateInvite,
+  onCopyInvite,
+  onRevokeInvite,
+  onLoadMoreInvites,
+  onSearchChange,
+  onChanged,
+  onUnban,
+  onRetryBans,
+  onLoadMoreBans,
+  onLoadMoreAudit,
+}: {
+  readonly dialogRef: RefObject<HTMLDialogElement | null>
+  readonly community: Community
+  readonly roles: Role[]
+  readonly memberships: Membership[]
+  readonly filteredMemberships: Membership[]
+  readonly currentUser: User
+  readonly permissions: ReadonlySet<Permission>
+  readonly highestRolePosition: number
+  readonly owner: boolean
+  readonly tab: SettingsTab
+  readonly availableTabs: SettingsTab[]
+  readonly error: string
+  readonly notice: string
+  readonly iconUrl: string
+  readonly bannerUrl: string
+  readonly busy: boolean
+  readonly memberSearch: string
+  readonly transferCandidates: Membership[]
+  readonly memberPagination: { readonly hasMore: boolean; readonly loadingMore: boolean }
+  readonly invites: Invite[]
+  readonly inviteState: {
+    readonly loading: boolean
+    readonly hasMore: boolean
+    readonly loadingMore: boolean
+  }
+  readonly bans: BanRecord[]
+  readonly banState: {
+    readonly loading: boolean
+    readonly error: unknown | undefined
+    readonly hasMore: boolean
+    readonly loadingMore: boolean
+  }
+  readonly auditEvents: AuditEvent[]
+  readonly auditState: {
+    readonly loading: boolean
+    readonly hasMore: boolean
+    readonly loadingMore: boolean
+  }
+  readonly onTabChange: (tab: SettingsTab) => void
+  readonly onClose: () => void
+  readonly onSave: (event: FormEvent<HTMLFormElement>) => Promise<void>
+  readonly onTransfer: (event: FormEvent<HTMLFormElement>) => Promise<void>
+  readonly onLoadMoreMembers: () => void
+  readonly onDelete: () => Promise<void>
+  readonly onLeave: () => Promise<void>
+  readonly onCreateInvite: (event: FormEvent<HTMLFormElement>) => Promise<void>
+  readonly onCopyInvite: (invite: Invite) => Promise<void>
+  readonly onRevokeInvite: (invite: Invite) => Promise<void>
+  readonly onLoadMoreInvites: () => void
+  readonly onSearchChange: (value: string) => void
+  readonly onChanged: () => Promise<void>
+  readonly onUnban: (ban: BanRecord) => Promise<void>
+  readonly onRetryBans: () => void
+  readonly onLoadMoreBans: () => void
+  readonly onLoadMoreAudit: () => void
+}) {
   return createPortal(
-    <div className="modal-backdrop" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose()
-    }}>
-      <section
-        ref={dialogRef}
-        className="settings-card"
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${community.name} settings`}
-      >
+    <dialog ref={dialogRef} className="modal-backdrop" aria-label={`${community.name} settings`}>
+      <section className="settings-card">
         <aside>
           <strong>{community.name}</strong>
           {availableTabs.map((item) => (
             <button
               className={tab === item ? 'active' : ''}
               type="button"
-              onClick={() => {
-                setTab(item)
-                setError('')
-                setNotice('')
-              }}
+              onClick={() => onTabChange(item)}
               key={item}
             >{item}</button>
           ))}
@@ -292,86 +448,35 @@ export function CommunitySettingsDialog({
           {error ? <p className="form-error settings-feedback">{error}</p> : null}
           {notice ? <p className="form-notice settings-feedback">{notice}</p> : null}
           {tab === 'general' ? (
-            <>
-              {permissions.has('manage_community') ? (
-                <form className="modal-form" onSubmit={(event) => void saveGeneral(event)}>
-                  <label><span>Name</span><input name="name" defaultValue={community.name} required maxLength={policyLimits.community.nameMax} /></label>
-                  <label><span>Description</span><textarea name="description" defaultValue={community.description} maxLength={policyLimits.community.descriptionMax} rows={4} /></label>
-                  <ImageFileField name="icon" label="Community icon" currentUrl={iconUrl} />
-                  <ImageFileField name="banner" label="Community banner" currentUrl={bannerUrl} accept="image/png,image/jpeg,image/webp" banner />
-                  <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button>
-                </form>
-              ) : (
-                <div className="settings-summary">
-                  <h3>{community.name}</h3><p>{community.description || 'No description.'}</p>
-                </div>
-              )}
-              {community.owner === currentUser.id ? (
-                <>
-                  <form className="modal-form compact-form" onSubmit={(event) => void transferOwnership(event)}>
-                    <label>
-                      <span>Transfer ownership to an administrator</span>
-                      <select name="userId" required defaultValue="" disabled={!transferCandidates.length}>
-                        <option value="" disabled>
-                          {transferCandidates.length
-                            ? 'Select an administrator'
-                            : hasMoreMembers
-                              ? 'Load more members to find administrators'
-                              : 'No other administrators'}
-                        </option>
-                        {transferCandidates.map((membership) => (
-                          <option value={membership.user} key={membership.id}>
-                            {membership.expand!.user!.displayName} (@{membership.expand!.user!.handle})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button className="secondary-action" type="submit" disabled={busy || !transferCandidates.length}>Transfer ownership</button>
-                    {hasMoreMembers ? <button className="secondary-action" type="button" disabled={loadingMoreMembers} onClick={onLoadMoreMembers}>{loadingMoreMembers ? 'Loading…' : 'Load more members'}</button> : null}
-                  </form>
-                  <section className="settings-danger">
-                    <h3>Delete community</h3>
-                    <p>All channels, messages, roles, and memberships will be removed.</p>
-                    <button className="danger-action" type="button" onClick={() => void deleteCommunity()}>Delete community</button>
-                  </section>
-                </>
-              ) : (
-                <section className="settings-danger">
-                  <h3>Leave community</h3>
-                  <button className="danger-action" type="button" onClick={() => void leaveCommunity()}>Leave community</button>
-                </section>
-              )}
-            </>
+            <GeneralSettings
+              community={community}
+              currentUser={currentUser}
+              canManage={permissions.has('manage_community')}
+              iconUrl={iconUrl}
+              bannerUrl={bannerUrl}
+              busy={busy}
+              transferCandidates={transferCandidates}
+              hasMoreMembers={memberPagination.hasMore}
+              loadingMoreMembers={memberPagination.loadingMore}
+              onSave={onSave}
+              onTransfer={onTransfer}
+              onLoadMoreMembers={onLoadMoreMembers}
+              onDelete={onDelete}
+              onLeave={onLeave}
+            />
           ) : null}
           {tab === 'invites' ? (
-            <>
-              <form className="modal-form compact-form invite-create-form" onSubmit={(event) => void createInvite(event)}>
-                <label><span>Expires after</span><select name="expiresInHours" defaultValue="168"><option value="1">1 hour</option><option value="24">1 day</option><option value="168">7 days</option><option value="720">30 days</option><option value="0">Never</option></select><small>Choose when the invite link expires</small></label>
-                <label><span>Maximum uses</span><input name="maxUses" type="number" min="0" defaultValue="0" /><small>0 means unlimited</small></label>
-                <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Creating…' : 'Create and copy invite'}</button>
-              </form>
-              <div className="settings-list">
-                {(invites.data?.pages.flatMap((page) => page.items) ?? []).map((invite) => (
-                  <article key={invite.id}>
-                    <span>
-                      <strong>{invite.code}</strong>
-                      <small>
-                        {invite.revoked
-                          ? 'Revoked'
-                          : `${invite.uses}${invite.maxUses ? ` / ${invite.maxUses}` : ''} uses`}
-                        {' · '}{invite.expiresAt ? `expires ${formatTime(invite.expiresAt)}` : 'never expires'}
-                      </small>
-                    </span>
-                    <div>
-                      <button type="button" onClick={() => void copyInvite(invite)}>Copy</button>
-                      {!invite.revoked ? <button type="button" onClick={() => void revokeInvite(invite)}>Revoke</button> : null}
-                    </div>
-                  </article>
-                ))}
-                {invites.isLoading ? <p>Loading invites…</p> : null}
-                {invites.hasNextPage ? <button className="secondary-action" type="button" disabled={invites.isFetchingNextPage} onClick={() => void invites.fetchNextPage()}>{invites.isFetchingNextPage ? 'Loading…' : 'Load older invites'}</button> : null}
-              </div>
-            </>
+            <InviteSettings
+              invites={invites}
+              busy={busy}
+              loading={inviteState.loading}
+              hasNextPage={inviteState.hasMore}
+              fetchingNextPage={inviteState.loadingMore}
+              onCreate={onCreateInvite}
+              onCopy={onCopyInvite}
+              onRevoke={onRevokeInvite}
+              onLoadMore={onLoadMoreInvites}
+            />
           ) : null}
           {tab === 'roles' ? (
             <RoleSettings
@@ -384,93 +489,327 @@ export function CommunitySettingsDialog({
             />
           ) : null}
           {tab === 'members' ? (
-            <>
-              <div className="member-admin-toolbar">
-                <div>
-                  <strong>Community members</strong>
-                  <small>
-                    Roles and nicknames apply across this community. Configure
-                    channel-specific access in Channel settings.
-                  </small>
-                </div>
-                <label className="member-admin-search">
-                  <Search size={15} />
-                  <input
-                    type="search"
-                    value={memberSearch}
-                    onChange={(event) => setMemberSearch(event.target.value)}
-                    placeholder="Search members"
-                    aria-label="Search community members"
-                  />
-                </label>
-              </div>
-              <p className="member-result-count">
-                {normalizedMemberSearch
-                  ? `${filteredMemberships.length} matching loaded members`
-                  : `${memberships.length}${hasMoreMembers ? '+' : ''} members loaded`}
-              </p>
-              <div className="settings-list member-admin-list">
-                {filteredMemberships.map((membership) => (
-                  <MemberAdminRow
-                    community={community}
-                    membership={membership}
-                    roles={roles}
-                    currentUser={currentUser}
-                    canManageRoles={permissions.has('manage_roles')}
-                    canManageMembers={permissions.has('manage_members')}
-                    onChanged={onChanged}
-                    key={membership.id}
-                  />
-                ))}
-                {normalizedMemberSearch && !filteredMemberships.length ? (
-                  <div className="member-search-empty">
-                    <strong>No matching members</strong>
-                    <span>Try a display name, nickname, handle, or email address.</span>
-                  </div>
-                ) : null}
-                {hasMoreMembers ? <button className="secondary-action" type="button" disabled={loadingMoreMembers} onClick={onLoadMoreMembers}>{loadingMoreMembers ? 'Loading…' : 'Load more members'}</button> : null}
-              </div>
-              {permissions.has('manage_members') ? (
-                <section className="ban-list">
-                  <h3>Bans</h3>
-                  {(bans.data?.pages.flatMap((page) => page.items) ?? []).map((ban) => (
-                    <article key={ban.id}>
-                      <span>
-                        <strong>{ban.expand?.user?.displayName ?? ban.user}</strong>
-                        <small>{ban.reason || 'No reason'}</small>
-                      </span>
-                      <button type="button" onClick={() => void unban(ban)}>Unban</button>
-                    </article>
-                  ))}
-                  {bans.isLoading ? <p>Loading bans…</p> : null}
-                  {bans.isError ? <DataFailure error={bans.error} onRetry={() => void bans.refetch()} label="Could not load bans." /> : null}
-                  {bans.hasNextPage ? <button className="secondary-action" type="button" disabled={bans.isFetchingNextPage} onClick={() => void bans.fetchNextPage()}>{bans.isFetchingNextPage ? 'Loading…' : 'Load more bans'}</button> : null}
-                  {!bans.isLoading && !bans.data?.pages[0]?.items.length ? <p>No banned members.</p> : null}
-                </section>
-              ) : null}
-            </>
+            <MemberSettings
+              community={community}
+              roles={roles}
+              memberships={memberships}
+              filteredMemberships={filteredMemberships}
+              currentUser={currentUser}
+              search={memberSearch}
+              capabilities={{
+                manageRoles: permissions.has('manage_roles'),
+                manageMembers: permissions.has('manage_members'),
+              }}
+              memberPagination={memberPagination}
+              bans={bans}
+              banState={banState}
+              onSearchChange={onSearchChange}
+              onChanged={onChanged}
+              onLoadMoreMembers={onLoadMoreMembers}
+              onUnban={onUnban}
+              onRetryBans={onRetryBans}
+              onLoadMoreBans={onLoadMoreBans}
+            />
           ) : null}
           {tab === 'audit' ? (
-            <div className="audit-list">
-              {(audit.data?.pages.flatMap((page) => page.items) ?? []).map((event) => (
-                <article key={event.id} title={String(event.targetId)}>
-                  <span>
-                    <strong>{String(event.action).replace(/\./g, ' ')}</strong>
-                    <small>
-                      {event.expand?.actor?.displayName ?? 'System'} · {formatTime(String(event.created))}
-                      {event.reason ? ` · ${String(event.reason)}` : ''}
-                    </small>
-                  </span>
-                  <code>{String(event.targetType || 'event')}</code>
-                </article>
-              ))}
-              {audit.isLoading ? <p>Loading audit log…</p> : null}
-              {audit.hasNextPage ? <button className="secondary-action" type="button" disabled={audit.isFetchingNextPage} onClick={() => void audit.fetchNextPage()}>{audit.isFetchingNextPage ? 'Loading…' : 'Load older events'}</button> : null}
-            </div>
+            <AuditSettings
+              events={auditEvents}
+              loading={auditState.loading}
+              hasNextPage={auditState.hasMore}
+              fetchingNextPage={auditState.loadingMore}
+              onLoadMore={onLoadMoreAudit}
+            />
           ) : null}
         </div>
       </section>
-    </div>,
+    </dialog>,
     document.body,
+  )
+}
+
+function GeneralSettings({
+  community,
+  currentUser,
+  canManage,
+  iconUrl,
+  bannerUrl,
+  busy,
+  transferCandidates,
+  hasMoreMembers,
+  loadingMoreMembers,
+  onSave,
+  onTransfer,
+  onLoadMoreMembers,
+  onDelete,
+  onLeave,
+}: {
+  readonly community: Community
+  readonly currentUser: User
+  readonly canManage: boolean
+  readonly iconUrl: string
+  readonly bannerUrl: string
+  readonly busy: boolean
+  readonly transferCandidates: Membership[]
+  readonly hasMoreMembers: boolean
+  readonly loadingMoreMembers: boolean
+  readonly onSave: (event: FormEvent<HTMLFormElement>) => Promise<void>
+  readonly onTransfer: (event: FormEvent<HTMLFormElement>) => Promise<void>
+  readonly onLoadMoreMembers: () => void
+  readonly onDelete: () => Promise<void>
+  readonly onLeave: () => Promise<void>
+}) {
+  return (
+    <>
+      {canManage ? (
+        <form className="modal-form" onSubmit={(event) => void onSave(event)}>
+          <label><span>Name</span><input name="name" defaultValue={community.name} required maxLength={policyLimits.community.nameMax} /></label>
+          <label><span>Description</span><textarea name="description" defaultValue={community.description} maxLength={policyLimits.community.descriptionMax} rows={4} /></label>
+          <ImageFileField name="icon" label="Community icon" currentUrl={iconUrl} />
+          <ImageFileField name="banner" label="Community banner" currentUrl={bannerUrl} accept="image/png,image/jpeg,image/webp" banner />
+          <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button>
+        </form>
+      ) : (
+        <div className="settings-summary">
+          <h3>{community.name}</h3><p>{community.description || 'No description.'}</p>
+        </div>
+      )}
+      {community.owner === currentUser.id ? (
+        <>
+          <form className="modal-form compact-form" onSubmit={(event) => void onTransfer(event)}>
+            <label>
+              <span>Transfer ownership to an administrator</span>
+              <select name="userId" required defaultValue="" disabled={!transferCandidates.length}>
+                <option value="" disabled>
+                  {transferCandidates.length
+                    ? 'Select an administrator'
+                    : hasMoreMembers
+                      ? 'Load more members to find administrators'
+                      : 'No other administrators'}
+                </option>
+                {transferCandidates.map((membership) => (
+                  <option value={membership.user} key={membership.id}>
+                    {membership.expand!.user!.displayName} (@{membership.expand!.user!.handle})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="secondary-action" type="submit" disabled={busy || !transferCandidates.length}>Transfer ownership</button>
+            {hasMoreMembers ? <button className="secondary-action" type="button" disabled={loadingMoreMembers} onClick={onLoadMoreMembers}>{loadingMoreMembers ? 'Loading…' : 'Load more members'}</button> : null}
+          </form>
+          <section className="settings-danger">
+            <h3>Delete community</h3>
+            <p>All channels, messages, roles, and memberships will be removed.</p>
+            <button className="danger-action" type="button" onClick={() => void onDelete()}>Delete community</button>
+          </section>
+        </>
+      ) : (
+        <section className="settings-danger">
+          <h3>Leave community</h3>
+          <button className="danger-action" type="button" onClick={() => void onLeave()}>Leave community</button>
+        </section>
+      )}
+    </>
+  )
+}
+
+function InviteSettings({
+  invites,
+  busy,
+  loading,
+  hasNextPage,
+  fetchingNextPage,
+  onCreate,
+  onCopy,
+  onRevoke,
+  onLoadMore,
+}: {
+  readonly invites: Invite[]
+  readonly busy: boolean
+  readonly loading: boolean
+  readonly hasNextPage: boolean
+  readonly fetchingNextPage: boolean
+  readonly onCreate: (event: FormEvent<HTMLFormElement>) => Promise<void>
+  readonly onCopy: (invite: Invite) => Promise<void>
+  readonly onRevoke: (invite: Invite) => Promise<void>
+  readonly onLoadMore: () => void
+}) {
+  return (
+    <>
+      <form className="modal-form compact-form invite-create-form" onSubmit={(event) => void onCreate(event)}>
+        <label><span>Expires after</span><select name="expiresInHours" defaultValue="168"><option value="1">1 hour</option><option value="24">1 day</option><option value="168">7 days</option><option value="720">30 days</option><option value="0">Never</option></select><small>Choose when the invite link expires</small></label>
+        <label><span>Maximum uses</span><input name="maxUses" type="number" min="0" defaultValue="0" /><small>0 means unlimited</small></label>
+        <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Creating…' : 'Create and copy invite'}</button>
+      </form>
+      <div className="settings-list">
+        {invites.map((invite) => (
+          <article key={invite.id}>
+            <span>
+              <strong>{invite.code}</strong>
+              <small>
+                {invite.revoked
+                  ? 'Revoked'
+                  : `${invite.uses}${invite.maxUses ? ` / ${invite.maxUses}` : ''} uses`}
+                {' · '}{invite.expiresAt ? `expires ${formatTime(invite.expiresAt)}` : 'never expires'}
+              </small>
+            </span>
+            <div>
+              <button type="button" onClick={() => void onCopy(invite)}>Copy</button>
+              {!invite.revoked ? <button type="button" onClick={() => void onRevoke(invite)}>Revoke</button> : null}
+            </div>
+          </article>
+        ))}
+        {loading ? <p>Loading invites…</p> : null}
+        {hasNextPage ? <button className="secondary-action" type="button" disabled={fetchingNextPage} onClick={onLoadMore}>{fetchingNextPage ? 'Loading…' : 'Load older invites'}</button> : null}
+      </div>
+    </>
+  )
+}
+
+function MemberSettings({
+  community,
+  roles,
+  memberships,
+  filteredMemberships,
+  currentUser,
+  search,
+  capabilities,
+  memberPagination,
+  bans,
+  banState,
+  onSearchChange,
+  onChanged,
+  onLoadMoreMembers,
+  onUnban,
+  onRetryBans,
+  onLoadMoreBans,
+}: {
+  readonly community: Community
+  readonly roles: Role[]
+  readonly memberships: Membership[]
+  readonly filteredMemberships: Membership[]
+  readonly currentUser: User
+  readonly search: string
+  readonly capabilities: {
+    readonly manageRoles: boolean
+    readonly manageMembers: boolean
+  }
+  readonly memberPagination: {
+    readonly hasMore: boolean
+    readonly loadingMore: boolean
+  }
+  readonly bans: BanRecord[]
+  readonly banState: {
+    readonly loading: boolean
+    readonly error: unknown | undefined
+    readonly hasMore: boolean
+    readonly loadingMore: boolean
+  }
+  readonly onSearchChange: (value: string) => void
+  readonly onChanged: () => Promise<void>
+  readonly onLoadMoreMembers: () => void
+  readonly onUnban: (ban: BanRecord) => Promise<void>
+  readonly onRetryBans: () => void
+  readonly onLoadMoreBans: () => void
+}) {
+  const normalizedSearch = search.trim().toLowerCase()
+  return (
+    <>
+      <div className="member-admin-toolbar">
+        <div>
+          <strong>Community members</strong>
+          <small>
+            Roles and nicknames apply across this community. Configure
+            channel-specific access in Channel settings.
+          </small>
+        </div>
+        <label className="member-admin-search">
+          <Search size={15} />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search members"
+            aria-label="Search community members"
+          />
+        </label>
+      </div>
+      <p className="member-result-count">
+        {normalizedSearch
+          ? `${filteredMemberships.length} matching loaded members`
+          : `${memberships.length}${memberPagination.hasMore ? '+' : ''} members loaded`}
+      </p>
+      <div className="settings-list member-admin-list">
+        {filteredMemberships.map((membership) => (
+          <MemberAdminRow
+            community={community}
+            membership={membership}
+            roles={roles}
+            currentUser={currentUser}
+            canManageRoles={capabilities.manageRoles}
+            canManageMembers={capabilities.manageMembers}
+            onChanged={onChanged}
+            key={membership.id}
+          />
+        ))}
+        {normalizedSearch && !filteredMemberships.length ? (
+          <div className="member-search-empty">
+            <strong>No matching members</strong>
+            <span>Try a display name, nickname, handle, or email address.</span>
+          </div>
+        ) : null}
+        {memberPagination.hasMore ? <button className="secondary-action" type="button" disabled={memberPagination.loadingMore} onClick={onLoadMoreMembers}>{memberPagination.loadingMore ? 'Loading…' : 'Load more members'}</button> : null}
+      </div>
+      {capabilities.manageMembers ? (
+        <section className="ban-list">
+          <h3>Bans</h3>
+          {bans.map((ban) => (
+            <article key={ban.id}>
+              <span>
+                <strong>{ban.expand?.user?.displayName ?? ban.user}</strong>
+                <small>{ban.reason || 'No reason'}</small>
+              </span>
+              <button type="button" onClick={() => void onUnban(ban)}>Unban</button>
+            </article>
+          ))}
+          {banState.loading ? <p>Loading bans…</p> : null}
+          {banState.error ? <DataFailure error={banState.error} onRetry={onRetryBans} label="Could not load bans." /> : null}
+          {banState.hasMore ? <button className="secondary-action" type="button" disabled={banState.loadingMore} onClick={onLoadMoreBans}>{banState.loadingMore ? 'Loading…' : 'Load more bans'}</button> : null}
+          {!banState.loading && !bans.length ? <p>No banned members.</p> : null}
+        </section>
+      ) : null}
+    </>
+  )
+}
+
+function AuditSettings({
+  events,
+  loading,
+  hasNextPage,
+  fetchingNextPage,
+  onLoadMore,
+}: {
+  readonly events: AuditEvent[]
+  readonly loading: boolean
+  readonly hasNextPage: boolean
+  readonly fetchingNextPage: boolean
+  readonly onLoadMore: () => void
+}) {
+  return (
+    <div className="audit-list">
+      {events.map((event) => (
+        <article key={event.id} title={String(event.targetId)}>
+          <span>
+            <strong>{String(event.action).replace(/\./g, ' ')}</strong>
+            <small>
+              {event.expand?.actor?.displayName ?? 'System'} · {formatTime(String(event.created))}
+              {event.reason ? ` · ${String(event.reason)}` : ''}
+            </small>
+          </span>
+          <code>{String(event.targetType || 'event')}</code>
+        </article>
+      ))}
+      {loading ? <p>Loading audit log…</p> : null}
+      {hasNextPage ? <button className="secondary-action" type="button" disabled={fetchingNextPage} onClick={onLoadMore}>{fetchingNextPage ? 'Loading…' : 'Load older events'}</button> : null}
+    </div>
   )
 }

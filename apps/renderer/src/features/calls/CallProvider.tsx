@@ -64,12 +64,10 @@ import {
 
 const CallContext = createContext<CallContextValue | null>(null)
 
-export function CallProvider({ user, children }: {
-  readonly user: User
-  readonly children: ReactNode
-}) {
+function useCallProviderModel(user: User) {
   const client = usePocketBase()
-  const resources = useRef<JitsiEngineResources>(createEngineResources())
+  const resources = useRef<JitsiEngineResources>(null!)
+  if (resources.current === null) resources.current = createEngineResources()
   const participants = useRef(new Map<string, MutableParticipant>())
   const generation = useRef(0)
   const activeTarget = useRef<CallTargetDescriptor | null>(null)
@@ -84,7 +82,7 @@ export function CallProvider({ user, children }: {
   const callLease = useRef<{ id: string; sequence: number } | null>(null)
   const callClosing = useRef(false)
   const recoveryStableTimer = useRef<number | null>(null)
-  const observedTracks = useRef(new WeakSet<JitsiTrack>())
+  const trackListenerCleanups = useRef(new Map<JitsiTrack, () => void>())
   const localVideoKinds = useRef(new WeakMap<JitsiTrack, 'video' | 'desktop'>())
   const {
     preferredMicrophoneMuted,
@@ -190,11 +188,10 @@ export function CallProvider({ user, children }: {
   const observeTrack = useCallback((track: JitsiTrack, localVideoKind?: 'video' | 'desktop') => {
     const events = currentJitsiApi()?.events.track
     if (!events) return
-    if (observedTracks.current.has(track)) {
+    if (trackListenerCleanups.current.has(track)) {
       setTrack(track, false, localVideoKind)
       return
     }
-    observedTracks.current.add(track)
     const syncMute = () => setTrack(track, false, localVideoKind)
     const syncLevel = (level: unknown) => {
       const participantId = track.isLocal() ? LOCAL_PARTICIPANT : track.getParticipantId()
@@ -211,8 +208,11 @@ export function CallProvider({ user, children }: {
     if (events.TRACK_VIDEOTYPE_CHANGED) {
       track.addEventListener(events.TRACK_VIDEOTYPE_CHANGED, syncMute)
     }
+    let mediaTrack: MediaStreamTrack | undefined
+    let handleLocalTrackStopped: (() => void) | undefined
     if (track.isLocal()) {
-      const handleLocalTrackStopped = () => {
+      handleLocalTrackStopped = () => {
+        trackListenerCleanups.current.get(track)?.()
         if (!resources.current.localTracks.includes(track)) return
         resources.current.localTracks = resources.current.localTracks.filter((item) => item !== track)
         setTrack(track, true)
@@ -224,9 +224,24 @@ export function CallProvider({ user, children }: {
       if (events.LOCAL_TRACK_STOPPED) {
         track.addEventListener(events.LOCAL_TRACK_STOPPED, handleLocalTrackStopped)
       }
-      const mediaTrack = (track as JitsiTrack & { getTrack?: () => MediaStreamTrack }).getTrack?.()
+      mediaTrack = (track as JitsiTrack & { getTrack?: () => MediaStreamTrack }).getTrack?.()
       mediaTrack?.addEventListener('ended', handleLocalTrackStopped, { once: true })
     }
+    const cleanup = () => {
+      track.removeEventListener(events.TRACK_MUTE_CHANGED, syncMute)
+      track.removeEventListener(events.TRACK_AUDIO_LEVEL_CHANGED, syncLevel)
+      if (events.TRACK_VIDEOTYPE_CHANGED) {
+        track.removeEventListener(events.TRACK_VIDEOTYPE_CHANGED, syncMute)
+      }
+      if (events.LOCAL_TRACK_STOPPED && handleLocalTrackStopped) {
+        track.removeEventListener(events.LOCAL_TRACK_STOPPED, handleLocalTrackStopped)
+      }
+      if (mediaTrack && handleLocalTrackStopped) {
+        mediaTrack.removeEventListener('ended', handleLocalTrackStopped)
+      }
+      trackListenerCleanups.current.delete(track)
+    }
+    trackListenerCleanups.current.set(track, cleanup)
     setTrack(track, false, localVideoKind)
   }, [publish, setTrack])
 
@@ -287,11 +302,12 @@ export function CallProvider({ user, children }: {
             canSpeak: result.canSpeak ?? false,
             canStreamVideo: result.canStreamVideo ?? false,
           }
-          for (const mediaType of rejectedLocalMedia(local, refreshedAccess)) {
-            if (!rejectedLocalMedia(
+          const currentlyRejected = new Set(rejectedLocalMedia(
               participants.current.get(LOCAL_PARTICIPANT),
               refreshedAccess,
-            ).includes(mediaType)) continue
+          ))
+          for (const mediaType of rejectedLocalMedia(local, refreshedAccess)) {
+            if (!currentlyRejected.has(mediaType)) continue
             await mediaPolicyRejectedRef.current(mediaType)
           }
         }
@@ -391,6 +407,7 @@ export function CallProvider({ user, children }: {
       recoveryStableTimer.current = null
     }
     presenceHeartbeat.stop()
+    for (const cleanup of trackListenerCleanups.current.values()) cleanup()
     const departing = Boolean(activeTarget.current && callLease.current && announceDeparture)
     callClosing.current = departing
     const current = resources.current
@@ -714,6 +731,26 @@ export function CallProvider({ user, children }: {
     moderateParticipant,
   }), [cameraDeviceId, devices, join, leave, microphoneDeviceId, moderateParticipant, preferredDeafened, preferredMicrophoneMuted, prioritizeVideo, refreshDevices, remoteAudioFor, retry, selectCamera, selectMicrophone, selectSpeaker, session, setRemoteUserMuted, setRemoteUserVolume, speakerDeviceId, toggleCamera, toggleDeafen, toggleMicrophone, toggleScreenShare])
 
+  return {
+    value,
+    screenSources,
+    screenPickerError,
+    closeScreenPicker,
+    selectScreenSource,
+  }
+}
+
+export function CallProvider({ user, children }: {
+  readonly user: User
+  readonly children: ReactNode
+}) {
+  const {
+    value,
+    screenSources,
+    screenPickerError,
+    closeScreenPicker,
+    selectScreenSource,
+  } = useCallProviderModel(user)
   return (
     <CallContext.Provider value={value}>
       {children}

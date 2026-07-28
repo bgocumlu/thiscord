@@ -41,7 +41,9 @@ async function bootstrap() {
       void navigator.serviceWorker.getRegistrations()
         .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
         .then(() => caches.keys())
-        .then((keys) => Promise.all(keys.filter((key) => key.startsWith('thiscord-')).map((key) => caches.delete(key))))
+        .then((keys) => Promise.all(keys.flatMap((key) => (
+          key.startsWith('thiscord-') ? [caches.delete(key)] : []
+        ))))
         .catch(() => undefined)
     }
   }

@@ -114,24 +114,22 @@ export function useLocalMediaControls({
           ...(microphoneDeviceId ? { micDeviceId: microphoneDeviceId } : {}),
         })
         createdTracks.push(...tracks)
-        for (const track of tracks) {
+        await Promise.all(tracks.map(async (track) => {
           runtime.addTrack(track)
           observeTrack(track)
           await conference.addTrack(track)
-        }
+        }))
         rememberMuted(false)
       }
       publish({ deafened: false, error: '' })
       rememberDeafened(false)
       void reportPresence('update')
     } catch (caught) {
-      for (const track of createdTracks) {
-        await discardLocalTrack(track, {
+      await Promise.all(createdTracks.map((track) => discardLocalTrack(track, {
           conference,
           removeTrack: runtime.removeTrack,
           synchronizeTrack: setTrack,
-        })
-      }
+        })))
       publish({ error: mediaErrorMessage(caught, 'microphone') })
     } finally {
       publish({ actionBusy: false })
@@ -264,33 +262,36 @@ export function useLocalMediaControls({
           if (kind === 'desktop' && !publishableTracks.length) {
             throw new Error('The browser did not provide a screen video track.')
           }
-          for (const track of publishableTracks) {
+          const addFailures = await Promise.all(publishableTracks.map(async (track) => {
             runtime.addTrack(track)
             try {
               observeTrack(track, kind)
               await conference.addTrack(track)
+              return null
             } catch (caught) {
               setTrack(track, true)
               runtime.removeTrack(track)
               await track.dispose().catch(() => undefined)
-              throw caught
+              return caught
             }
-          }
+          }))
+          const addFailure = addFailures.find((failure) => failure !== null)
+          if (addFailure) throw addFailure
         } catch (caught) {
           if (screenAudioAttached) await stopScreenAudioMix()
           else await capturedScreenAudio?.dispose().catch(() => undefined)
-          for (const track of tracks) {
+          await Promise.all(tracks.map(async (track) => {
             if (track !== capturedScreenAudio && !runtime.hasTrack(track)) {
               await track.dispose().catch(() => undefined)
             }
-          }
+          }))
           throw caught
         }
-        for (const extraAudioTrack of tracks.filter((track) => (
+        await Promise.all(tracks.flatMap((track) => (
           track.getType() === 'audio' && track !== capturedScreenAudio
-        ))) {
-          await extraAudioTrack.dispose().catch(() => undefined)
-        }
+            ? [track.dispose().catch(() => undefined)]
+            : []
+        )))
       }
       publish({ error: '' })
       void reportPresence('update')

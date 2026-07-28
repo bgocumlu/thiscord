@@ -47,6 +47,7 @@ function InviteRoute({ code }: { readonly code: string }) {
       navigate(appRoutes.channel(membership.community), { replace: true })
     } catch (caught) {
       setError(errorMessage(caught))
+    } finally {
       setBusy(false)
     }
   }

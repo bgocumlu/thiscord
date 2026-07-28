@@ -55,6 +55,7 @@ export function ChannelDialog({ community, parent, onClose, onCreated }: {
       await onCreated(await channelApi.create(client, community.id, input))
     } catch (caught) {
       setError(errorMessage(caught))
+    } finally {
       setBusy(false)
     }
   }
@@ -69,7 +70,7 @@ export function ChannelDialog({ community, parent, onClose, onCreated }: {
             ))}
           </select>
         </label>
-        <label><span>Name</span><input name="name" required maxLength={policyLimits.channel.nameMax} autoFocus /></label>
+        <label><span>Name</span><input name="name" required maxLength={policyLimits.channel.nameMax} /></label>
         <label><span>Topic</span><textarea name="topic" maxLength={policyLimits.channel.topicMax} rows={3} /></label>
         {error ? <p className="form-error">{error}</p> : null}
         <button className="primary-action" type="submit" disabled={busy}>
@@ -140,6 +141,7 @@ export function ChannelSettingsDialog({
       await onDeleted()
     } catch (caught) {
       setError(errorMessage(caught))
+    } finally {
       setBusy(false)
     }
   }
@@ -151,6 +153,7 @@ export function ChannelSettingsDialog({
       await onUpdated()
     } catch (caught) {
       setError(errorMessage(caught))
+    } finally {
       setBusy(false)
     }
   }
@@ -245,14 +248,15 @@ function ChannelPermissionsEditor({
       id: role.id,
       label: `Role · ${role.name}`,
     })),
-    ...memberships
-      .filter((membership) => membership.expand?.user)
-      .map((membership) => ({
+    ...memberships.flatMap((membership) => {
+      const user = membership.expand?.user
+      return user ? [{
         key: `member:${membership.id}`,
         type: 'member' as const,
         id: membership.id,
-        label: `Member · ${membership.expand!.user!.displayName}`,
-      })),
+        label: `Member · ${user.displayName}`,
+      }] : []
+    }),
   ], [memberships, roles])
   const [targetKey, setTargetKey] = useState('')
   const [error, setError] = useState('')
@@ -272,6 +276,11 @@ function ChannelPermissionsEditor({
         overwrite.targetType === selectedTarget.type && overwrite.targetId === selectedTarget.id
       ))
     : undefined
+  const supportedPermissionGroups = new Set(
+    channelCapabilities[channel.kind].permissionGroups as readonly string[],
+  )
+  const allowedPermissions = new Set(selectedOverwrite?.allow ?? [])
+  const deniedPermissions = new Set(selectedOverwrite?.deny ?? [])
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!selectedTarget || busy) return
@@ -341,18 +350,18 @@ function ChannelPermissionsEditor({
               onSubmit={(event) => void save(event)}
               key={`${selectedTarget.key}:${selectedOverwrite?.id ?? ''}:${selectedOverwrite?.allow.join(',') ?? ''}:${selectedOverwrite?.deny.join(',') ?? ''}`}
             >
-              {permissionGroups
-                .filter((group) => (
-                  (channelCapabilities[channel.kind].permissionGroups as readonly string[]).includes(group.id)
+              {permissionGroups.flatMap((group) => {
+                if (!supportedPermissionGroups.has(group.id)) {
+                  return []
+                }
+                const visible = permissionDefinitions.filter((permission) => (
+                  permission.group === group.id
+                  && permission.channelOverride
+                  && permission.id.includes(permissionSearch.toLowerCase().replace(/\s+/g, '_'))
+                  && (effectivePermissions.has('administrator') || effectivePermissions.has(permission.id))
                 ))
-                .map((group) => {
-                  const visible = permissionDefinitions.filter((permission) => (
-                    permission.group === group.id
-                    && permission.channelOverride
-                    && permission.id.includes(permissionSearch.toLowerCase().replace(/\s+/g, '_'))
-                    && (effectivePermissions.has('administrator') || effectivePermissions.has(permission.id))
-                  ))
-                  return visible.length ? (
+                return visible.length ? [
+                  (
                     <fieldset className="permission-section" key={group.id}>
                       <legend>{group.label}</legend>
                       <div className="permission-overwrite-grid">
@@ -361,9 +370,9 @@ function ChannelPermissionsEditor({
                             <span>{permission.label}</span>
                             <select
                               name={permission.id}
-                              defaultValue={selectedOverwrite?.allow.includes(permission.id)
+                              defaultValue={allowedPermissions.has(permission.id)
                                 ? 'allow'
-                                : selectedOverwrite?.deny.includes(permission.id) ? 'deny' : 'inherit'}
+                                : deniedPermissions.has(permission.id) ? 'deny' : 'inherit'}
                             >
                               <option value="inherit">Inherit</option>
                               <option value="allow">Allow</option>
@@ -373,8 +382,9 @@ function ChannelPermissionsEditor({
                         ))}
                       </div>
                     </fieldset>
-                  ) : null
-                })}
+                  ),
+                ] : []
+              })}
               {error ? <p className="form-error">{error}</p> : null}
               {saved ? <p className="form-notice">Permission overrides saved.</p> : null}
               <div className="role-actions">

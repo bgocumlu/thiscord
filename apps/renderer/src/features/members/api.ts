@@ -11,7 +11,7 @@ export interface PresenceRecord {
   readonly status: PresenceStatus
 }
 
-export interface PresenceUpdateResult {
+interface PresenceUpdateResult {
   readonly accepted: boolean
   readonly sequence: number
   readonly status: PresenceStatus
@@ -99,5 +99,23 @@ export const memberApi = {
       '/api/thiscord/presence',
       { method: 'POST', body, requestKey: null, signal },
     )
+  },
+  updatePresenceKeepalive(
+    client: PocketBase,
+    input: {
+      readonly leaseId: string
+      readonly sequence: number
+      readonly status: PresenceStatus
+    },
+  ) {
+    return fetch(`${client.baseURL}/api/thiscord/presence`, {
+      method: 'POST',
+      headers: {
+        authorization: client.authStore.token,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(input),
+      keepalive: true,
+    })
   },
 } as const

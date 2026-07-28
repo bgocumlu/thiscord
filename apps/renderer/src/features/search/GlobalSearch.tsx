@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { formatTime } from '../../components/WorkspacePrimitives'
+import { formatTime } from '../../components/workspaceUtils'
 import { errorMessage } from '../../lib/pocketbase'
 import { useAppRouter } from '../../lib/router'
 import { ChannelIcon } from '../channels/ChannelSidebar'
@@ -61,7 +61,7 @@ export function GlobalSearch({
         }}
       ><Search size={18} /></button>
       <div className={`global-search-wrap ${open ? 'mobile-open' : ''}`}>
-        <div className="global-search" role="search">
+        <search className="global-search">
           <Search size={15} />
           <input
             ref={inputRef}
@@ -76,7 +76,7 @@ export function GlobalSearch({
           <button className="search-close" type="button" aria-label="Close search" onClick={close}>
             <X size={15} />
           </button>
-        </div>
+        </search>
         {search.trim() ? (
           <div className="global-search-results" role="listbox" aria-label="Search results">
             {deferredSearch.length < policyLimits.search.queryMin

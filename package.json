@@ -28,14 +28,15 @@
     "publish:local": "node scripts/publish-local.mjs",
     "clean": "node scripts/clean.mjs"
   },
-  "dependencies": {
-    "electron-updater": "^6.8.9"
+  "overrides": {
+    "@jitsi/rtcstats": "file:vendor/jitsi/rtcstats"
   },
   "devDependencies": {
     "@types/node": "^24.12.3",
     "electron": "^39.8.8",
     "electron-builder": "26.15.7",
     "esbuild": "^0.28.1",
+    "fallow": "3.7.1",
     "tsx": "^4.23.1",
     "typescript": "~6.0.2"
   },

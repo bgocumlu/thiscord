@@ -1,14 +1,14 @@
 import type { Message, Reaction } from '@thiscord/shared'
 import type PocketBase from 'pocketbase'
 
-export interface ChannelMessageDraft {
+interface ChannelMessageDraft {
   readonly channel: string
   readonly content: string
   readonly replyTo: string
   readonly attachments: readonly File[]
 }
 
-export interface UnreadSummaryItem {
+interface UnreadSummaryItem {
   readonly channel: string
   readonly message: string
   readonly author: string

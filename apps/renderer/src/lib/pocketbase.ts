@@ -17,7 +17,7 @@ export async function createPocketBase(config: DistributionConfig): Promise<Pock
       }
       const session: StoredAuthSession = {
         token,
-        record: JSON.parse(JSON.stringify(record)) as Record<string, unknown>,
+        record: structuredClone(record) as Record<string, unknown>,
       }
       void desktop.setAuthSession(session)
     })

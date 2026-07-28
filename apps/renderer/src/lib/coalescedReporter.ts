@@ -22,6 +22,12 @@ export function createCoalescedReporter(
         pump()
       })
   }
+  const idle = async (): Promise<void> => {
+    if (!running && !queued) return
+    await running
+    await Promise.resolve()
+    return idle()
+  }
 
   return {
     submit(task) {
@@ -32,11 +38,6 @@ export function createCoalescedReporter(
       queued = null
     },
     pending: () => Boolean(running || queued),
-    async idle() {
-      while (running || queued) {
-        await running
-        await Promise.resolve()
-      }
-    },
+    idle,
   }
 }

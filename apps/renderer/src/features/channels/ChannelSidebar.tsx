@@ -132,8 +132,10 @@ export function ChannelSidebar({
                 </span>
               ) : null}
             </div>
-            {!collapsed.has(category.id) ? channels.filter((channel) => channel.parent === category.id).map((channel) => (
-              <ChannelButton channel={channel} occupants={voiceOccupancy} active={channel.id === activeChannelId} unread={unreadChannelIds.has(channel.id)} onSelect={onSelect} permissions={effectivePermissions} memberInteractions={memberInteractions} key={channel.id} />
+            {!collapsed.has(category.id) ? channels.flatMap((channel) => (
+              channel.parent === category.id
+                ? [<ChannelButton channel={channel} occupants={voiceOccupancy} active={channel.id === activeChannelId} unread={unreadChannelIds.has(channel.id)} onSelect={onSelect} permissions={effectivePermissions} memberInteractions={memberInteractions} key={channel.id} />]
+                : []
             )) : null}
           </section>
         ))}

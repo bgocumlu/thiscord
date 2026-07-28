@@ -1,5 +1,6 @@
 import type { DesktopCaptureSource } from '@thiscord/shared'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { useDialogAccessibility } from '../../hooks/useDialogAccessibility'
 
 export function ScreenSourceDialog({
   sources,
@@ -13,13 +14,13 @@ export function ScreenSourceDialog({
   readonly onSelect: (sourceId: string, shareSystemAudio: boolean) => void
 }) {
   const [shareSystemAudio, setShareSystemAudio] = useState(false)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  useDialogAccessibility(dialogRef, onClose)
   if (!sources.length) return null
 
   return (
-    <div className="modal-backdrop screen-picker-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.currentTarget === event.target) onClose()
-    }}>
-      <section className="screen-source-picker" role="dialog" aria-modal="true" aria-labelledby="screen-source-title">
+    <dialog ref={dialogRef} className="modal-backdrop screen-picker-backdrop" aria-labelledby="screen-source-title">
+      <section className="screen-source-picker">
         <header>
           <span><h2 id="screen-source-title">Share your screen</h2><p>Choose a display or window.</p></span>
           <button type="button" onClick={onClose}>Cancel</button>
@@ -46,6 +47,6 @@ export function ScreenSourceDialog({
         </div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
       </section>
-    </div>
+    </dialog>
   )
 }

@@ -2,7 +2,8 @@ import type { Notification, User } from '@thiscord/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Inbox as InboxIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { DataFailure, formatTime } from '../../components/WorkspacePrimitives'
+import { DataFailure } from '../../components/WorkspacePrimitives'
+import { formatTime } from '../../components/workspaceUtils'
 import { usePocketBase } from '../../lib/contexts'
 import { useAppRouter } from '../../lib/router'
 import { Avatar } from '../members/Avatar'
@@ -21,6 +22,11 @@ function useNotificationSound(
   const status = user.status
   useEffect(() => {
     if (!loaded) return
+    let audio: AudioContext | null = null
+    let oscillator: OscillatorNode | null = null
+    const closeAudio = () => {
+      if (audio) void audio.close().catch(() => undefined)
+    }
     const newestCreated = notifications.reduce(
       (newest, item) => item.created > newest ? item.created : newest,
       '',
@@ -31,8 +37,8 @@ function useNotificationSound(
     }
     if (newestCreated > latestCreated.current && soundEnabled && status !== 'dnd') {
       try {
-        const audio = new window.AudioContext()
-        const oscillator = audio.createOscillator()
+        audio = new window.AudioContext()
+        oscillator = audio.createOscillator()
         const gain = audio.createGain()
         oscillator.frequency.value = 540
         gain.gain.setValueAtTime(0.045, audio.currentTime)
@@ -41,12 +47,21 @@ function useNotificationSound(
         gain.connect(audio.destination)
         oscillator.start()
         oscillator.stop(audio.currentTime + 0.12)
-        oscillator.addEventListener('ended', () => void audio.close(), { once: true })
+        oscillator.addEventListener('ended', closeAudio, { once: true })
       } catch {
         // Browsers may block audio until the user interacts with the page.
       }
     }
     if (newestCreated > latestCreated.current) latestCreated.current = newestCreated
+    return () => {
+      oscillator?.removeEventListener('ended', closeAudio)
+      try {
+        oscillator?.stop()
+      } catch {
+        // The oscillator may already have completed naturally.
+      }
+      closeAudio()
+    }
   }, [loaded, notifications, soundEnabled, status])
 }
 
@@ -101,11 +116,11 @@ export function Inbox({ currentUser }: { readonly currentUser: User }) {
             {unreadCount ? (
               <button
                 type="button"
-                onClick={() => void notificationApi.markAllRead(client).then(() => (
-                  queryClient.invalidateQueries({
+                onClick={() => void notificationApi.markAllRead(client)
+                  .then(() => queryClient.invalidateQueries({
                     queryKey: notificationKeys.list(currentUser.id),
-                  })
-                ))}
+                  }))
+                  .catch(() => undefined)}
               ><Check size={14} />Mark all read</button>
             ) : null}
           </header>

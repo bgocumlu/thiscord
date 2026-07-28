@@ -115,18 +115,20 @@ export function MemberAdminRow({
           <form className="member-role-form" onSubmit={(event) => void saveRoles(event)}>
             <fieldset>
               <legend>Roles</legend>
-              {roles.filter((role) => !role.managed).map((role) => (
-                <label key={role.id}>
-                  <input
-                    name="roleIds"
-                    type="checkbox"
-                    value={role.id}
-                    defaultChecked={assignments.data.some((item) => item.role === role.id)}
-                  />
-                  <i style={{ background: role.color }} />
-                  <span>{role.name}</span>
-                </label>
-              ))}
+              {roles.flatMap((role) => role.managed ? [] : [
+                (
+                  <label key={role.id}>
+                    <input
+                      name="roleIds"
+                      type="checkbox"
+                      value={role.id}
+                      defaultChecked={assignments.data.some((item) => item.role === role.id)}
+                    />
+                    <i style={{ background: role.color }} />
+                    <span>{role.name}</span>
+                  </label>
+                ),
+              ])}
             </fieldset>
             <button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save roles'}</button>
           </form>

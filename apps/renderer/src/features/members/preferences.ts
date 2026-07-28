@@ -6,7 +6,7 @@ interface PreferencesResponse {
   readonly preferences: UserPreferences
 }
 
-export function resolvedPreferences(
+function resolvedPreferences(
   preferences: UserPreferences | undefined,
 ): UserPreferences {
   return {

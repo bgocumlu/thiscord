@@ -1,5 +1,5 @@
 export const CONTEXT_MENU_LONG_PRESS_MS = 500
-export const CONTEXT_MENU_LONG_PRESS_MOVE_PX = 10
+const CONTEXT_MENU_LONG_PRESS_MOVE_PX = 10
 
 interface Point {
   readonly x: number

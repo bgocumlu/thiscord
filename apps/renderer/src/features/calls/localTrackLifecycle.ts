@@ -37,7 +37,8 @@ export async function attachLocalMediaAfterJoin({
   readonly refreshDevices: () => Promise<void>
 }) {
   try {
-    for (const track of [...resources.localTracks]) {
+    let shouldStopScreenAudio = false
+    await Promise.all([...resources.localTracks].map(async (track) => {
       const retainedKind = track.getType() === 'video'
         ? localVideoKind(track, localVideoKinds.get(track))
         : undefined
@@ -48,8 +49,8 @@ export async function attachLocalMediaAfterJoin({
         if (
           retainedKind === 'desktop'
           || resources.screenAudio?.microphoneTrack === track
-        ) await stopScreenAudio()
-        continue
+        ) shouldStopScreenAudio = true
+        return
       }
       observeTrack(track, retainedKind)
       try {
@@ -61,9 +62,10 @@ export async function attachLocalMediaAfterJoin({
         if (
           retainedKind === 'desktop'
           || resources.screenAudio?.microphoneTrack === track
-        ) await stopScreenAudio()
+        ) shouldStopScreenAudio = true
       }
-    }
+    }))
+    if (shouldStopScreenAudio) await stopScreenAudio()
 
     const hasAudio = resources.localTracks.some((track) => track.getType() === 'audio')
     if (info.canSpeak && !hasAudio) {
@@ -76,7 +78,7 @@ export async function attachLocalMediaAfterJoin({
         return
       }
       resources.localTracks.push(...localTracks)
-      for (const track of localTracks) {
+      await Promise.all(localTracks.map(async (track) => {
         if (microphoneMuted || deafened) await track.mute()
         try {
           observeTrack(track)
@@ -87,7 +89,7 @@ export async function attachLocalMediaAfterJoin({
           await track.dispose().catch(() => undefined)
           throw caught
         }
-      }
+      }))
     }
     void refreshDevices()
   } catch {

@@ -34,7 +34,7 @@ export function participantFromJitsi(participant: JitsiParticipant): MutablePart
   }
 }
 
-export function createRemoteParticipant(id: string): MutableParticipant {
+function createRemoteParticipant(id: string): MutableParticipant {
   return {
     id,
     userId: '',

@@ -1,5 +1,6 @@
 import type { DistributionConfig } from '@thiscord/shared'
 import { z } from 'zod'
+import { createDisposableObjectUrl } from './objectUrl'
 
 const distributionSchema = z.object({
   id: z.string().min(1).max(80),
@@ -35,7 +36,11 @@ function contrastColor(hex: string) {
   return whiteContrast >= darkContrast ? '#ffffff' : '#0c0d11'
 }
 
-let manifestUrl = ''
+let manifestUrl: ReturnType<typeof createDisposableObjectUrl> | null = null
+window.addEventListener('pagehide', () => {
+  manifestUrl?.revoke()
+  manifestUrl = null
+}, { once: true })
 
 function applyRuntimeBranding(config: DistributionConfig) {
   document.title = config.name
@@ -59,9 +64,11 @@ function applyRuntimeBranding(config: DistributionConfig) {
       { src: `${import.meta.env.BASE_URL}favicon.svg`, sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
     ],
   }
-  if (manifestUrl) URL.revokeObjectURL(manifestUrl)
-  manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }))
-  document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.setAttribute('href', manifestUrl)
+  manifestUrl?.revoke()
+  manifestUrl = createDisposableObjectUrl(
+    new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }),
+  )
+  document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.setAttribute('href', manifestUrl.url)
   document.querySelector<HTMLMetaElement>('meta[name="application-name"]')?.setAttribute('content', config.name)
   document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', config.accent)
 }

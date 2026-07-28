@@ -23,7 +23,8 @@ import {
 } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { DataFailure, formatTime } from '../../components/WorkspacePrimitives'
+import { DataFailure } from '../../components/WorkspacePrimitives'
+import { formatTime } from '../../components/workspaceUtils'
 import { useFileToken } from '../../hooks/useFileToken'
 import { usePocketBase } from '../../lib/contexts'
 import { errorMessage } from '../../lib/pocketbase'
@@ -341,7 +342,7 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
       {reply || editing ? (
         <div className="composer-context">
           <span>{editing ? 'Editing message' : `Replying to ${reply?.expand?.author?.displayName ?? 'message'}`}</span>
-          <button type="button" onClick={onCancelContext}><X size={14} /></button>
+          <button type="button" aria-label="Cancel reply or edit" onClick={onCancelContext}><X size={14} /></button>
         </div>
       ) : null}
       {files.length ? (
@@ -435,7 +436,8 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
   const [search, setSearch] = useState('')
   const [pinnedOnly, setPinnedOnly] = useState(false)
   const deferredSearch = useDeferredValue(search.trim())
-  const readCoordinator = useRef(createReadReceiptCoordinator())
+  const readCoordinator = useRef<ReturnType<typeof createReadReceiptCoordinator>>(null!)
+  if (readCoordinator.current === null) readCoordinator.current = createReadReceiptCoordinator()
   const listRef = useRef<HTMLDivElement>(null)
   const priorHeight = useRef(0)
   const wasNearBottom = useRef(true)
@@ -520,7 +522,7 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
 
   return (
     <div className={`message-surface ${className}`.trim()}>
-      <div className="chat-inline-search" role="search">
+      <search className="chat-inline-search">
         <Search size={14} />
         <input
           type="search"
@@ -536,7 +538,7 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
           title={pinnedOnly ? 'Show all messages' : 'Show pinned messages only'}
           onClick={() => setPinnedOnly((value) => !value)}
         ><Pin size={13} />{pinnedOnly ? 'Pinned only' : 'Pinned messages'}</button>
-      </div>
+      </search>
       <div
         className="message-scroll"
         ref={listRef}

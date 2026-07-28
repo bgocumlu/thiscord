@@ -97,7 +97,9 @@ export async function reloadForFreshJitsiModule(target: CallTarget) {
   }
   if ('caches' in window) {
     const keys = await caches.keys().catch(() => [])
-    await Promise.all(keys.filter((key) => key.startsWith('thiscord-')).map((key) => caches.delete(key)))
+    await Promise.all(keys.flatMap((key) => (
+      key.startsWith('thiscord-') ? [caches.delete(key)] : []
+    )))
   }
   const freshUrl = new URL(window.location.href)
   freshUrl.searchParams.set('thiscord-refresh', String(Date.now()))

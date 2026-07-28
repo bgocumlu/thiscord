@@ -1,7 +1,7 @@
 import type { Channel, EffectivePermissions } from '@thiscord/shared'
 import type PocketBase from 'pocketbase'
 
-export interface ChannelPage {
+interface ChannelPage {
   readonly page: number
   readonly perPage: number
   readonly hasMore: boolean

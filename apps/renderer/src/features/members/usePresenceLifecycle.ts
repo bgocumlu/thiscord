@@ -89,15 +89,7 @@ export function usePresenceLifecycle(user: User, activeCall = false): PresenceLi
       updateLocal(nextStatus)
       const run = async () => {
         if (options.keepalive) {
-          await fetch(`${client.baseURL}/api/thiscord/presence`, {
-            method: 'POST',
-            headers: {
-              authorization: client.authStore.token,
-              'content-type': 'application/json',
-            },
-            body: JSON.stringify(input),
-            keepalive: true,
-          })
+          await memberApi.updatePresenceKeepalive(client, input)
           return
         }
         const controller = new AbortController()
@@ -105,20 +97,21 @@ export function usePresenceLifecycle(user: User, activeCall = false): PresenceLi
           () => controller.abort(),
           transientTimings.transientRequestTimeoutMs,
         )
-        try {
-          const result = await memberApi.updatePresence(
-            client,
-            { ...input, signal: controller.signal },
-          )
-          setError('')
-          if (!result.accepted && input.status !== 'offline' && !closed) {
-            leaseId = crypto.randomUUID()
-            sequence = 0
-            heartbeat()
+        return memberApi.updatePresence(
+          client,
+          { ...input, signal: controller.signal },
+        ).then((result) => {
+          if (!closed) {
+            setError('')
+            if (!result.accepted && input.status !== 'offline') {
+              leaseId = crypto.randomUUID()
+              sequence = 0
+              heartbeat()
+            }
           }
-        } finally {
+        }).finally(() => {
           window.clearTimeout(timeout)
-        }
+        })
       }
       if (options.direct) return run()
       reporter.submit(run)

@@ -94,6 +94,7 @@ export function ProfileDialog({ user, onClose, onLogout }: {
       onLogout()
     } catch (caught) {
       setError(errorMessage(caught))
+    } finally {
       setBusy(false)
     }
   }

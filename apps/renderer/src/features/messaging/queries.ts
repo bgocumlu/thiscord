@@ -8,7 +8,16 @@ import { messageKeys } from './queryKeys'
 export function useChannelMessages(channelId: string) {
   const client = usePocketBase()
   const enabled = Boolean(channelId)
-  const pages = useInfiniteQuery({
+  const {
+    data,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isError,
+    isFetchingNextPage,
+    isLoading,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: messageKeys.channel(channelId),
     enabled,
     initialPageParam: null as MessageCursor | null,
@@ -18,11 +27,20 @@ export function useChannelMessages(channelId: string) {
       : undefined,
   })
   const messages = useMemo(
-    () => pages.data?.pages.flatMap((page) => page.items).reverse(),
-    [pages.data],
+    () => data?.pages.flatMap((page) => page.items).reverse(),
+    [data],
   )
   return {
-    messages: { ...pages, data: messages },
+    messages: {
+      data: messages,
+      error,
+      fetchNextPage,
+      hasNextPage,
+      isError,
+      isFetchingNextPage,
+      isLoading,
+      refetch,
+    },
   }
 }
 
