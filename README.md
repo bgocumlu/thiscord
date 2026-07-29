@@ -22,7 +22,7 @@
   <a href="docs/architecture.md">Architecture</a>
 </p>
 
-![Thiscord self-hosted community workspace showing active text channels, voice participants, replies, reactions, and the member list](docs/images/thiscord-community-workspace.png)
+![Thiscord self-hosted community workspace showing active text channels, voice participants, replies, reactions, and the member list](docs/images/thiscord-community-workspace-v2.png)
 
 ## What is Thiscord?
 
