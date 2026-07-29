@@ -2,7 +2,7 @@
   "id": "thiscord",
   "name": "Thiscord",
   "short_name": "Thiscord",
-  "description": "Thiscord",
+  "description": "Thiscord brings communities, messages, voice, and video together.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

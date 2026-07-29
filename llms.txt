@@ -1,0 +1,7 @@
+# Thiscord
+
+> Thiscord brings communities, messages, voice, and video together.
+
+## Access
+
+- [Open Thiscord](./): Sign in to a configured Thiscord deployment.

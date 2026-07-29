@@ -1,0 +1,1 @@
+var e={all:[`roles`],list:t=>[...e.all,t],assignments:[`member_roles`],assignmentsForMember:t=>[...e.assignments,`member`,t]};export{e as t};
