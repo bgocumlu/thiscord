@@ -1208,6 +1208,11 @@
   contain-intrinsic-size: auto 64px;
 }
 
+.message-list-item:focus-within,
+.message-list-item:has(.reaction-picker) {
+  content-visibility: visible;
+}
+
 .message-row:hover {
   background: var(--message-hover);
 }

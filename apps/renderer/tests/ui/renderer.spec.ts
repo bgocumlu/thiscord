@@ -186,6 +186,45 @@ test.describe('renderer accessibility and responsive contracts', () => {
     await expect(reaction).toHaveAttribute('aria-pressed', 'true')
   })
 
+  test('message reaction picker is not clipped by the message row', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 700 })
+    await mountWorkspaceControls(page)
+
+    await page.locator('.message-row').hover()
+    await page.getByRole('button', { name: 'Add reaction' }).click()
+    const picker = page.getByRole('group', { name: 'Choose emoji' })
+    await expect(picker).toBeVisible()
+    await expect(picker.getByRole('button', { name: 'Insert 👍' })).toBeVisible()
+    await expect(picker.getByText('More emoji')).toBeVisible()
+
+    const geometry = await picker.evaluate((element) => {
+      const pickerBounds = element.getBoundingClientRect()
+      const messageBounds = element.closest('.message-list-item')?.getBoundingClientRect()
+      return {
+        pickerHeight: pickerBounds.height,
+        extendsPastMessage: Boolean(messageBounds && pickerBounds.bottom > messageBounds.bottom),
+        contentVisibility: messageBounds
+          ? getComputedStyle(element.closest('.message-list-item')!).contentVisibility
+          : '',
+      }
+    })
+    expect(geometry.pickerHeight).toBeGreaterThan(80)
+    expect(geometry.extendsPastMessage).toBe(true)
+    expect(geometry.contentVisibility).toBe('visible')
+
+    await page.setViewportSize({ width: 320, height: 568 })
+    const mobileGeometry = await picker.evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      return {
+        left: bounds.left,
+        right: bounds.right,
+        viewportWidth: document.documentElement.clientWidth,
+      }
+    })
+    expect(mobileGeometry.left).toBeGreaterThanOrEqual(0)
+    expect(mobileGeometry.right).toBeLessThanOrEqual(mobileGeometry.viewportWidth)
+  })
+
   test('message avatars open the author profile', async ({ page }) => {
     await mountWorkspaceControls(page)
 
