@@ -35,6 +35,7 @@ import {
   contextMenuLongPressMoved,
 } from '../../components/contextMenuLongPress'
 import { keyboardContextMenuPoint } from '../../components/contextMenuPosition'
+import { useConfirmation } from '../../hooks/useConfirmation'
 import { usePocketBase } from '../../lib/contexts'
 import { Avatar } from '../members/Avatar'
 import { MemberContextMenuItems } from '../members/MemberContextMenuItems'
@@ -197,6 +198,7 @@ function VoiceParticipantRow({
   const call = useCall()
   const speaking = useParticipantSpeaking(participant.id)
   const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null)
+  const { confirm, confirmation } = useConfirmation()
   const longPressTimer = useRef<number | undefined>(undefined)
   const longPressStart = useRef({ x: 0, y: 0 })
   const suppressNextClick = useRef(false)
@@ -328,9 +330,15 @@ function VoiceParticipantRow({
                     target.target,
                   ),
                   onDisconnect: () => {
-                    if (window.confirm(`Disconnect ${participant.name} from this call?`)) {
-                      void call.moderateParticipant(participant.userId, 'kick', target.target)
-                    }
+                    void confirm({
+                      title: 'Disconnect participant?',
+                      description: `Disconnect ${participant.name} from this call? They can rejoin if they still have access.`,
+                      confirmLabel: 'Disconnect participant',
+                    }).then((confirmed) => {
+                      if (confirmed) {
+                        void call.moderateParticipant(participant.userId, 'kick', target.target)
+                      }
+                    })
                   },
                 }
               : undefined}
@@ -347,6 +355,7 @@ function VoiceParticipantRow({
           />
         </ContextMenu>
       ) : null}
+      {confirmation}
     </div>
   )
 }

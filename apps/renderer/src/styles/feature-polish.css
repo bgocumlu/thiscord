@@ -111,7 +111,7 @@
 .message-content li {
   margin: 0;
   color: var(--text);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.48;
   overflow-wrap: anywhere;
 }
@@ -229,13 +229,20 @@
   padding: 7px 9px;
 }
 
+.attachment-image figcaption span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .attachment-image figcaption a {
+  flex: 0 0 auto;
   color: var(--accent-light);
 }
 
 .reaction-picker {
-  width: min(320px, calc(100vw - 32px));
-  grid-template-columns: repeat(8, 1fr);
+  width: min(304px, calc(100vw - 32px));
   z-index: 20;
 }
 
@@ -316,6 +323,7 @@
   border: 1px solid var(--border);
   border-radius: 5px;
   background: var(--panel);
+  margin-top: 10px;
   padding: 8px 10px;
 }
 

@@ -5,6 +5,7 @@ import type {
   User,
 } from '@thiscord/shared'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Inbox as InboxIcon } from 'lucide-react'
 import type PocketBase from 'pocketbase'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -13,6 +14,7 @@ import {
 } from '../components/ContextMenu'
 import {
   ChannelToolbar,
+  WorkspaceHelp,
   WorkspaceTitlebar,
 } from '../components/WorkspaceChrome'
 import { MessageSurface } from '../features/messaging/MessageSurface'
@@ -162,6 +164,7 @@ function MembersContextDialogHarness({
 export function RendererTestHarness() {
   const [contextOpen, setContextOpen] = useState(false)
   const [membersContextOpen, setMembersContextOpen] = useState(false)
+  const [profileName, setProfileName] = useState('')
   const contextTrigger = useRef<HTMLButtonElement>(null)
   return (
     <QueryClientProvider client={queryClient}>
@@ -170,10 +173,11 @@ export function RendererTestHarness() {
           <WorkspaceTitlebar
             name="Thiscord"
             search={<search className="global-search"><input aria-label="Search" /></search>}
+            help={<WorkspaceHelp />}
             inbox={(
               <div className="titlebar-actions">
                 <button type="button" aria-label="Inbox">
-                  Inbox<span className="action-badge">8</span>
+                  <InboxIcon size={17} /><span className="action-badge">8</span>
                 </button>
               </div>
             )}
@@ -206,6 +210,7 @@ export function RendererTestHarness() {
                   refetch: async () => undefined,
                 }}
                 currentUser={currentUser}
+                onOpenProfile={(user) => setProfileName(user.displayName)}
                 intro={null}
                 placeholder="Message #general"
                 searchLabel="Search #general"
@@ -215,6 +220,7 @@ export function RendererTestHarness() {
                 searchErrorLabel="Could not search messages."
                 historyErrorLabel="Could not load messages."
               />
+              {profileName ? <output aria-label="Opened profile">{profileName}</output> : null}
               <div className="voice-controls">
                 <button className="control-button screen-share-action" type="button">
                   Share screen

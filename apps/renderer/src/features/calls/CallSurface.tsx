@@ -29,6 +29,7 @@ import {
   type ContextMenuPoint,
 } from '../../components/ContextMenu'
 import { keyboardContextMenuPoint } from '../../components/contextMenuPosition'
+import { useConfirmation } from '../../hooks/useConfirmation'
 import { MemberContextMenuItems } from '../members/MemberContextMenuItems'
 import type { MemberInteractions } from '../members/memberInteractions'
 import type { RemoteAudioPreference } from './remoteAudioPreferences'
@@ -121,6 +122,7 @@ function ParticipantTile({
   const tileElement = useRef<HTMLElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null)
+  const { confirm, confirmation } = useConfirmation()
   const speaking = useParticipantSpeaking(participant.id)
   const videoTrack = participant.screenTrack ?? participant.videoTrack
   const membership = memberInteractions?.memberships?.find(
@@ -262,9 +264,13 @@ function ParticipantTile({
                     serverMuted ? 'server_mute' : 'server_unmute',
                   ),
                   onDisconnect: () => {
-                    if (window.confirm(`Disconnect ${participant.name} from this call?`)) {
-                      onModerate?.(participant.userId, 'kick')
-                    }
+                    void confirm({
+                      title: 'Disconnect participant?',
+                      description: `Disconnect ${participant.name} from this call? They can rejoin if they still have access.`,
+                      confirmLabel: 'Disconnect participant',
+                    }).then((confirmed) => {
+                      if (confirmed) onModerate?.(participant.userId, 'kick')
+                    })
                   },
                 }
               : undefined}
@@ -281,6 +287,7 @@ function ParticipantTile({
           />
         </ContextMenu>
       ) : null}
+      {confirmation}
     </article>
   )
 }
@@ -434,29 +441,35 @@ export function CallSurface({
         </section>
       ) : null}
       <div className="voice-controls">
-        <button className={`control-button ${session.microphoneMuted ? 'off' : ''}`} type="button" title={session.canSpeak ? '' : 'You do not have permission to speak'} disabled={session.actionBusy || !session.canSpeak} onClick={() => void call.toggleMicrophone()}>
-          {session.microphoneMuted ? <MicOff size={18} /> : <Mic size={18} />}<span>{session.microphoneMuted ? 'Unmute' : 'Mute'}</span>
-        </button>
-        <button className={`control-button ${session.deafened ? 'active' : ''}`} type="button" disabled={session.actionBusy} onClick={() => void call.toggleDeafen()}>
-          <Headphones size={18} /><span>{session.deafened ? 'Undeafen' : 'Deafen'}</span>
-        </button>
-        <button className={`control-button ${session.cameraEnabled ? '' : 'off'}`} type="button" title={session.canStreamVideo ? '' : 'You do not have permission to share video'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleCamera()}>
-          {session.cameraEnabled ? <Video size={18} /> : <VideoOff size={18} />}<span>{session.cameraEnabled ? 'Camera off' : 'Camera'}</span>
-        </button>
-        {screenShareAvailable ? (
-          <button className={`control-button screen-share-action ${session.screenSharing ? 'active' : ''}`} type="button" title={session.canStreamVideo ? '' : 'You do not have permission to share video'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleScreenShare()}>
-            <MonitorUp size={18} /><span>{session.screenSharing ? 'Stop sharing' : 'Share screen'}</span>
+        <div className="voice-control-group" role="group" aria-label="Audio controls">
+          <button className={`control-button ${session.microphoneMuted ? 'off' : ''}`} type="button" title={session.canSpeak ? '' : 'You do not have permission to speak'} disabled={session.actionBusy || !session.canSpeak} onClick={() => void call.toggleMicrophone()}>
+            {session.microphoneMuted ? <MicOff size={18} /> : <Mic size={18} />}<span>{session.microphoneMuted ? 'Unmute' : 'Mute'}</span>
           </button>
-        ) : null}
-        <button
-          className={`control-button ${devicesOpen ? 'active' : ''}`}
-          type="button"
-          aria-expanded={devicesOpen}
-          aria-controls="call-device-panel"
-          onClick={() => { setDevicesOpen((value) => !value); void call.refreshDevices() }}
-        >
-          <Settings2 size={18} /><span>Devices</span>
-        </button>
+          <button className={`control-button ${session.deafened ? 'active' : ''}`} type="button" disabled={session.actionBusy} onClick={() => void call.toggleDeafen()}>
+            <Headphones size={18} /><span>{session.deafened ? 'Undeafen' : 'Deafen'}</span>
+          </button>
+        </div>
+        <div className="voice-control-group" role="group" aria-label="Video and sharing controls">
+          <button className={`control-button ${session.cameraEnabled ? '' : 'off'}`} type="button" title={session.canStreamVideo ? '' : 'You do not have permission to share video'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleCamera()}>
+            {session.cameraEnabled ? <Video size={18} /> : <VideoOff size={18} />}<span>{session.cameraEnabled ? 'Camera off' : 'Camera'}</span>
+          </button>
+          {screenShareAvailable ? (
+            <button className={`control-button screen-share-action ${session.screenSharing ? 'active' : ''}`} type="button" title={session.canStreamVideo ? '' : 'You do not have permission to share video'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleScreenShare()}>
+              <MonitorUp size={18} /><span>{session.screenSharing ? 'Stop sharing' : 'Share screen'}</span>
+            </button>
+          ) : null}
+        </div>
+        <div className="voice-control-group voice-control-secondary" role="group" aria-label="Call settings">
+          <button
+            className={`control-button ${devicesOpen ? 'active' : ''}`}
+            type="button"
+            aria-expanded={devicesOpen}
+            aria-controls="call-device-panel"
+            onClick={() => { setDevicesOpen((value) => !value); void call.refreshDevices() }}
+          >
+            <Settings2 size={18} /><span>Devices</span>
+          </button>
+        </div>
         <button className="control-button leave-control" type="button" onClick={() => void call.leave()}>
           <PhoneOff size={18} /><span>Disconnect</span>
         </button>

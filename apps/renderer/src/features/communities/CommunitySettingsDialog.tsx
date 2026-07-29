@@ -18,6 +18,7 @@ import {
 } from '../../components/WorkspacePrimitives'
 import { formatTime } from '../../components/workspaceUtils'
 import { useDialogAccessibility } from '../../hooks/useDialogAccessibility'
+import { useConfirmation } from '../../hooks/useConfirmation'
 import { usePocketBase, useRuntimeConfig } from '../../lib/contexts'
 import { errorMessage } from '../../lib/pocketbase'
 import { MemberAdminRow } from '../members/MemberAdministration'
@@ -60,12 +61,7 @@ export function CommunitySettingsDialog({
   readonly onDeleted: () => void
 }) {
   const client = usePocketBase()
-  const config = useRuntimeConfig()
-  const queryClient = useQueryClient()
   const [tab, setTab] = useState<SettingsTab>('general')
-  const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
-  const [busy, setBusy] = useState(false)
   const [memberSearch, setMemberSearch] = useState('')
   const dialogRef = useRef<HTMLDialogElement>(null)
   useDialogAccessibility(dialogRef, onClose)
@@ -109,6 +105,26 @@ export function CommunitySettingsDialog({
     queryFn: ({ pageParam }) => communityApi.bans(client, community.id, pageParam),
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.page + 1 : undefined,
   })
+  const {
+    busy,
+    error,
+    notice,
+    confirmation,
+    clearFeedback,
+    saveGeneral,
+    createInvite,
+    copyInvite,
+    revokeInvite,
+    unban,
+    deleteCommunity,
+    leaveCommunity,
+    transferOwnership,
+  } = useCommunitySettingsActions({
+    community,
+    onChanged,
+    onDeleted,
+    onBansChanged: () => bans.refetch(),
+  })
   const normalizedMemberSearch = memberSearch.trim().toLowerCase()
   const filteredMemberships = memberships.filter((membership) => {
     if (!normalizedMemberSearch) return true
@@ -131,136 +147,9 @@ export function CommunitySettingsDialog({
     ))
   ))
 
-  const saveGeneral = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (busy) return
-    setBusy(true)
-    setError('')
-    setNotice('')
-    const data = new FormData(event.currentTarget)
-    try {
-      await communityApi.update(client, community.id, {
-        name: data.get('name'),
-        description: data.get('description'),
-        ...(data.get('iconRemove') === '1' ? { icon: null } : { icon: data.get('icon') }),
-        ...(data.get('bannerRemove') === '1' ? { banner: null } : { banner: data.get('banner') }),
-      })
-      await onChanged()
-      setNotice('Community settings saved.')
-    } catch (caught) {
-      setError(errorMessage(caught))
-    } finally {
-      setBusy(false)
-    }
-  }
-  const createInvite = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (busy) return
-    setBusy(true)
-    setError('')
-    const data = new FormData(event.currentTarget)
-    try {
-      const invite = await communityApi.createInvite(client, community.id, {
-        expiresInHours: Number(data.get('expiresInHours') || 168),
-        maxUses: Number(data.get('maxUses') || 0),
-      })
-      await queryClient.invalidateQueries({ queryKey: communityKeys.invites(community.id) })
-      await navigator.clipboard.writeText(
-        `${config.webUrl.replace(/\/$/, '')}/invite/${invite.code}`,
-      )
-      setNotice('Invite created and copied.')
-    } catch (caught) {
-      setError(errorMessage(caught))
-    } finally {
-      setBusy(false)
-    }
-  }
-  const copyInvite = async (invite: Invite) => {
-    setError('')
-    setNotice('')
-    try {
-      await navigator.clipboard.writeText(
-        `${config.webUrl.replace(/\/$/, '')}/invite/${invite.code}`,
-      )
-      setNotice(`Invite ${invite.code} copied.`)
-    } catch (caught) {
-      setError(`Could not copy the invite: ${errorMessage(caught)}`)
-    }
-  }
-  const revokeInvite = async (invite: Invite) => {
-    if (!window.confirm(`Revoke invite ${invite.code}?`)) return
-    setError('')
-    try {
-      await communityApi.revokeInvite(client, invite.id)
-      await queryClient.invalidateQueries({ queryKey: communityKeys.invites(community.id) })
-      setNotice(`Invite ${invite.code} revoked.`)
-    } catch (caught) {
-      setError(errorMessage(caught))
-    }
-  }
-  const unban = async (ban: BanRecord) => {
-    if (!window.confirm(`Unban ${ban.expand?.user?.displayName ?? 'this member'}?`)) return
-    setError('')
-    try {
-      await communityApi.unban(client, ban.id)
-      await bans.refetch()
-      setNotice(`${ban.expand?.user?.displayName ?? 'Member'} was unbanned.`)
-    } catch (caught) {
-      setError(errorMessage(caught))
-    }
-  }
-  const deleteCommunity = async () => {
-    if (
-      busy
-      || !window.confirm(`Permanently delete ${community.name} and all of its data?`)
-    ) return
-    setBusy(true)
-    try {
-      await communityApi.remove(client, community.id)
-      onDeleted()
-    } catch (caught) {
-      setError(errorMessage(caught))
-    } finally {
-      setBusy(false)
-    }
-  }
-  const leaveCommunity = async () => {
-    if (busy || !window.confirm(`Leave ${community.name}?`)) return
-    setBusy(true)
-    setError('')
-    try {
-      await communityApi.leave(client, community.id)
-      onDeleted()
-    } catch (caught) {
-      setError(errorMessage(caught))
-    } finally {
-      setBusy(false)
-    }
-  }
-  const transferOwnership = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (
-      busy
-      || !window.confirm(
-        'Transfer ownership? This changes who has final control of the community.',
-      )
-    ) return
-    setBusy(true)
-    setError('')
-    const data = new FormData(event.currentTarget)
-    try {
-      await communityApi.transfer(client, community.id, data.get('userId'))
-      await onChanged()
-      setNotice('Ownership transferred.')
-    } catch (caught) {
-      setError(errorMessage(caught))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
-    <CommunitySettingsView
+    <>
+      <CommunitySettingsView
       dialogRef={dialogRef}
       community={community}
       roles={roles}
@@ -301,8 +190,7 @@ export function CommunitySettingsDialog({
       }}
       onTabChange={(nextTab) => {
         setTab(nextTab)
-        setError('')
-        setNotice('')
+        clearFeedback()
       }}
       onClose={onClose}
       onSave={saveGeneral}
@@ -319,9 +207,195 @@ export function CommunitySettingsDialog({
       onUnban={unban}
       onRetryBans={() => void bans.refetch()}
       onLoadMoreBans={() => void bans.fetchNextPage()}
-      onLoadMoreAudit={() => void audit.fetchNextPage()}
-    />
+        onLoadMoreAudit={() => void audit.fetchNextPage()}
+      />
+      {confirmation}
+    </>
   )
+}
+
+function useCommunitySettingsActions({
+  community,
+  onChanged,
+  onDeleted,
+  onBansChanged,
+}: {
+  readonly community: Community
+  readonly onChanged: () => Promise<void>
+  readonly onDeleted: () => void
+  readonly onBansChanged: () => Promise<unknown>
+}) {
+  const client = usePocketBase()
+  const config = useRuntimeConfig()
+  const queryClient = useQueryClient()
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [busy, setBusy] = useState(false)
+  const { confirm, confirmation } = useConfirmation()
+  const clearFeedback = () => {
+    setError('')
+    setNotice('')
+  }
+  const saveGeneral = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (busy) return
+    setBusy(true)
+    clearFeedback()
+    const data = new FormData(event.currentTarget)
+    try {
+      await communityApi.update(client, community.id, {
+        name: data.get('name'),
+        description: data.get('description'),
+        ...(data.get('iconRemove') === '1' ? { icon: null } : { icon: data.get('icon') }),
+        ...(data.get('bannerRemove') === '1' ? { banner: null } : { banner: data.get('banner') }),
+      })
+      await onChanged()
+      setNotice('Community settings saved.')
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const createInvite = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (busy) return
+    setBusy(true)
+    setError('')
+    const data = new FormData(event.currentTarget)
+    try {
+      const invite = await communityApi.createInvite(client, community.id, {
+        expiresInHours: Number(data.get('expiresInHours') || 168),
+        maxUses: Number(data.get('maxUses') || 0),
+      })
+      await queryClient.invalidateQueries({ queryKey: communityKeys.invites(community.id) })
+      await navigator.clipboard.writeText(
+        `${config.webUrl.replace(/\/$/, '')}/invite/${invite.code}`,
+      )
+      setNotice('Invite created and copied.')
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const copyInvite = async (invite: Invite) => {
+    clearFeedback()
+    try {
+      await navigator.clipboard.writeText(
+        `${config.webUrl.replace(/\/$/, '')}/invite/${invite.code}`,
+      )
+      setNotice(`Invite ${invite.code} copied.`)
+    } catch (caught) {
+      setError(`Could not copy the invite: ${errorMessage(caught)}`)
+    }
+  }
+  const revokeInvite = async (invite: Invite) => {
+    if (!await confirm({
+      title: 'Revoke invite?',
+      description: `Revoke invite ${invite.code}? Anyone who has not used it will no longer be able to join.`,
+      confirmLabel: 'Revoke invite',
+    })) return
+    setError('')
+    try {
+      await communityApi.revokeInvite(client, invite.id)
+      await queryClient.invalidateQueries({ queryKey: communityKeys.invites(community.id) })
+      setNotice(`Invite ${invite.code} revoked.`)
+    } catch (caught) {
+      setError(errorMessage(caught))
+    }
+  }
+  const unban = async (ban: BanRecord) => {
+    const displayName = ban.expand?.user?.displayName ?? 'this member'
+    if (!await confirm({
+      title: 'Remove ban?',
+      description: `Unban ${displayName}? They will be able to rejoin with a valid invite.`,
+      confirmLabel: 'Remove ban',
+    })) return
+    setError('')
+    try {
+      await communityApi.unban(client, ban.id)
+      await onBansChanged()
+      setNotice(`${ban.expand?.user?.displayName ?? 'Member'} was unbanned.`)
+    } catch (caught) {
+      setError(errorMessage(caught))
+    }
+  }
+  const deleteCommunity = async () => {
+    if (
+      busy
+      || !await confirm({
+        title: 'Permanently delete community?',
+        description: `Delete ${community.name}, its channels, memberships, messages, and call history? This cannot be undone.`,
+        confirmLabel: 'Delete community permanently',
+      })
+    ) return
+    setBusy(true)
+    try {
+      await communityApi.remove(client, community.id)
+      onDeleted()
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const leaveCommunity = async () => {
+    if (busy || !await confirm({
+      title: 'Leave community?',
+      description: `Leave ${community.name}? You will need another valid invite to return.`,
+      confirmLabel: 'Leave community',
+    })) return
+    setBusy(true)
+    setError('')
+    try {
+      await communityApi.leave(client, community.id)
+      onDeleted()
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const transferOwnership = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (
+      busy
+      || !await confirm({
+        title: 'Transfer ownership?',
+        description: 'This gives another member final control of the community and cannot be reversed without their cooperation.',
+        confirmLabel: 'Transfer ownership',
+      })
+    ) return
+    setBusy(true)
+    setError('')
+    const data = new FormData(event.currentTarget)
+    try {
+      await communityApi.transfer(client, community.id, data.get('userId'))
+      await onChanged()
+      setNotice('Ownership transferred.')
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return {
+    busy,
+    error,
+    notice,
+    confirmation,
+    clearFeedback,
+    saveGeneral,
+    createInvite,
+    copyInvite,
+    revokeInvite,
+    unban,
+    deleteCommunity,
+    leaveCommunity,
+    transferOwnership,
+  }
 }
 
 function CommunitySettingsView({
@@ -424,20 +498,33 @@ function CommunitySettingsView({
   readonly onLoadMoreBans: () => void
   readonly onLoadMoreAudit: () => void
 }) {
+  const availableTabSet = new Set(availableTabs)
   return createPortal(
     <dialog ref={dialogRef} className="modal-backdrop" aria-label={`${community.name} settings`}>
       <section className="settings-card">
         <nav className="settings-navigation" aria-label={`${community.name} settings sections`}>
           <strong>{community.name}</strong>
-          {availableTabs.map((item) => (
-            <button
-              className={tab === item ? 'active' : ''}
-              type="button"
-              aria-current={tab === item ? 'page' : undefined}
-              onClick={() => onTabChange(item)}
-              key={item}
-            >{item}</button>
-          ))}
+          {([
+            { label: 'Community', items: ['general', 'invites'] as const },
+            { label: 'People and safety', items: ['roles', 'members', 'audit'] as const },
+          ]).map((group) => {
+            const items = group.items.filter((item) => availableTabSet.has(item))
+            if (!items.length) return null
+            return (
+              <div className="settings-nav-group" key={group.label}>
+                <small>{group.label}</small>
+                {items.map((item) => (
+                  <button
+                    className={tab === item ? 'active' : ''}
+                    type="button"
+                    aria-current={tab === item ? 'page' : undefined}
+                    onClick={() => onTabChange(item)}
+                    key={item}
+                  >{item}</button>
+                ))}
+              </div>
+            )
+          })}
         </nav>
         <div className="settings-content">
           <header>

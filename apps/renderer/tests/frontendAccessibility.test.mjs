@@ -41,12 +41,38 @@ test('unread navigation and notification states are programmatically exposed', a
   assert.match(notifications, /<i aria-hidden="true" \/>/)
 })
 
+test('direct conversations render recipient avatars with initial fallbacks', async () => {
+  const [sidebar, conversation] = await Promise.all([
+    source('../src/features/conversations/DirectSidebar.tsx'),
+    source('../src/features/conversations/ConversationView.tsx'),
+  ])
+  assert.match(sidebar, /\{recipient \? <Avatar user=\{recipient\} \/> : initials\(name\)\}/)
+  assert.match(conversation, /\? <Avatar user=\{recipient\} \/>[\s\S]*?: <span className="conversation-header-avatar">/)
+})
+
 test('avatars leave adjacent user names to visible text while preserving presence labels', async () => {
   const avatar = await source('../src/features/members/Avatar.tsx')
   assert.doesNotMatch(avatar, /aria-label=\{user\.displayName\}/)
   assert.match(avatar, /aria-hidden=\{status \? undefined : true\}/)
   assert.match(avatar, /<span aria-hidden="true">\{initials/)
   assert.match(avatar, /aria-label=\{presenceLabels\[status\] \?\? status\}/)
+})
+
+test('profile identity fields declare autofill intent and omit custom status', async () => {
+  const [profile, members] = await Promise.all([
+    source('../src/features/members/ProfileDialogs.tsx'),
+    source('../src/features/members/MembersPanel.tsx'),
+  ])
+  assert.match(profile, /name="displayName" autoComplete="name"/)
+  assert.match(profile, /name="handle" autoComplete="username"/)
+  assert.doesNotMatch(profile, /customStatus/)
+  assert.doesNotMatch(members, /customStatus/)
+})
+
+test('member rows open profiles instead of navigating directly to messages', async () => {
+  const members = await source('../src/features/members/MembersPanel.tsx')
+  assert.match(members, /className=\{`member-row[\s\S]*?onClick=\{\(\) => interactions\.onOpenProfile\(user\)\}/)
+  assert.doesNotMatch(members, /if \(user\.id === interactions\.currentUserId\)/)
 })
 
 test('runtime branding leaves browser chrome color under appearance control', async () => {
@@ -87,6 +113,42 @@ test('message reactions and realtime additions expose programmatic state', async
   assert.match(messages, /aria-relevant="additions text"/)
 })
 
+test('high-stakes actions use the shared accessible confirmation pattern', async () => {
+  const [primitives, confirmationHook, ...consumers] = await Promise.all([
+    source('../src/components/WorkspacePrimitives.tsx'),
+    source('../src/hooks/useConfirmation.tsx'),
+    source('../src/features/channels/ChannelDialogs.tsx'),
+    source('../src/features/channels/ChannelSidebar.tsx'),
+    source('../src/features/communities/CommunitySettingsDialog.tsx'),
+    source('../src/features/conversations/ConversationDialogs.tsx'),
+    source('../src/features/calls/CallSurface.tsx'),
+    source('../src/features/members/ProfileDialogs.tsx'),
+    source('../src/features/messaging/MessageSurface.tsx'),
+    source('../src/features/roles/RoleSettings.tsx'),
+  ])
+
+  assert.match(primitives, /export function ConfirmDialog/)
+  assert.match(confirmationHook, /new Promise<boolean>/)
+  for (const consumer of consumers) {
+    assert.doesNotMatch(consumer, /window\.confirm/)
+  }
+})
+
+test('message discovery exposes touch and keyboard accelerators', async () => {
+  const [messages, chrome] = await Promise.all([
+    source('../src/features/messaging/MessageSurface.tsx'),
+    source('../src/components/WorkspaceChrome.tsx'),
+  ])
+
+  assert.match(messages, /More actions for message from/)
+  assert.match(messages, /aria-keyshortcuts="\/"/)
+  assert.match(messages, /aria-keyshortcuts="Control\+f Meta\+f"/)
+  assert.match(chrome, /Help and tips/)
+  assert.match(chrome, /Focus the message box/)
+  assert.match(chrome, /Press and hold a message/)
+  assert.match(chrome, /aria-label="Close help"/)
+})
+
 test('message errors remain inside contained rows and use semantic error copy', async () => {
   const styles = await rendererStyles()
   assert.match(styles, /\.message-action-error\s*\{[\s\S]*?position:\s*static;/)
@@ -103,6 +165,17 @@ test('message images reserve layout space before decoding', async () => {
   assert.match(messages, /width="520"[\s\S]*?height="293"[\s\S]*?loading="lazy"/)
   assert.match(styles, /\.attachment-image > a\s*\{[\s\S]*?aspect-ratio:\s*16 \/ 9;/)
   assert.match(styles, /\.attachment-image img\s*\{[\s\S]*?height:\s*100%;/)
+})
+
+test('attachment cards stay compact and truncate long filenames', async () => {
+  const [messages, styles] = await Promise.all([
+    source('../src/features/messaging/MessageSurface.tsx'),
+    rendererStyles(),
+  ])
+  assert.match(messages, /<strong title=\{displayName\}>\{displayName\}<\/strong>/)
+  assert.match(styles, /\.attachment-card\s*\{[\s\S]*?width:\s*fit-content;/)
+  assert.match(styles, /\.attachment-card strong\s*\{[\s\S]*?text-overflow:\s*ellipsis;/)
+  assert.match(styles, /\.message-attachments \.attachment-card\s*\{[\s\S]*?margin-top:\s*0;/)
 })
 
 test('component styles consume theme tokens instead of embedding raw colors', async () => {

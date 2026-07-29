@@ -4,6 +4,7 @@ import { ExternalLink, LogOut, MessageSquareText } from 'lucide-react'
 import type { RecordModel } from 'pocketbase'
 import { useState, type FormEvent } from 'react'
 import {
+  ConfirmDialog,
   ImageFileField,
   ModalFrame,
 } from '../../components/WorkspacePrimitives'
@@ -25,6 +26,7 @@ export function ProfileDialog({ user, onClose, onLogout }: {
   const [verificationSent, setVerificationSent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [verificationBusy, setVerificationBusy] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const avatarUrl = user.avatar
     ? client.files.getURL(user as unknown as RecordModel, user.avatar, { thumb: '256x256' })
     : ''
@@ -46,7 +48,6 @@ export function ProfileDialog({ user, onClose, onLogout }: {
         displayName: data.get('displayName'),
         handle: data.get('handle'),
         bio: data.get('bio'),
-        customStatus: data.get('customStatus'),
         ...(data.get('avatarRemove') === '1'
           ? { avatar: null }
           : avatar instanceof File && avatar.size > 0 ? { avatar } : {}),
@@ -84,9 +85,7 @@ export function ProfileDialog({ user, onClose, onLogout }: {
     }
   }
   const deleteAccount = async () => {
-    if (busy || !window.confirm(
-      'Permanently delete your account and all associated memberships and messages?',
-    )) return
+    if (busy) return
     setBusy(true)
     setError('')
     try {
@@ -94,6 +93,7 @@ export function ProfileDialog({ user, onClose, onLogout }: {
       onLogout()
     } catch (caught) {
       setError(errorMessage(caught))
+      setDeleteOpen(false)
     } finally {
       setBusy(false)
     }
@@ -101,10 +101,9 @@ export function ProfileDialog({ user, onClose, onLogout }: {
   return (
     <ModalFrame title="User settings" onClose={onClose}>
       <form className="modal-form" onSubmit={(event) => void submit(event)}>
-        <label><span>Display name</span><input name="displayName" defaultValue={user.displayName} required maxLength={policyLimits.profile.displayNameMax} /></label>
-        <label><span>Handle</span><input name="handle" defaultValue={user.handle} required minLength={policyLimits.profile.handleMin} maxLength={policyLimits.profile.handleMax} pattern="[a-zA-Z0-9._-]+" /></label>
-        <label><span>Bio</span><textarea name="bio" defaultValue={user.bio} maxLength={policyLimits.profile.bioMax} rows={3} /></label>
-        <label><span>Custom status</span><input name="customStatus" defaultValue={user.customStatus} maxLength={policyLimits.profile.customStatusMax} /></label>
+        <label><span>Display name</span><input name="displayName" autoComplete="name" defaultValue={user.displayName} required maxLength={policyLimits.profile.displayNameMax} /></label>
+        <label><span>Handle</span><input name="handle" autoComplete="username" defaultValue={user.handle} required minLength={policyLimits.profile.handleMin} maxLength={policyLimits.profile.handleMax} pattern="[a-zA-Z0-9._-]+" /></label>
+        <label><span>Bio</span><textarea name="bio" autoComplete="off" defaultValue={user.bio} maxLength={policyLimits.profile.bioMax} rows={3} /></label>
         <label><span>Presence</span><select name="status" defaultValue={user.status}><option value="online">Online</option><option value="idle">Idle</option><option value="dnd">Do not disturb</option><option value="offline">Invisible</option></select></label>
         <ImageFileField name="avatar" label="Avatar" currentUrl={avatarUrl} />
         <fieldset className="preference-fields">
@@ -138,7 +137,22 @@ export function ProfileDialog({ user, onClose, onLogout }: {
         </div>
       ) : null}
       <button className="danger-action modal-logout" type="button" disabled={busy} onClick={onLogout}><LogOut size={16} />Sign out</button>
-      <button className="danger-action modal-logout" type="button" disabled={busy} onClick={() => void deleteAccount()}>{busy ? 'Working…' : 'Delete account'}</button>
+      <button className="danger-action modal-logout" type="button" disabled={busy} onClick={() => setDeleteOpen(true)}>Delete account</button>
+      {deleteOpen ? (
+        <ConfirmDialog
+          title="Permanently delete account?"
+          description={(
+            <>
+              This permanently deletes <strong>@{user.handle}</strong>, their memberships,
+              and authored messages. This cannot be undone.
+            </>
+          )}
+          confirmLabel="Delete account permanently"
+          busy={busy}
+          onClose={() => setDeleteOpen(false)}
+          onConfirm={deleteAccount}
+        />
+      ) : null}
     </ModalFrame>
   )
 }
@@ -153,7 +167,6 @@ export function MemberProfileDialog({ user, onClose, onMessage }: {
       <section className="member-profile-card">
         <Avatar user={user} size="hero" />
         <div><h3>{user.displayName}</h3><p>@{user.handle}</p></div>
-        {user.customStatus ? <blockquote>{user.customStatus}</blockquote> : null}
         {user.bio
           ? <p className="member-profile-bio">{user.bio}</p>
           : <p className="member-profile-bio muted-copy">No bio.</p>}

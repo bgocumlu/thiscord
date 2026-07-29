@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { TriangleAlert, X } from 'lucide-react'
 import {
   useEffect,
   useRef,
@@ -112,5 +112,45 @@ export function ModalFrame({ title, onClose, children }: {
       </section>
     </dialog>,
     document.body,
+  )
+}
+
+export function ConfirmDialog({
+  title,
+  description,
+  confirmLabel,
+  onConfirm,
+  onClose,
+  busy = false,
+}: {
+  readonly title: string
+  readonly description: ReactNode
+  readonly confirmLabel: string
+  readonly onConfirm: () => void | Promise<void>
+  readonly onClose: () => void
+  readonly busy?: boolean
+}) {
+  return (
+    <ModalFrame title={title} onClose={busy ? () => undefined : onClose}>
+      <div className="confirmation-copy">
+        <span className="confirmation-icon" aria-hidden="true">
+          <TriangleAlert size={20} />
+        </span>
+        <p>{description}</p>
+      </div>
+      <div className="confirmation-actions">
+        <button className="secondary-action" type="button" disabled={busy} onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          className="danger-action"
+          type="button"
+          disabled={busy}
+          onClick={() => void onConfirm()}
+        >
+          {busy ? 'Working…' : confirmLabel}
+        </button>
+      </div>
+    </ModalFrame>
   )
 }

@@ -12,10 +12,12 @@ export function ChannelMessageView({
   channel,
   currentUser,
   permissions,
+  onOpenProfile,
 }: {
   readonly channel: Channel
   readonly currentUser: User
   readonly permissions: ReadonlySet<Permission>
+  readonly onOpenProfile: (user: User) => void
 }) {
   const client = usePocketBase()
   const queryClient = useQueryClient()
@@ -33,9 +35,13 @@ export function ChannelMessageView({
       adapter={adapter}
       history={messages}
       currentUser={currentUser}
+      onOpenProfile={onOpenProfile}
       intro={(
         <div className="channel-intro">
           <span>{channel.kind === 'announcement' ? <Megaphone size={24} /> : <Hash size={24} />}</span>
+          <small className="channel-intro-kicker">
+            {channel.kind === 'announcement' ? 'Community updates' : 'Community channel'}
+          </small>
           <h1>{channel.kind === 'announcement' ? '' : '#'}{channel.name}</h1>
           {channel.topic ? <p>{channel.topic}</p> : null}
           {channel.kind === 'announcement' ? (
@@ -51,6 +57,7 @@ export function ChannelMessageView({
       highlightedMessageId={highlightedMessageId}
       messageElementPrefix="message-"
       emptyTitle="No messages yet"
+      emptyDescription={`Start the conversation in #${channel.name}. Share an update, question, or idea.`}
       searchErrorLabel="Could not search messages."
       historyErrorLabel="Could not load messages."
       className="chat-view"

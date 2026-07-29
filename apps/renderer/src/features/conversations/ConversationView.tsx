@@ -21,6 +21,7 @@ import { usePocketBase } from '../../lib/contexts'
 import { loadJitsiEngine } from '../calls/jitsiEngine'
 import { useAppRouter } from '../../lib/router'
 import { CallSurface } from '../calls/CallSurface'
+import { Avatar } from '../members/Avatar'
 import type { MemberInteractions } from '../members/memberInteractions'
 import { participantBelongsToTarget } from '../calls/targets'
 import { MessageSurface } from '../messaging/MessageSurface'
@@ -71,6 +72,9 @@ export function ConversationView({
     [conversation?.id, members],
   )
   const ownMembership = conversationMembers.find((item) => item.user === currentUser.id)
+  const recipient = conversation?.kind === 'direct'
+    ? conversationMembers.find((item) => item.user !== currentUser.id)?.expand?.user
+    : undefined
   const adapter = useMemo(
     () => conversation && ownMembership
       ? createConversationMessageAdapter({
@@ -84,8 +88,7 @@ export function ConversationView({
   )
   const title = conversation?.kind === 'group'
     ? conversation.name
-    : conversationMembers.find((item) => item.user !== currentUser.id)?.expand?.user?.displayName
-      ?? 'Direct message'
+    : recipient?.displayName ?? 'Direct message'
   const callParticipantCount = callTarget
     ? callOccupancy.filter((participant) => participantBelongsToTarget(participant, callTarget.target)).length
     : 0
@@ -123,7 +126,9 @@ export function ConversationView({
           aria-controls="community-navigation"
           onClick={onOpenNavigation}
         ><Menu size={18} /></button>
-        <span className="conversation-header-avatar">{initials(title)}</span>
+        {recipient
+          ? <Avatar user={recipient} />
+          : <span className="conversation-header-avatar">{initials(title)}</span>}
         <span className="direct-view-title">
           <strong title={title}>{title}</strong>
           <small>
@@ -173,9 +178,13 @@ export function ConversationView({
         adapter={adapter}
         history={messages}
         currentUser={currentUser}
+        onOpenProfile={memberInteractions.onOpenProfile}
         intro={(
           <div className="channel-intro">
             <span><MessageSquareText size={24} /></span>
+            <small className="channel-intro-kicker">
+              {conversation.kind === 'group' ? 'Group conversation' : 'Direct conversation'}
+            </small>
             <h1>{title}</h1>
           </div>
         )}

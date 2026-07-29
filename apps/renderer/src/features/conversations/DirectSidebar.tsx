@@ -41,12 +41,6 @@ export function DirectSidebar({
   readonly onLoadMore: () => void
 }) {
   const call = useCall()
-  const nameFor = (conversation: Conversation) => {
-    if (conversation.kind === 'group') return conversation.name
-    return members.find((item) => (
-      item.conversation === conversation.id && item.user !== currentUser.id
-    ))?.expand?.user?.displayName ?? 'Direct message'
-  }
   return (
     <aside
       id="community-navigation"
@@ -57,14 +51,23 @@ export function DirectSidebar({
       <div className="channel-scroll">
         {conversations.map((conversation) => {
           const target = conversationCallTarget(conversation, members, currentUser.id)
-          const name = nameFor(conversation)
+          const recipient = conversation.kind === 'direct'
+            ? members.find((item) => (
+                item.conversation === conversation.id && item.user !== currentUser.id
+              ))?.expand?.user
+            : undefined
+          const name = conversation.kind === 'group'
+            ? conversation.name
+            : recipient?.displayName ?? 'Direct message'
           const unread = conversation.id !== activeId && unreadConversationIds.has(conversation.id)
           const participantCount = callOccupancy.filter((participant) => (
             participantBelongsToTarget(participant, target.target)
           )).length
           return (
           <button className={`direct-row ${conversation.id === activeId ? 'active' : ''} ${unread ? 'unread' : ''}`} type="button" aria-current={conversation.id === activeId ? 'page' : undefined} onClick={() => onSelect(conversation)} key={conversation.id}>
-            <span className="direct-avatar" aria-hidden="true">{initials(name)}</span>
+            <span className="direct-avatar" aria-hidden="true">
+              {recipient ? <Avatar user={recipient} /> : initials(name)}
+            </span>
             <span><strong>{name}</strong><small>{conversation.kind === 'group' ? 'Group message' : 'Direct message'}</small></span>
             {participantCount ? <span className="direct-call-presence" title={`${participantCount} in call`}><PhoneCall size={12} />{participantCount}</span> : null}
             {unread ? <span className="visually-hidden">Unread</span> : null}

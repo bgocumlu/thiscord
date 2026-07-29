@@ -69,7 +69,11 @@ import { roleKeys } from '../features/roles/queryKeys'
 import { useCommunityRoles } from '../features/roles/queries'
 import { GlobalSearch } from '../features/search/GlobalSearch'
 import { DataFailure, LoadingState } from './WorkspacePrimitives'
-import { ChannelToolbar, WorkspaceTitlebar } from './WorkspaceChrome'
+import {
+  ChannelToolbar,
+  WorkspaceHelp,
+  WorkspaceTitlebar,
+} from './WorkspaceChrome'
 import { resolvedPresence } from './workspaceUtils'
 
 const loadChannelDialogs = () => import('../features/channels/ChannelDialogs')
@@ -533,6 +537,7 @@ function useWorkspaceApp() {
         name={config.name}
         search={<GlobalSearch onOpenMember={(person) => setModal({ kind: 'member', user: person })} />}
         inbox={<Inbox currentUser={currentUser} />}
+        help={<WorkspaceHelp supportUrl={config.supportUrl} />}
         inert={mobileNavigationModal}
       />
 
@@ -627,7 +632,14 @@ function useWorkspaceApp() {
                       memberInteractions={communityMemberInteractions}
                     />
                   )
-                : <ChannelMessageView channel={activeChannel} currentUser={currentUser} permissions={channelPermissions} />}
+                : (
+                    <ChannelMessageView
+                      channel={activeChannel}
+                      currentUser={currentUser}
+                      permissions={channelPermissions}
+                      onOpenProfile={openMemberProfile}
+                    />
+                  )}
             </>
           ) : community ? (
             communityData.channels.isError

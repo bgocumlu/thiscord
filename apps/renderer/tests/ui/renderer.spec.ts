@@ -13,7 +13,7 @@ test.describe('renderer accessibility and responsive contracts', () => {
   }
 
   test('recovery form reflows without horizontal scrolling and keeps explicit labels', async ({ page }) => {
-    await page.goto('/auth/reset')
+    await page.goto('/auth/reset?token=test-reset-token')
 
     await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible()
     await expect(page.getByLabel('New password')).toBeVisible()
@@ -28,7 +28,7 @@ test.describe('renderer accessibility and responsive contracts', () => {
   })
 
   test('keyboard focus remains visibly outlined', async ({ page }) => {
-    await page.goto('/auth/reset')
+    await page.goto('/auth/reset?token=test-reset-token')
     await expect(page.getByLabel('New password')).toBeFocused()
     await page.keyboard.press('Shift+Tab')
     const focusedControl = page.locator(':focus')
@@ -71,7 +71,7 @@ test.describe('renderer accessibility and responsive contracts', () => {
       })
     })
 
-    await page.goto('/auth/reset')
+    await page.goto('/auth/reset?token=test-reset-token')
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
     await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f4f5f7')
     const colors = await page.locator('html').evaluate((element) => {
@@ -88,8 +88,9 @@ test.describe('renderer accessibility and responsive contracts', () => {
     await mountWorkspaceControls(page)
 
     await expect(page.getByRole('button', { name: 'Send' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Share screen' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Share screen' })).toBeHidden()
     await expect(page.getByRole('button', { name: 'Inbox' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Help and tips' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Mute channel notifications' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Channel settings' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Member list' })).toBeVisible()
@@ -111,6 +112,34 @@ test.describe('renderer accessibility and responsive contracts', () => {
     expect(styles.fitsViewport).toBe(true)
   })
 
+  test('non-square avatar images remain fixed square crops', async ({ page }) => {
+    await mountWorkspaceControls(page)
+
+    const geometry = await page.evaluate(async () => {
+      const avatar = document.createElement('span')
+      avatar.className = 'avatar avatar-medium'
+      const image = document.createElement('img')
+      image.alt = ''
+      image.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="120"/>'
+      avatar.append(image)
+      document.body.append(avatar)
+      await image.decode()
+      const avatarRect = avatar.getBoundingClientRect()
+      const imageRect = image.getBoundingClientRect()
+      return {
+        avatar: [avatarRect.width, avatarRect.height],
+        image: [imageRect.width, imageRect.height],
+        objectFit: getComputedStyle(image).objectFit,
+      }
+    })
+
+    expect(geometry).toEqual({
+      avatar: [34, 34],
+      image: [34, 34],
+      objectFit: 'cover',
+    })
+  })
+
   test('production messages expose log and reaction state semantics', async ({ page }) => {
     await mountWorkspaceControls(page)
 
@@ -119,6 +148,39 @@ test.describe('renderer accessibility and responsive contracts', () => {
       name: 'Remove 👍 reaction, 1 reaction',
     })
     await expect(reaction).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  test('message avatars open the author profile', async ({ page }) => {
+    await mountWorkspaceControls(page)
+
+    await page.getByRole('button', { name: "View Berkay's profile" }).click()
+    await expect(page.getByLabel('Opened profile')).toHaveText('Berkay')
+  })
+
+  test('mobile workspace help exposes touch guidance and explicit dismissal', async ({ page }) => {
+    await mountWorkspaceControls(page)
+
+    const trigger = page.getByRole('button', { name: 'Help and tips' })
+    await trigger.click()
+    const help = page.getByRole('region', { name: 'Help and tips' })
+    await expect(help).toBeVisible()
+    await expect(help.getByText('Mobile tips')).toBeVisible()
+    await expect(help.getByText('Press and hold a message')).toBeVisible()
+    await expect(help.getByText('Search this conversation')).toBeHidden()
+    await help.getByRole('button', { name: 'Close help' }).click()
+    await expect(help).toBeHidden()
+    await expect(trigger).toBeFocused()
+  })
+
+  test('desktop workspace help retains keyboard shortcuts', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 700 })
+    await mountWorkspaceControls(page)
+
+    await page.getByRole('button', { name: 'Help and tips' }).click()
+    const help = page.getByRole('region', { name: 'Help and tips' })
+    await expect(help.getByText('Keyboard shortcuts')).toBeVisible()
+    await expect(help.getByText('Search this conversation')).toBeVisible()
+    await expect(help.getByText('Mobile tips')).toBeHidden()
   })
 
   test('context actions restore focus after keyboard activation', async ({ page }) => {
@@ -196,5 +258,42 @@ test.describe('renderer accessibility and responsive contracts', () => {
 
     await expect(page.getByLabel('Grid members')).toBeHidden()
     await expect(page.getByLabel('Drawer members')).toBeVisible()
+  })
+
+  test('an incomplete recovery link blocks unusable password entry', async ({ page }) => {
+    await page.goto('/auth/reset')
+
+    await expect(page.getByRole('heading', { name: 'Reset link unavailable' })).toBeVisible()
+    await expect(page.getByLabel('New password')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Request a new reset link' }).click()
+    await expect(page.getByRole('heading', { name: 'Reset password' })).toBeVisible()
+    await expect(page.getByLabel('Email')).toBeFocused()
+  })
+})
+
+test.describe('coarse pointer message actions', () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+  })
+
+  test('message overflow stays visible and protects deletion with confirmation', async ({ page }) => {
+    await page.goto('/auth/reset?renderer-test=workspace-controls')
+    await expect(page.locator('[data-renderer-test-ready="true"]')).toBeVisible()
+
+    const more = page.getByRole('button', { name: 'More actions for message from Berkay' })
+    await expect(more).toBeVisible()
+    await more.click()
+
+    const actions = page.getByRole('dialog', { name: 'Actions for message from Berkay' })
+    await expect(actions).toBeVisible()
+    await expect(actions.getByRole('button', { name: 'Reply' })).toBeVisible()
+    await actions.getByRole('button', { name: 'Delete message' }).click()
+
+    const confirmation = page.getByRole('dialog', { name: 'Delete message?' })
+    await expect(confirmation).toBeVisible()
+    await expect(confirmation.getByRole('button', { name: 'Delete message', exact: true })).toBeVisible()
+    await confirmation.getByRole('button', { name: 'Cancel' }).click()
+    await expect(confirmation).toBeHidden()
   })
 })

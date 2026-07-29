@@ -1,14 +1,17 @@
-import { policyLimits } from '@thiscord/shared'
+import { policyLimits, type User } from '@thiscord/shared'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import {
+  Ellipsis,
   FileText,
   MessageSquareText,
   Paperclip,
+  Pencil,
   Pin,
   PinOff,
   Search,
   Send,
   SmilePlus,
+  Trash2,
   X,
 } from 'lucide-react'
 import { isTokenExpired, type RecordModel } from 'pocketbase'
@@ -27,7 +30,17 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react'
-import { DataFailure, LoadingState } from '../../components/WorkspacePrimitives'
+import {
+  ConfirmDialog,
+  DataFailure,
+  LoadingState,
+} from '../../components/WorkspacePrimitives'
+import {
+  ContextMenu,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  type ContextMenuPoint,
+} from '../../components/ContextMenu'
 import { formatTime } from '../../components/workspaceUtils'
 import { useFileToken } from '../../hooks/useFileToken'
 import { usePocketBase } from '../../lib/contexts'
@@ -60,6 +73,7 @@ export interface MessageSurfaceProps<TMessage extends SurfaceMessage> {
   readonly adapter: MessageSurfaceAdapter<TMessage>
   readonly history: MessageHistory<TMessage>
   readonly currentUser: Parameters<MessageSurfaceAdapter<TMessage>['policy']['canEdit']>[1]
+  readonly onOpenProfile: (user: User) => void
   readonly intro: ReactNode
   readonly placeholder: string
   readonly searchLabel: string
@@ -72,9 +86,10 @@ export interface MessageSurfaceProps<TMessage extends SurfaceMessage> {
   readonly className?: string
 }
 
-const commonEmoji = [
-  '😀', '😄', '😂', '😊', '😍', '🤔', '😮', '😢', '😡', '👍', '👎', '👏',
-  '🙌', '🙏', '❤️', '💜', '🔥', '🎉', '✅', '❌', '👀', '💯', '🚀', '✨',
+const frequentEmoji = ['👍', '❤️', '😂', '🎉', '✅', '👀', '🔥', '🙏']
+const moreEmoji = [
+  '😀', '😄', '😊', '😍', '🤔', '😮', '😢', '😡',
+  '👎', '👏', '🙌', '💜', '❌', '💯', '🚀', '✨',
 ]
 
 const RichMessage = lazy(() => import('./RichMessage'))
@@ -86,16 +101,22 @@ function EmojiPicker({
   readonly id?: string
   readonly onSelect: (emoji: string) => void
 }) {
+  const emojiButtons = (items: readonly string[]) => items.map((emoji) => (
+    <button
+      type="button"
+      aria-label={`Insert ${emoji}`}
+      onClick={() => onSelect(emoji)}
+      key={emoji}
+    >{emoji}</button>
+  ))
   return (
     <div id={id} className="reaction-picker" role="group" aria-label="Choose emoji">
-      {commonEmoji.map((emoji) => (
-        <button
-          type="button"
-          aria-label={`Insert ${emoji}`}
-          onClick={() => onSelect(emoji)}
-          key={emoji}
-        >{emoji}</button>
-      ))}
+      <span className="reaction-picker-label">Frequent</span>
+      <div className="reaction-picker-grid">{emojiButtons(frequentEmoji)}</div>
+      <details>
+        <summary>More emoji</summary>
+        <div className="reaction-picker-grid">{emojiButtons(moreEmoji)}</div>
+      </details>
     </div>
   )
 }
@@ -143,7 +164,7 @@ function MessageAttachments({ message, userId }: {
         ) : (
           <a className="attachment-card" href={downloadUrl} key={filename}>
             <span><FileText size={21} /></span>
-            <span><strong>{displayName}</strong><small>Download attachment</small></span>
+            <span><strong title={displayName}>{displayName}</strong><small>Download attachment</small></span>
           </a>
         )
       })}
@@ -158,6 +179,7 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
   adapter,
   onReply,
   onEdit,
+  onOpenProfile,
 }: {
   readonly message: TMessage
   readonly reactions: readonly SurfaceReaction[]
@@ -165,8 +187,11 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
   readonly adapter: MessageSurfaceAdapter<TMessage>
   readonly onReply: (message: TMessage) => void
   readonly onEdit: (message: TMessage) => void
+  readonly onOpenProfile: MessageSurfaceProps<TMessage>['onOpenProfile']
 }) {
   const [reactionOpen, setReactionOpen] = useState(false)
+  const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const reactionPickerId = useId()
   const [actionError, setActionError] = useState('')
   const author = message.expand?.author
@@ -186,7 +211,14 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
   }
   return (
     <article className={`message-row ${deleted ? 'message-deleted' : ''}`}>
-      <Avatar user={author} />
+      <button
+        className="message-avatar-button"
+        type="button"
+        aria-label={`View ${author.displayName}'s profile`}
+        onClick={() => onOpenProfile(author)}
+      >
+        <Avatar user={author} />
+      </button>
       <div className="message-body">
         {message.expand?.replyTo ? (
           <div className="reply-context">
@@ -234,40 +266,91 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
       {!deleted ? (
         <div className="message-actions">
           <button
+            className="message-action-quick"
             type="button"
             title="Add reaction"
+            aria-label="Add reaction"
             aria-expanded={reactionOpen}
             aria-controls={reactionPickerId}
             onClick={() => setReactionOpen((value) => !value)}
           >
             <SmilePlus size={15} />
           </button>
-          {adapter.policy.canPin(message, currentUser) ? (
-            <button
-              type="button"
-              title={message.pinned ? 'Unpin' : 'Pin'}
-              aria-label={message.pinned ? 'Unpin message' : 'Pin message'}
-              onClick={() => void run(() => adapter.pin(message))}
-            >
-              {message.pinned ? <PinOff size={15} /> : <Pin size={15} />}
-            </button>
-          ) : null}
-          <button type="button" title="Reply" onClick={() => onReply(message)}><MessageSquareText size={15} /></button>
-          {adapter.policy.canEdit(message, currentUser)
-            ? <button type="button" title="Edit" onClick={() => onEdit(message)}><FileText size={15} /></button>
-            : null}
-          {adapter.policy.canDelete(message, currentUser) ? (
-            <button type="button" title="Delete" onClick={() => void run(() => adapter.remove(message))}>
-              <X size={15} />
-            </button>
-          ) : null}
+          <button
+            className="message-action-quick"
+            type="button"
+            title="Reply"
+            aria-label="Reply to message"
+            onClick={() => onReply(message)}
+          ><MessageSquareText size={15} /></button>
+          <button
+            type="button"
+            title="More actions"
+            aria-label={`More actions for message from ${author.displayName}`}
+            aria-expanded={Boolean(menuPoint)}
+            onClick={(event) => {
+              const bounds = event.currentTarget.getBoundingClientRect()
+              setMenuPoint({ x: bounds.right, y: bounds.bottom })
+            }}
+          ><Ellipsis size={16} /></button>
         </div>
+      ) : null}
+      {menuPoint ? (
+        <ContextMenu
+          point={menuPoint}
+          label={`Actions for message from ${author.displayName}`}
+          onClose={() => setMenuPoint(null)}
+        >
+          <ContextMenuItem icon={<SmilePlus size={15} />} onSelect={() => setReactionOpen(true)}>
+            Add reaction
+          </ContextMenuItem>
+          <ContextMenuItem icon={<MessageSquareText size={15} />} onSelect={() => onReply(message)}>
+            Reply
+          </ContextMenuItem>
+          {adapter.policy.canPin(message, currentUser) ? (
+            <ContextMenuItem
+              icon={message.pinned ? <PinOff size={15} /> : <Pin size={15} />}
+              onSelect={() => run(() => adapter.pin(message))}
+            >
+              {message.pinned ? 'Unpin message' : 'Pin message'}
+            </ContextMenuItem>
+          ) : null}
+          {adapter.policy.canEdit(message, currentUser) ? (
+            <ContextMenuItem icon={<Pencil size={15} />} onSelect={() => onEdit(message)}>
+              Edit message
+            </ContextMenuItem>
+          ) : null}
+          {adapter.policy.canDelete(message, currentUser) ? (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                icon={<Trash2 size={15} />}
+                danger
+                onSelect={() => setDeleteOpen(true)}
+              >
+                Delete message
+              </ContextMenuItem>
+            </>
+          ) : null}
+        </ContextMenu>
       ) : null}
       {reactionOpen ? (
         <EmojiPicker id={reactionPickerId} onSelect={(emoji) => {
           void run(() => adapter.react(message, emoji))
           setReactionOpen(false)
         }} />
+      ) : null}
+      {deleteOpen ? (
+        <ConfirmDialog
+          title="Delete message?"
+          description="This removes the message for everyone in this conversation. This action cannot be undone."
+          confirmLabel="Delete message"
+          onClose={() => setDeleteOpen(false)}
+          onConfirm={async () => {
+            await run(() => adapter.remove(message))
+            setDeleteOpen(false)
+          }}
+        />
       ) : null}
       {actionError ? <div className="message-action-error" role="alert">{actionError}</div> : null}
     </article>
@@ -285,6 +368,7 @@ function MessageLog<TMessage extends SurfaceMessage,>({
   adapter,
   onReply,
   onEdit,
+  onOpenProfile,
 }: {
   readonly messages: readonly TMessage[]
   readonly highlightedMessageId: string
@@ -294,6 +378,7 @@ function MessageLog<TMessage extends SurfaceMessage,>({
   readonly adapter: MessageSurfaceAdapter<TMessage>
   readonly onReply: (message: TMessage) => void
   readonly onEdit: (message: TMessage) => void
+  readonly onOpenProfile: MessageSurfaceProps<TMessage>['onOpenProfile']
 }) {
   return (
     <div
@@ -317,6 +402,7 @@ function MessageLog<TMessage extends SurfaceMessage,>({
             adapter={adapter}
             onReply={onReply}
             onEdit={onEdit}
+            onOpenProfile={onOpenProfile}
           />
         </div>
       ))}
@@ -342,10 +428,30 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
   const [draft, setDraft] = useState(editing?.content ?? '')
   const [files, setFiles] = useState<File[]>([])
   const fileInput = useRef<HTMLInputElement>(null)
+  const composerInput = useRef<HTMLInputElement>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
   const emojiPickerId = useId()
+
+  useEffect(() => {
+    const focusComposer = (event: KeyboardEvent) => {
+      if (
+        event.key !== '/'
+        || event.ctrlKey
+        || event.metaKey
+        || event.altKey
+        || event.target instanceof HTMLInputElement
+        || event.target instanceof HTMLTextAreaElement
+        || event.target instanceof HTMLSelectElement
+        || (event.target instanceof HTMLElement && event.target.isContentEditable)
+      ) return
+      event.preventDefault()
+      composerInput.current?.focus()
+    }
+    window.addEventListener('keydown', focusComposer)
+    return () => window.removeEventListener('keydown', focusComposer)
+  }, [])
 
   const addFiles = (selected: readonly File[]) => {
     setError('')
@@ -424,9 +530,11 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
           onClick={() => fileInput.current?.click()}
         ><Paperclip size={18} /></button>
         <input
+          ref={composerInput}
           value={draft}
           disabled={Boolean(disabledReason) || busy}
           aria-label={placeholder}
+          aria-keyshortcuts="/"
           onChange={(event) => setDraft(event.target.value)}
           placeholder={disabledReason || placeholder}
           maxLength={policyLimits.message.contentMax}
@@ -458,10 +566,61 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
   )
 }
 
+function ConversationSearch({
+  searchLabel,
+  search,
+  pinnedOnly,
+  onSearchChange,
+  onPinnedOnlyChange,
+}: {
+  readonly searchLabel: string
+  readonly search: string
+  readonly pinnedOnly: boolean
+  readonly onSearchChange: (value: string) => void
+  readonly onPinnedOnlyChange: (value: boolean) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const focusInlineSearch = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'f') return
+      event.preventDefault()
+      inputRef.current?.focus()
+    }
+    window.addEventListener('keydown', focusInlineSearch)
+    return () => window.removeEventListener('keydown', focusInlineSearch)
+  }, [])
+
+  return (
+    <search className="chat-inline-search">
+      <Search size={14} />
+      <input
+        ref={inputRef}
+        type="search"
+        aria-label={searchLabel}
+        aria-keyshortcuts="Control+f Meta+f"
+        value={search}
+        onChange={(event) => onSearchChange(event.target.value)}
+        placeholder={searchLabel}
+      />
+      <button
+        className={pinnedOnly ? 'active' : ''}
+        type="button"
+        aria-pressed={pinnedOnly}
+        title={pinnedOnly ? 'Show all messages' : 'Show pinned messages only'}
+        onClick={() => onPinnedOnlyChange(!pinnedOnly)}
+      >
+        <Pin size={13} />{pinnedOnly ? 'Pinned only' : 'Pinned messages'}
+      </button>
+    </search>
+  )
+}
+
 export function MessageSurface<TMessage extends SurfaceMessage,>({
   adapter,
   history,
   currentUser,
+  onOpenProfile,
   intro,
   placeholder,
   searchLabel,
@@ -485,6 +644,7 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
     setEditing(message)
     setReply(null)
   }, [])
+
   const deferredSearch = useDeferredValue(search.trim())
   const readCoordinator = useRef<ReturnType<typeof createReadReceiptCoordinator>>(null!)
   if (readCoordinator.current === null) readCoordinator.current = createReadReceiptCoordinator()
@@ -616,23 +776,13 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
 
   return (
     <div className={`message-surface ${className}`.trim()}>
-      <search className="chat-inline-search">
-        <Search size={14} />
-        <input
-          type="search"
-          aria-label={searchLabel}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder={searchLabel}
-        />
-        <button
-          className={pinnedOnly ? 'active' : ''}
-          type="button"
-          aria-pressed={pinnedOnly}
-          title={pinnedOnly ? 'Show all messages' : 'Show pinned messages only'}
-          onClick={() => setPinnedOnly((value) => !value)}
-        ><Pin size={13} />{pinnedOnly ? 'Pinned only' : 'Pinned messages'}</button>
-      </search>
+      <ConversationSearch
+        searchLabel={searchLabel}
+        search={search}
+        pinnedOnly={pinnedOnly}
+        onSearchChange={setSearch}
+        onPinnedOnlyChange={setPinnedOnly}
+      />
       <div
         className="message-scroll"
         ref={listRef}
@@ -701,9 +851,11 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
             adapter={adapter}
             onReply={beginReply}
             onEdit={beginEdit}
+            onOpenProfile={onOpenProfile}
           />
         ) : showEmptyState ? (
           <div className="empty-channel">
+            <span aria-hidden="true"><MessageSquareText size={22} /></span>
             <h2>{searchActive ? 'No matching messages' : emptyTitle}</h2>
             {searchActive
               ? <p>Try a different search or clear the pinned filter.</p>

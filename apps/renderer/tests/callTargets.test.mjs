@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { callAccessWasRevoked } from '../src/features/calls/api.ts'
+import { channelSelectionClosesNavigation } from '../src/features/calls/callNavigationBehavior.ts'
 import { recoverJoinFailure } from '../src/features/calls/joinFailure.ts'
 import {
   conversationCallTarget,
@@ -54,6 +55,12 @@ test('authorization failures are distinguished from transient presence failures'
   assert.equal(callAccessWasRevoked({ status: 404 }), true)
   assert.equal(callAccessWasRevoked({ status: 500 }), false)
   assert.equal(callAccessWasRevoked(new Error('offline')), false)
+})
+
+test('text selection dismisses mobile navigation while voice selection preserves it', () => {
+  assert.equal(channelSelectionClosesNavigation('text'), true)
+  assert.equal(channelSelectionClosesNavigation('announcement'), true)
+  assert.equal(channelSelectionClosesNavigation('voice'), false)
 })
 
 test('a revoked reconnect leaves the call and releases retained media resources', async () => {

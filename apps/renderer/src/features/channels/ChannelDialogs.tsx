@@ -17,6 +17,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { ModalFrame } from '../../components/WorkspacePrimitives'
+import { useConfirmation } from '../../hooks/useConfirmation'
 import { usePocketBase } from '../../lib/contexts'
 import { errorMessage } from '../../lib/pocketbase'
 import { memberApi } from '../members/api'
@@ -106,6 +107,7 @@ export function ChannelSettingsDialog({
   const settingsFields: readonly string[] = channelCapabilities[channel.kind].settingsFields
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const { confirm, confirmation } = useConfirmation()
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setBusy(true)
@@ -133,7 +135,11 @@ export function ChannelSettingsDialog({
     const prompt = channel.kind === 'category'
       ? `Delete the ${channel.name} category? Its channels will be kept without a category.`
       : `Delete #${channel.name}? This cannot be undone.`
-    if (!window.confirm(prompt)) return
+    if (!await confirm({
+      title: channel.kind === 'category' ? 'Delete category?' : 'Delete channel?',
+      description: prompt,
+      confirmLabel: channel.kind === 'category' ? 'Delete category' : 'Delete channel',
+    })) return
     setBusy(true)
     setError('')
     try {
@@ -212,6 +218,7 @@ export function ChannelSettingsDialog({
           Delete {channel.kind === 'category' ? 'category' : 'channel'}
         </button>
       ) : null}
+      {confirmation}
     </ModalFrame>
   )
 }

@@ -6,6 +6,7 @@ import type {
 import { policyLimits } from '@thiscord/shared'
 import { useState, type FormEvent } from 'react'
 import { ModalFrame } from '../../components/WorkspacePrimitives'
+import { useConfirmation } from '../../hooks/useConfirmation'
 import { usePocketBase } from '../../lib/contexts'
 import { errorMessage } from '../../lib/pocketbase'
 import { useAppRouter } from '../../lib/router'
@@ -31,6 +32,7 @@ export function GroupSettingsDialog({
   const { navigate } = useAppRouter()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const { confirm, confirmation } = useConfirmation()
   const isOwner = conversation.owner === currentUser.id
   const rename = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -71,7 +73,11 @@ export function GroupSettingsDialog({
     const label = userId === currentUser.id
       ? 'Leave this group?'
       : `Remove ${target?.displayName ?? 'this member'} from the group?`
-    if (!window.confirm(label)) return
+    if (!await confirm({
+      title: userId === currentUser.id ? 'Leave this group?' : 'Remove group member?',
+      description: label,
+      confirmLabel: userId === currentUser.id ? 'Leave group' : 'Remove member',
+    })) return
     setBusy(true)
     setError('')
     try {
@@ -120,6 +126,7 @@ export function GroupSettingsDialog({
       <button className="danger-action modal-logout" type="button" disabled={busy} onClick={() => void removeMember(currentUser.id)}>
         {busy ? 'Working…' : 'Leave group'}
       </button>
+      {confirmation}
     </ModalFrame>
   )
 }

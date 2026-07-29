@@ -51,10 +51,7 @@ function MemberRow({
       <button
         className={`member-row ${status === 'offline' ? 'offline' : ''}`}
         type="button"
-        onClick={() => {
-          if (user.id === interactions.currentUserId) interactions.onOpenProfile(user)
-          else interactions.onMessage(user)
-        }}
+        onClick={() => interactions.onOpenProfile(user)}
         onContextMenu={(event) => {
           event.preventDefault()
           openAt({ x: event.clientX, y: event.clientY })
@@ -72,7 +69,7 @@ function MemberRow({
           >
             {membership.nickname || user.displayName}
           </strong>
-          <small>{user.customStatus || `@${user.handle}`}</small>
+          <small>@{user.handle}</small>
         </span>
       </button>
       <button

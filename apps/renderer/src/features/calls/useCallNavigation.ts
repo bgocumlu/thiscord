@@ -15,6 +15,7 @@ import { appRoutes } from '../navigation/routes'
 import { channelApi } from '../channels/api'
 import { conversationApi } from '../conversations/api'
 import { useCall } from './CallProvider'
+import { channelSelectionClosesNavigation } from './callNavigationBehavior'
 import {
   clearResumeCallTarget,
   readResumeCallTarget,
@@ -114,7 +115,7 @@ export function useCallNavigation({
       void join(channelCallTarget(channel))
       if (replacingFocusedCall) navigate(appRoutes.channel(channel.community, channel.id))
     }
-    onNavigationClosed()
+    if (channelSelectionClosesNavigation(channel.kind)) onNavigationClosed()
   }, [activeChannel, join, navigate, onNavigationClosed, session])
 
   const openCallTarget = useCallback((target: CallTargetDescriptor) => {

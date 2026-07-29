@@ -3,6 +3,7 @@ import { permissionDefinitions, policyLimits } from '@thiscord/shared'
 import { ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { usePocketBase } from '../../lib/contexts'
+import { useConfirmation } from '../../hooks/useConfirmation'
 import { errorMessage } from '../../lib/pocketbase'
 import { roleApi } from './api'
 import { manageableRoles } from './hierarchy'
@@ -134,6 +135,7 @@ function RoleEditor({
   const client = usePocketBase()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const { confirm, confirmation } = useConfirmation()
   const editablePermissionDefinitions = permissionDefinitions.filter(
     (permission) => permissions.has('administrator') || permissions.has(permission.id),
   )
@@ -161,7 +163,11 @@ function RoleEditor({
     }
   }
   const remove = async () => {
-    if (busy || !window.confirm(`Delete the ${role.name} role?`)) return
+    if (busy || !await confirm({
+      title: 'Delete role?',
+      description: `Delete the ${role.name} role? Members will lose the permissions it grants.`,
+      confirmLabel: 'Delete role',
+    })) return
     setBusy(true)
     try {
       await roleApi.remove(client, role.id)
@@ -194,6 +200,7 @@ function RoleEditor({
         <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save role'}</button>
         <button className="danger-action" type="button" disabled={busy} onClick={() => void remove()}>Delete role</button>
       </div>
+      {confirmation}
     </form>
   )
 }
