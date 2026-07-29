@@ -11,6 +11,28 @@ import { createDisposableObjectUrl } from '../lib/objectUrl'
 import { errorMessage } from '../lib/pocketbase'
 import { initials } from './workspaceUtils'
 
+const loadingStatusProps = {
+  role: 'status',
+  'aria-live': 'polite',
+  'aria-atomic': true,
+} as const
+
+export function LoadingState({
+  children,
+  fullscreen = false,
+}: {
+  readonly children: ReactNode
+  readonly fullscreen?: boolean
+}) {
+  return fullscreen ? (
+    <main className="loading-state fullscreen">
+      <span {...loadingStatusProps}>{children}</span>
+    </main>
+  ) : (
+    <div className="loading-state" {...loadingStatusProps}>{children}</div>
+  )
+}
+
 export function DataFailure({ error, onRetry, label = 'Could not load this content.' }: {
   readonly error: unknown
   readonly onRetry: () => void
@@ -48,7 +70,15 @@ export function ImageFileField({
     <div className={`image-file-field ${banner ? 'banner-file-field' : ''}`}>
       <span className="field-label">{label}</span>
       <div>
-        <span className="image-file-preview">{preview && !removed ? <img src={preview} alt={`${label} preview`} /> : initials(label)}</span>
+        <span className="image-file-preview">{preview && !removed ? (
+          <img
+            src={preview}
+            alt={`${label} preview`}
+            width={banner ? 120 : 56}
+            height={56}
+            decoding="async"
+          />
+        ) : initials(label)}</span>
         <label className="file-select-button">
           Choose image
           <input name={name} type="file" accept={accept} onChange={(event) => {

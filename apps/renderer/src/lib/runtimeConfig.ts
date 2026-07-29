@@ -1,17 +1,17 @@
 import type { DistributionConfig } from '@thiscord/shared'
-import { z } from 'zod'
-import { createDisposableObjectUrl } from './objectUrl'
+import * as z from 'zod/mini'
+import { runtimeAccentTokens } from './brandAccent'
 
 const distributionSchema = z.object({
-  id: z.string().min(1).max(80),
-  name: z.string().min(1).max(100),
-  appId: z.string().min(1).max(160),
+  id: z.string().check(z.minLength(1), z.maxLength(80)),
+  name: z.string().check(z.minLength(1), z.maxLength(100)),
+  appId: z.string().check(z.minLength(1), z.maxLength(160)),
   webUrl: z.string(),
-  pocketBaseUrl: z.string().min(1),
-  jitsiDomain: z.string().min(1),
+  pocketBaseUrl: z.string().check(z.minLength(1)),
+  jitsiDomain: z.string().check(z.minLength(1)),
   supportUrl: z.string(),
   updateUrl: z.string(),
-  accent: z.string().regex(/^#[0-9a-f]{6}$/i),
+  accent: z.string().check(z.regex(/^#[0-9a-f]{6}$/i)),
 })
 
 const defaults: DistributionConfig = {
@@ -26,51 +26,18 @@ const defaults: DistributionConfig = {
   accent: '#6957e8',
 }
 
-function contrastColor(hex: string) {
-  const channels = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255)
-  const luminance = channels
-    .map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
-    .reduce((total, channel, index) => total + channel * [0.2126, 0.7152, 0.0722][index], 0)
-  const whiteContrast = 1.05 / (luminance + 0.05)
-  const darkContrast = (luminance + 0.05) / 0.05
-  return whiteContrast >= darkContrast ? '#ffffff' : '#0c0d11'
-}
-
-let manifestUrl: ReturnType<typeof createDisposableObjectUrl> | null = null
-window.addEventListener('pagehide', () => {
-  manifestUrl?.revoke()
-  manifestUrl = null
-}, { once: true })
-
 function applyRuntimeBranding(config: DistributionConfig) {
+  const accentTokens = runtimeAccentTokens(config.accent)
   document.title = config.name
   document.documentElement.style.setProperty('--brand-accent', config.accent)
-  document.documentElement.style.setProperty('--accent-contrast', contrastColor(config.accent))
-  const manifest = {
-    id: config.id,
-    name: config.name,
-    short_name: config.name.slice(0, 30),
-    description: config.name,
-    theme_color: config.accent,
-    background_color: '#0d0f13',
-    display: 'standalone',
-    orientation: 'any',
-    scope: './',
-    start_url: './',
-    categories: ['social', 'productivity'],
-    icons: [
-      { src: `${import.meta.env.BASE_URL}icon-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: `${import.meta.env.BASE_URL}icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
-      { src: `${import.meta.env.BASE_URL}favicon.svg`, sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-    ],
-  }
-  manifestUrl?.revoke()
-  manifestUrl = createDisposableObjectUrl(
-    new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }),
-  )
-  document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.setAttribute('href', manifestUrl.url)
+  document.documentElement.style.setProperty('--accent-contrast', accentTokens.contrast)
+  document.documentElement.style.setProperty('--brand-accent-emphasis-dark', accentTokens.darkEmphasis)
+  document.documentElement.style.setProperty('--brand-accent-emphasis-light', accentTokens.lightEmphasis)
   document.querySelector<HTMLMetaElement>('meta[name="application-name"]')?.setAttribute('content', config.name)
-  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', config.accent)
+  document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute(
+    'content',
+    `${config.name} brings communities, messages, voice, and video together.`,
+  )
 }
 
 export async function loadRuntimeConfig(): Promise<DistributionConfig> {

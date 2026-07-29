@@ -72,7 +72,7 @@ export function ChannelDialog({ community, parent, onClose, onCreated }: {
         </label>
         <label><span>Name</span><input name="name" required maxLength={policyLimits.channel.nameMax} /></label>
         <label><span>Topic</span><textarea name="topic" maxLength={policyLimits.channel.topicMax} rows={3} /></label>
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
         <button className="primary-action" type="submit" disabled={busy}>
           {busy ? 'Creating…' : 'Create channel'}
         </button>
@@ -194,7 +194,7 @@ export function ChannelSettingsDialog({
           ) : null}
           {settingsFields.includes('slowmodeSeconds') ? <label><span>Slow mode (seconds)</span><input name="slowmodeSeconds" type="number" min="0" max={policyLimits.channel.slowmodeSecondsMax} defaultValue={channel.slowmodeSeconds} /></label> : null}
           {settingsFields.includes('nsfw') ? <label className="checkbox-line"><input name="nsfw" type="checkbox" defaultChecked={channel.nsfw} /><span>Age-restricted channel</span></label> : null}
-          {error ? <p className="form-error">{error}</p> : null}
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
           <button className="primary-action" type="submit" disabled={busy}>
             {busy ? 'Saving…' : `Save ${channel.kind === 'category' ? 'category' : 'channel'}`}
           </button>
@@ -343,7 +343,7 @@ function ChannelPermissionsEditor({
               {memberPages.isFetchingNextPage ? 'Loading members…' : 'Load more members'}
             </button>
           ) : null}
-          {memberPages.isError ? <p className="form-error">Could not load member targets.</p> : null}
+          {memberPages.isError ? <p className="form-error" role="alert">Could not load member targets.</p> : null}
           <label><span>Find permission</span><input type="search" value={permissionSearch} onChange={(event) => setPermissionSearch(event.target.value)} placeholder="Search permissions" /></label>
           {selectedTarget ? (
             <form
@@ -385,8 +385,8 @@ function ChannelPermissionsEditor({
                   ),
                 ] : []
               })}
-              {error ? <p className="form-error">{error}</p> : null}
-              {saved ? <p className="form-notice">Permission overrides saved.</p> : null}
+              {error ? <p className="form-error" role="alert">{error}</p> : null}
+              {saved ? <p className="form-notice" role="status">Permission overrides saved.</p> : null}
               <div className="role-actions">
                 <button className="primary-action" type="submit" disabled={busy}>
                   {busy ? 'Saving…' : 'Save permission overrides'}

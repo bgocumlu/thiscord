@@ -14,20 +14,25 @@ import {
   Phone,
   Settings,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
+import { LoadingState } from '../../components/WorkspacePrimitives'
 import { initials } from '../../components/workspaceUtils'
 import { usePocketBase } from '../../lib/contexts'
+import { loadJitsiEngine } from '../calls/jitsiEngine'
 import { useAppRouter } from '../../lib/router'
 import { CallSurface } from '../calls/CallSurface'
 import type { MemberInteractions } from '../members/memberInteractions'
 import { participantBelongsToTarget } from '../calls/targets'
 import { MessageSurface } from '../messaging/MessageSurface'
 import { conversationKeys } from './queryKeys'
-import { GroupSettingsDialog } from './ConversationDialogs'
 import { createConversationMessageAdapter } from './conversationMessageAdapter'
 import {
   useDirectMessages,
 } from './queries'
+
+const GroupSettingsDialog = lazy(() => import('./ConversationDialogs').then((module) => ({
+  default: module.GroupSettingsDialog,
+})))
 
 export function ConversationView({
   conversation,
@@ -37,6 +42,7 @@ export function ConversationView({
   callOccupancy,
   callActive,
   muted,
+  navigationOpen,
   onStartCall,
   onToggleMute,
   onOpenNavigation,
@@ -49,6 +55,7 @@ export function ConversationView({
   readonly callOccupancy: readonly CallParticipantRecord[]
   readonly callActive: boolean
   readonly muted: boolean
+  readonly navigationOpen: boolean
   readonly onStartCall: (target: CallTargetDescriptor) => void
   readonly onToggleMute: () => void
   readonly onOpenNavigation: () => void
@@ -91,6 +98,8 @@ export function ConversationView({
           className="mobile-nav-button"
           type="button"
           aria-label="Open messages navigation"
+          aria-expanded={navigationOpen}
+          aria-controls="community-navigation"
           onClick={onOpenNavigation}
         ><Menu size={18} /></button>
         <div className="direct-empty-content">
@@ -101,7 +110,7 @@ export function ConversationView({
       </div>
     )
   }
-  if (!adapter) return <div className="loading-state">Loading conversation membership…</div>
+  if (!adapter) return <LoadingState>Loading conversation membership…</LoadingState>
 
   return (
     <div className="direct-view">
@@ -110,6 +119,8 @@ export function ConversationView({
           className="mobile-nav-button"
           type="button"
           aria-label="Open messages navigation"
+          aria-expanded={navigationOpen}
+          aria-controls="community-navigation"
           onClick={onOpenNavigation}
         ><Menu size={18} /></button>
         <span className="conversation-header-avatar">{initials(title)}</span>
@@ -135,6 +146,9 @@ export function ConversationView({
           aria-label={callParticipantCount
             ? `Join call with ${callParticipantCount} participant${callParticipantCount === 1 ? '' : 's'}`
             : 'Start call'}
+          onPointerEnter={() => void loadJitsiEngine().catch(() => undefined)}
+          onPointerDown={() => void loadJitsiEngine().catch(() => undefined)}
+          onFocus={() => void loadJitsiEngine().catch(() => undefined)}
           onClick={() => {
             if (callTarget) onStartCall(callTarget)
           }}
@@ -176,18 +190,20 @@ export function ConversationView({
         className="direct-message-surface"
       />
       {settingsOpen ? (
-        <GroupSettingsDialog
-          conversation={conversation}
-          members={conversationMembers}
-          currentUser={currentUser}
-          onClose={() => setSettingsOpen(false)}
-          onChanged={async () => {
-            await Promise.all([
-              queryClient.invalidateQueries({ queryKey: conversationKeys.all }),
-              queryClient.invalidateQueries({ queryKey: conversationKeys.members }),
-            ])
-          }}
-        />
+        <Suspense fallback={<div className="modal-loading" role="status">Opening dialog…</div>}>
+          <GroupSettingsDialog
+            conversation={conversation}
+            members={conversationMembers}
+            currentUser={currentUser}
+            onClose={() => setSettingsOpen(false)}
+            onChanged={async () => {
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: conversationKeys.all }),
+                queryClient.invalidateQueries({ queryKey: conversationKeys.members }),
+              ])
+            }}
+          />
+        </Suspense>
       ) : null}
     </div>
   )

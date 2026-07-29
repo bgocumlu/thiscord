@@ -1,11 +1,11 @@
 import { policyLimits } from '@thiscord/shared'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import {
-  ExternalLink,
   FileText,
   MessageSquareText,
   Paperclip,
   Pin,
+  PinOff,
   Search,
   Send,
   SmilePlus,
@@ -13,17 +13,21 @@ import {
 } from 'lucide-react'
 import { isTokenExpired, type RecordModel } from 'pocketbase'
 import {
+  lazy,
+  memo,
+  startTransition,
+  Suspense,
+  useCallback,
   useDeferredValue,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
   type FormEvent,
   type ReactNode,
 } from 'react'
-import Markdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { DataFailure } from '../../components/WorkspacePrimitives'
+import { DataFailure, LoadingState } from '../../components/WorkspacePrimitives'
 import { formatTime } from '../../components/workspaceUtils'
 import { useFileToken } from '../../hooks/useFileToken'
 import { usePocketBase } from '../../lib/contexts'
@@ -34,8 +38,12 @@ import type {
   SurfaceMessage,
   SurfaceReaction,
 } from './messageSurfaceContract'
-import { mergeFocusedMessage, shouldShowEmptyMessageState } from './messagePresentation'
+import {
+  mergeFocusedMessage,
+  shouldShowEmptyMessageState,
+} from './messagePresentation'
 import { createReadReceiptCoordinator } from './readState'
+import { useMessageWindow } from './useMessageWindow'
 
 export interface MessageHistory<TMessage extends SurfaceMessage> {
   readonly data: readonly TMessage[] | undefined
@@ -69,9 +77,17 @@ const commonEmoji = [
   '🙌', '🙏', '❤️', '💜', '🔥', '🎉', '✅', '❌', '👀', '💯', '🚀', '✨',
 ]
 
-function EmojiPicker({ onSelect }: { readonly onSelect: (emoji: string) => void }) {
+const RichMessage = lazy(() => import('./RichMessage'))
+
+function EmojiPicker({
+  id,
+  onSelect,
+}: {
+  readonly id?: string
+  readonly onSelect: (emoji: string) => void
+}) {
   return (
-    <div className="reaction-picker" role="group" aria-label="Choose emoji">
+    <div id={id} className="reaction-picker" role="group" aria-label="Choose emoji">
       {commonEmoji.map((emoji) => (
         <button
           type="button"
@@ -80,62 +96,6 @@ function EmojiPicker({ onSelect }: { readonly onSelect: (emoji: string) => void 
           key={emoji}
         >{emoji}</button>
       ))}
-    </div>
-  )
-}
-
-function highlightMentions(children: ReactNode): ReactNode {
-  if (typeof children === 'string') {
-    return children.split(/(@(?:everyone|[a-z0-9._-]{2,32}))/gi).map((part, index) => (
-      /^@(?:everyone|[a-z0-9._-]{2,32})$/i.test(part)
-        ? <span className="message-mention" key={`${part}-${index}`}>{part}</span>
-        : part
-    ))
-  }
-  if (Array.isArray(children)) return children.map((child) => highlightMentions(child))
-  return children
-}
-
-function RichMessage({ content, embedsEnabled }: {
-  readonly content: string
-  readonly embedsEnabled: boolean
-}) {
-  const urls = Array.from(new Set(content.match(/https?:\/\/[^\s<]+/gi) ?? [])).slice(0, 3)
-  return (
-    <div className="message-content">
-      <Markdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="nofollow noopener noreferrer">
-              {children}<ExternalLink size={12} />
-            </a>
-          ),
-          p: ({ children }) => <p>{highlightMentions(children)}</p>,
-          li: ({ children }) => <li>{highlightMentions(children)}</li>,
-        }}
-      >
-        {content}
-      </Markdown>
-      {embedsEnabled && urls.length ? (
-        <div className="link-previews">
-          {urls.map((url) => {
-            let label = url
-            try {
-              const parsed = new URL(url)
-              label = `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`
-            } catch {
-              // The Markdown link remains usable if URL parsing fails.
-            }
-            return (
-              <a href={url} target="_blank" rel="nofollow noopener noreferrer" key={url}>
-                <ExternalLink size={15} />
-                <span><strong>{label}</strong><small>{url}</small></span>
-              </a>
-            )
-          })}
-        </div>
-      ) : null}
     </div>
   )
 }
@@ -169,7 +129,14 @@ function MessageAttachments({ message, userId }: {
         return image ? (
           <figure className="attachment-image" key={filename}>
             <a href={openUrl} target="_blank" rel="noreferrer">
-              <img src={openUrl} alt={displayName} loading="lazy" />
+              <img
+                src={openUrl}
+                alt={displayName}
+                width="520"
+                height="293"
+                loading="lazy"
+                decoding="async"
+              />
             </a>
             <figcaption><span>{displayName}</span><a href={downloadUrl}>Download</a></figcaption>
           </figure>
@@ -184,7 +151,7 @@ function MessageAttachments({ message, userId }: {
   )
 }
 
-function MessageRow<TMessage extends SurfaceMessage,>({
+function MessageRowComponent<TMessage extends SurfaceMessage,>({
   message,
   reactions,
   currentUser,
@@ -196,10 +163,11 @@ function MessageRow<TMessage extends SurfaceMessage,>({
   readonly reactions: readonly SurfaceReaction[]
   readonly currentUser: MessageSurfaceProps<TMessage>['currentUser']
   readonly adapter: MessageSurfaceAdapter<TMessage>
-  readonly onReply: () => void
-  readonly onEdit: () => void
+  readonly onReply: (message: TMessage) => void
+  readonly onEdit: (message: TMessage) => void
 }) {
   const [reactionOpen, setReactionOpen] = useState(false)
+  const reactionPickerId = useId()
   const [actionError, setActionError] = useState('')
   const author = message.expand?.author
   if (!author) return null
@@ -217,7 +185,7 @@ function MessageRow<TMessage extends SurfaceMessage,>({
     }
   }
   return (
-    <article className={`message-row ${deleted ? 'message-deleted' : ''}`} tabIndex={deleted ? undefined : 0}>
+    <article className={`message-row ${deleted ? 'message-deleted' : ''}`}>
       <Avatar user={author} />
       <div className="message-body">
         {message.expand?.replyTo ? (
@@ -234,38 +202,59 @@ function MessageRow<TMessage extends SurfaceMessage,>({
         </div>
         {deleted
           ? <p>Message deleted</p>
-          : <RichMessage content={message.content} embedsEnabled={message.embedsEnabled} />}
+          : (
+              <Suspense fallback={<p>{message.content}</p>}>
+                <RichMessage content={message.content} embedsEnabled={message.embedsEnabled} />
+              </Suspense>
+            )}
         {!deleted && message.attachments.length
           ? <MessageAttachments message={message} userId={currentUser.id} />
           : null}
         {grouped.size ? (
           <div className="reactions">
-            {[...grouped.entries()].map(([emoji, items]) => (
-              <button
-                className={items.some((item) => item.user === currentUser.id) ? 'mine' : ''}
-                type="button"
-                onClick={() => void run(() => adapter.react(message, emoji))}
-                key={emoji}
-              >
-                <span>{emoji}</span>{items.length}
-              </button>
-            ))}
+            {[...grouped.entries()].map(([emoji, items]) => {
+              const reacted = items.some((item) => item.user === currentUser.id)
+              const reactionCount = `${items.length} reaction${items.length === 1 ? '' : 's'}`
+              return (
+                <button
+                  className={reacted ? 'mine' : ''}
+                  type="button"
+                  aria-label={`${reacted ? 'Remove' : 'Add'} ${emoji} reaction, ${reactionCount}`}
+                  aria-pressed={reacted}
+                  onClick={() => void run(() => adapter.react(message, emoji))}
+                  key={emoji}
+                >
+                  <span aria-hidden="true">{emoji}</span>{items.length}
+                </button>
+              )
+            })}
           </div>
         ) : null}
       </div>
       {!deleted ? (
         <div className="message-actions">
-          <button type="button" title="Add reaction" onClick={() => setReactionOpen((value) => !value)}>
+          <button
+            type="button"
+            title="Add reaction"
+            aria-expanded={reactionOpen}
+            aria-controls={reactionPickerId}
+            onClick={() => setReactionOpen((value) => !value)}
+          >
             <SmilePlus size={15} />
           </button>
           {adapter.policy.canPin(message, currentUser) ? (
-            <button type="button" title={message.pinned ? 'Unpin' : 'Pin'} onClick={() => void run(() => adapter.pin(message))}>
-              <Pin size={15} />
+            <button
+              type="button"
+              title={message.pinned ? 'Unpin' : 'Pin'}
+              aria-label={message.pinned ? 'Unpin message' : 'Pin message'}
+              onClick={() => void run(() => adapter.pin(message))}
+            >
+              {message.pinned ? <PinOff size={15} /> : <Pin size={15} />}
             </button>
           ) : null}
-          <button type="button" title="Reply" onClick={onReply}><MessageSquareText size={15} /></button>
+          <button type="button" title="Reply" onClick={() => onReply(message)}><MessageSquareText size={15} /></button>
           {adapter.policy.canEdit(message, currentUser)
-            ? <button type="button" title="Edit" onClick={onEdit}><FileText size={15} /></button>
+            ? <button type="button" title="Edit" onClick={() => onEdit(message)}><FileText size={15} /></button>
             : null}
           {adapter.policy.canDelete(message, currentUser) ? (
             <button type="button" title="Delete" onClick={() => void run(() => adapter.remove(message))}>
@@ -275,13 +264,63 @@ function MessageRow<TMessage extends SurfaceMessage,>({
         </div>
       ) : null}
       {reactionOpen ? (
-        <EmojiPicker onSelect={(emoji) => {
+        <EmojiPicker id={reactionPickerId} onSelect={(emoji) => {
           void run(() => adapter.react(message, emoji))
           setReactionOpen(false)
         }} />
       ) : null}
       {actionError ? <div className="message-action-error" role="alert">{actionError}</div> : null}
     </article>
+  )
+}
+
+const MessageRow = memo(MessageRowComponent) as typeof MessageRowComponent
+
+function MessageLog<TMessage extends SurfaceMessage,>({
+  messages,
+  highlightedMessageId,
+  messageElementPrefix,
+  reactionsByMessageId,
+  currentUser,
+  adapter,
+  onReply,
+  onEdit,
+}: {
+  readonly messages: readonly TMessage[]
+  readonly highlightedMessageId: string
+  readonly messageElementPrefix: string
+  readonly reactionsByMessageId: ReadonlyMap<string, readonly SurfaceReaction[]>
+  readonly currentUser: MessageSurfaceProps<TMessage>['currentUser']
+  readonly adapter: MessageSurfaceAdapter<TMessage>
+  readonly onReply: (message: TMessage) => void
+  readonly onEdit: (message: TMessage) => void
+}) {
+  return (
+    <div
+      className="message-list"
+      role="log"
+      aria-label="Messages"
+      aria-live="polite"
+      aria-relevant="additions text"
+    >
+      {messages.map((message) => (
+        <div
+          id={`${messageElementPrefix}${message.id}`}
+          className={`message-list-item ${highlightedMessageId === message.id ? 'message-highlight' : ''}`.trim()}
+          data-message-id={message.id}
+          key={message.id}
+        >
+          <MessageRow
+            message={message}
+            reactions={reactionsByMessageId.get(message.id) ?? []}
+            currentUser={currentUser}
+            adapter={adapter}
+            onReply={onReply}
+            onEdit={onEdit}
+          />
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -306,6 +345,7 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
+  const emojiPickerId = useId()
 
   const addFiles = (selected: readonly File[]) => {
     setError('')
@@ -386,6 +426,7 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
         <input
           value={draft}
           disabled={Boolean(disabledReason) || busy}
+          aria-label={placeholder}
           onChange={(event) => setDraft(event.target.value)}
           placeholder={disabledReason || placeholder}
           maxLength={policyLimits.message.contentMax}
@@ -395,6 +436,7 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
           disabled={Boolean(disabledReason) || busy}
           title="Add emoji"
           aria-expanded={emojiOpen}
+          aria-controls={emojiPickerId}
           onClick={() => setEmojiOpen((value) => !value)}
         ><SmilePlus size={18} /></button>
         <button
@@ -406,7 +448,7 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
       </form>
       {emojiOpen ? (
         <div className="composer-emoji-picker">
-          <EmojiPicker onSelect={(emoji) => {
+          <EmojiPicker id={emojiPickerId} onSelect={(emoji) => {
             setDraft((value) => `${value}${value && !value.endsWith(' ') ? ' ' : ''}${emoji}`)
             setEmojiOpen(false)
           }} />
@@ -435,6 +477,14 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
   const [editing, setEditing] = useState<TMessage | null>(null)
   const [search, setSearch] = useState('')
   const [pinnedOnly, setPinnedOnly] = useState(false)
+  const beginReply = useCallback((message: TMessage) => {
+    setReply(message)
+    setEditing(null)
+  }, [])
+  const beginEdit = useCallback((message: TMessage) => {
+    setEditing(message)
+    setReply(null)
+  }, [])
   const deferredSearch = useDeferredValue(search.trim())
   const readCoordinator = useRef<ReturnType<typeof createReadReceiptCoordinator>>(null!)
   if (readCoordinator.current === null) readCoordinator.current = createReadReceiptCoordinator()
@@ -472,15 +522,29 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
     [focusedMessage.data, history.data],
   )
   const visibleMessages = searchActive ? searchResults : historyMessages
-  const visibleMessageIds = useMemo(
-    () => visibleMessages.map((message) => message.id),
-    [visibleMessages],
+  const messageWindow = useMessageWindow(visibleMessages, highlightedMessageId)
+  const { renderedMessages, renderedMessageIds } = messageWindow
+  const [viewportMessageIds, setViewportMessageIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
   )
+  const reactionMessageIds = useMemo(() => {
+    if (!viewportMessageIds.size) return renderedMessageIds.slice(-40)
+    return renderedMessageIds.filter((id) => viewportMessageIds.has(id))
+  }, [viewportMessageIds, renderedMessageIds])
   const visibleReactions = useQuery({
-    queryKey: [...adapter.reactionsKey, visibleMessageIds.join(',')],
-    enabled: visibleMessageIds.length > 0,
-    queryFn: () => adapter.loadReactions(visibleMessageIds),
+    queryKey: [...adapter.reactionsKey, reactionMessageIds.join(',')],
+    enabled: reactionMessageIds.length > 0,
+    queryFn: () => adapter.loadReactions(reactionMessageIds),
   })
+  const reactionsByMessageId = useMemo(() => {
+    const indexed = new Map<string, SurfaceReaction[]>()
+    for (const reaction of visibleReactions.data ?? []) {
+      const reactions = indexed.get(reaction.message)
+      if (reactions) reactions.push(reaction)
+      else indexed.set(reaction.message, [reaction])
+    }
+    return indexed
+  }, [visibleReactions.data])
   const showEmptyState = shouldShowEmptyMessageState(visibleMessages.length, [
     history.isLoading,
     history.isError,
@@ -489,6 +553,36 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
     focusedMessage.isLoading,
     focusedMessage.isError,
   ])
+
+  useEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    const messageElements = [
+      ...list.querySelectorAll<HTMLElement>('[data-message-id]'),
+    ]
+    if (!('IntersectionObserver' in window)) return
+    const observer = new IntersectionObserver((entries) => {
+      startTransition(() => {
+        setViewportMessageIds((current) => {
+          const next = new Set(current)
+          let changed = false
+          for (const entry of entries) {
+            const id = (entry.target as HTMLElement).dataset.messageId
+            if (!id) continue
+            if (entry.isIntersecting && !next.has(id)) {
+              next.add(id)
+              changed = true
+            } else if (!entry.isIntersecting && next.delete(id)) {
+              changed = true
+            }
+          }
+          return changed ? next : current
+        })
+      })
+    }, { root: list, rootMargin: '600px 0px' })
+    for (const element of messageElements) observer.observe(element)
+    return () => observer.disconnect()
+  }, [renderedMessageIds])
 
   useEffect(() => {
     const list = listRef.current
@@ -506,7 +600,7 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
       return
     }
     if (wasNearBottom.current) list.scrollTo({ top: list.scrollHeight })
-  }, [highlightedMessageId, messageElementPrefix, visibleMessages.length])
+  }, [highlightedMessageId, messageElementPrefix, renderedMessages.length])
 
   useEffect(() => {
     const coordinator = readCoordinator.current
@@ -542,13 +636,14 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
       <div
         className="message-scroll"
         ref={listRef}
+        aria-busy={history.isLoading || (searchActive && filteredMessages.isLoading)}
         onScroll={(event) => {
           const element = event.currentTarget
           wasNearBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 120
         }}
       >
         {intro}
-        {history.isLoading ? <div className="loading-state">Loading messages…</div> : null}
+        {history.isLoading ? <LoadingState>Loading messages…</LoadingState> : null}
         {history.isError ? (
           <DataFailure
             error={history.error}
@@ -563,19 +658,31 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
             label="Could not load the linked message."
           />
         ) : null}
-        {!searchActive && history.hasNextPage ? (
+        {messageWindow.hasOlderLoaded ? (
+          <button
+            className="load-older"
+            type="button"
+            onClick={() => {
+              priorHeight.current = listRef.current?.scrollHeight ?? 0
+              messageWindow.showOlder()
+            }}
+          >
+            Show older loaded messages
+          </button>
+        ) : !searchActive && history.hasNextPage ? (
           <button
             className="load-older"
             type="button"
             disabled={history.isFetchingNextPage}
             onClick={() => {
               priorHeight.current = listRef.current?.scrollHeight ?? 0
+              messageWindow.expectOlderMessages()
               void history.fetchNextPage()
             }}
           >{history.isFetchingNextPage ? 'Loading…' : 'Load older messages'}</button>
         ) : null}
         {searchActive && filteredMessages.isLoading
-          ? <div className="loading-state">Searching messages…</div>
+          ? <LoadingState>Searching messages…</LoadingState>
           : null}
         {searchActive && filteredMessages.isError ? (
           <DataFailure
@@ -585,32 +692,16 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
           />
         ) : null}
         {visibleMessages.length ? (
-          <div className="message-list">
-            {visibleMessages.map((message) => (
-              <div
-                id={`${messageElementPrefix}${message.id}`}
-                className={highlightedMessageId === message.id ? 'message-highlight' : ''}
-                key={message.id}
-              >
-                <MessageRow
-                  message={message}
-                  reactions={(visibleReactions.data ?? []).filter(
-                    (reaction) => reaction.message === message.id,
-                  )}
-                  currentUser={currentUser}
-                  adapter={adapter}
-                  onReply={() => {
-                    setReply(message)
-                    setEditing(null)
-                  }}
-                  onEdit={() => {
-                    setEditing(message)
-                    setReply(null)
-                  }}
-                />
-              </div>
-            ))}
-          </div>
+          <MessageLog
+            messages={renderedMessages}
+            highlightedMessageId={highlightedMessageId}
+            messageElementPrefix={messageElementPrefix}
+            reactionsByMessageId={reactionsByMessageId}
+            currentUser={currentUser}
+            adapter={adapter}
+            onReply={beginReply}
+            onEdit={beginEdit}
+          />
         ) : showEmptyState ? (
           <div className="empty-channel">
             <h2>{searchActive ? 'No matching messages' : emptyTitle}</h2>
@@ -618,6 +709,21 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
               ? <p>Try a different search or clear the pinned filter.</p>
               : emptyDescription ? <p>{emptyDescription}</p> : null}
           </div>
+        ) : null}
+        {messageWindow.hasNewer ? (
+          <button
+            className="load-older"
+            type="button"
+            onClick={() => {
+              messageWindow.showNewer()
+              window.requestAnimationFrame(() => {
+                const list = listRef.current
+                if (list) list.scrollTop = Math.max(0, list.scrollHeight - list.clientHeight)
+              })
+            }}
+          >
+            Show newer messages
+          </button>
         ) : null}
         {searchActive && filteredMessages.hasNextPage ? (
           <button

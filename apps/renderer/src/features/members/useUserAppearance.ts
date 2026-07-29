@@ -1,23 +1,35 @@
 import type { UserPreferences } from '@thiscord/shared'
 import { useEffect } from 'react'
+import {
+  applyAppearance,
+  persistAppearance,
+  type AppearanceTheme,
+  type StoredAppearance,
+} from '../../lib/appearance'
 
 export function useUserAppearance(preferences: UserPreferences | undefined) {
-  const themePreference = preferences?.theme
+  const themePreference = (preferences?.theme ?? 'dark') as AppearanceTheme
   const compactMode = Boolean(preferences?.compactMode)
   const reduceMotion = Boolean(preferences?.reduceMotion)
 
   useEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: light)')
-    const apply = () => {
-      const theme = themePreference === 'system'
-        ? media.matches ? 'light' : 'dark'
-        : themePreference === 'light' ? 'light' : 'dark'
-      document.documentElement.dataset.theme = theme
-      document.documentElement.classList.toggle('compact-mode', compactMode)
-      document.documentElement.classList.toggle('reduce-motion', reduceMotion)
+    const colorMedia = window.matchMedia('(prefers-color-scheme: light)')
+    const motionMedia = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const appearance: StoredAppearance = {
+      theme: themePreference,
+      compactMode,
+      reduceMotion,
     }
+    const apply = () => {
+      applyAppearance(appearance, colorMedia.matches, motionMedia.matches)
+    }
+    persistAppearance(appearance)
     apply()
-    media.addEventListener('change', apply)
-    return () => media.removeEventListener('change', apply)
+    colorMedia.addEventListener('change', apply)
+    motionMedia.addEventListener('change', apply)
+    return () => {
+      colorMedia.removeEventListener('change', apply)
+      motionMedia.removeEventListener('change', apply)
+    }
   }, [compactMode, reduceMotion, themePreference])
 }

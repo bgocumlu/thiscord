@@ -13,6 +13,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react'
 import { usePocketBase } from '../../lib/contexts'
@@ -61,13 +62,21 @@ import {
   updateRemoteAudioPreference,
   writeRemoteAudioPreferences,
 } from './remoteAudioPreferences'
+import {
+  createSpeakingStateStore,
+  resolveSpeakingState,
+  type SpeakingStateStore,
+} from './speakingState'
 
 const CallContext = createContext<CallContextValue | null>(null)
+const SpeakingStateContext = createContext<SpeakingStateStore | null>(null)
 
 function useCallProviderModel(user: User) {
   const client = usePocketBase()
   const resources = useRef<JitsiEngineResources>(null!)
   if (resources.current === null) resources.current = createEngineResources()
+  const speakingState = useRef<SpeakingStateStore>(null!)
+  if (speakingState.current === null) speakingState.current = createSpeakingStateStore()
   const participants = useRef(new Map<string, MutableParticipant>())
   const generation = useRef(0)
   const activeTarget = useRef<CallTargetDescriptor | null>(null)
@@ -180,6 +189,12 @@ function useCallProviderModel(user: User) {
       localVideoKind,
       localVideoKinds: localVideoKinds.current,
     })
+    const participantId = track.isLocal() ? LOCAL_PARTICIPANT : track.getParticipantId()
+    const participant = participants.current.get(participantId)
+    if (participant?.muted && participant.speaking) {
+      participant.speaking = false
+      speakingState.current.set(participantId, false)
+    }
     publish({
       microphoneMuted: participants.current.get(LOCAL_PARTICIPANT)?.audioTrack?.isMuted() ?? true,
     })
@@ -197,10 +212,10 @@ function useCallProviderModel(user: User) {
       const participantId = track.isLocal() ? LOCAL_PARTICIPANT : track.getParticipantId()
       const participant = participants.current.get(participantId)
       if (!participant || typeof level !== 'number') return
-      const speaking = level > 0.18
+      const speaking = resolveSpeakingState(participant.speaking, level)
       if (participant.speaking !== speaking) {
         participant.speaking = speaking
-        publish()
+        speakingState.current.set(participantId, speaking)
       }
     }
     track.addEventListener(events.TRACK_MUTE_CHANGED, syncMute)
@@ -243,7 +258,7 @@ function useCallProviderModel(user: User) {
     }
     trackListenerCleanups.current.set(track, cleanup)
     setTrack(track, false, localVideoKind)
-  }, [publish, setTrack])
+  }, [setTrack])
 
   const prepareCallPresence = useCallback((state: 'joined' | 'update' | 'left') => {
     const target = activeTarget.current
@@ -417,6 +432,7 @@ function useCallProviderModel(user: User) {
       preserveLocalTracks,
     )
     participants.current.clear()
+    speakingState.current.clear()
     if (departing) {
       try {
         await reportCallPresence('left')
@@ -582,6 +598,7 @@ function useCallProviderModel(user: User) {
         },
         onParticipantLeft: (participantId) => {
           participants.current.delete(participantId)
+          speakingState.current.delete(participantId)
           publish()
         },
         onDisplayNameChanged: (participantId, name) => {
@@ -733,6 +750,7 @@ function useCallProviderModel(user: User) {
 
   return {
     value,
+    speakingState: speakingState.current,
     screenSources,
     screenPickerError,
     closeScreenPicker,
@@ -746,25 +764,28 @@ export function CallProvider({ user, children }: {
 }) {
   const {
     value,
+    speakingState,
     screenSources,
     screenPickerError,
     closeScreenPicker,
     selectScreenSource,
   } = useCallProviderModel(user)
   return (
-    <CallContext.Provider value={value}>
-      {children}
-      {screenSources.length ? (
-        <ScreenSourceDialog
-          sources={screenSources}
-          error={screenPickerError}
-          onClose={closeScreenPicker}
-          onSelect={(sourceId, shareSystemAudio) => {
-            void selectScreenSource(sourceId, shareSystemAudio)
-          }}
-        />
-      ) : null}
-    </CallContext.Provider>
+    <SpeakingStateContext.Provider value={speakingState}>
+      <CallContext.Provider value={value}>
+        {children}
+        {screenSources.length ? (
+          <ScreenSourceDialog
+            sources={screenSources}
+            error={screenPickerError}
+            onClose={closeScreenPicker}
+            onSelect={(sourceId, shareSystemAudio) => {
+              void selectScreenSource(sourceId, shareSystemAudio)
+            }}
+          />
+        ) : null}
+      </CallContext.Provider>
+    </SpeakingStateContext.Provider>
   )
 }
 
@@ -772,4 +793,18 @@ export function useCall() {
   const value = useContext(CallContext)
   if (!value) throw new Error('CallProvider is missing.')
   return value
+}
+
+export function useParticipantSpeaking(participantId: string) {
+  const store = useContext(SpeakingStateContext)
+  if (!store) throw new Error('SpeakingStateContext is missing.')
+  const subscribe = useCallback(
+    (listener: () => void) => store.subscribe(participantId, listener),
+    [participantId, store],
+  )
+  const getSnapshot = useCallback(
+    () => store.getSnapshot(participantId),
+    [participantId, store],
+  )
+  return useSyncExternalStore(subscribe, getSnapshot, () => false)
 }

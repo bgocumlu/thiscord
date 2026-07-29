@@ -5,21 +5,20 @@ import type {
   User,
 } from '@thiscord/shared'
 import { useQueryClient } from '@tanstack/react-query'
+import { X } from 'lucide-react'
 import {
-  Bell,
-  BellOff,
-  Menu,
-  Settings,
-  Users,
-  X,
-} from 'lucide-react'
-import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
+  type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../auth/AuthProvider'
+import { useDialogAccessibility } from '../hooks/useDialogAccessibility'
 import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation'
 import { usePocketBase, useRuntimeConfig } from '../lib/contexts'
 import { errorMessage, requestWasDeniedOrMissing } from '../lib/pocketbase'
@@ -33,7 +32,7 @@ import {
   sameCallTarget,
 } from '../features/calls/targets'
 import { useCallNavigation } from '../features/calls/useCallNavigation'
-import { ChannelIcon, ChannelSidebar } from '../features/channels/ChannelSidebar'
+import { ChannelSidebar } from '../features/channels/ChannelSidebar'
 import {
   useChannelTarget,
   useCommunityChannels,
@@ -41,13 +40,7 @@ import {
 } from '../features/channels/queries'
 import { channelKeys } from '../features/channels/queryKeys'
 import { useChannelMute } from '../features/channels/useChannelMute'
-import {
-  ChannelDialog,
-  ChannelSettingsDialog,
-} from '../features/channels/ChannelDialogs'
 import { CommunityRail } from '../features/communities/CommunityRail'
-import { CommunityDialog } from '../features/communities/CommunityDialog'
-import { CommunitySettingsDialog } from '../features/communities/CommunitySettingsDialog'
 import { communityKeys } from '../features/communities/queryKeys'
 import { useMemberships } from '../features/communities/queries'
 import { DirectSidebar } from '../features/conversations/DirectSidebar'
@@ -57,19 +50,11 @@ import {
   useConversationTarget,
 } from '../features/conversations/queries'
 import { ConversationView } from '../features/conversations/ConversationView'
-import { DirectDialog } from '../features/conversations/ConversationDialogs'
 import { useConversationMute } from '../features/conversations/useConversationMute'
 import { useOpenDirectConversation } from '../features/conversations/useOpenDirectConversation'
 import { ChannelMessageView } from '../features/messaging/ChannelMessageView'
 import { MembersPanel } from '../features/members/MembersPanel'
-import {
-  ModerationDialog,
-  type ModerationAction,
-} from '../features/members/MemberAdministration'
-import {
-  MemberProfileDialog,
-  ProfileDialog,
-} from '../features/members/ProfileDialogs'
+import type { ModerationAction } from '../features/members/MemberAdministration'
 import { useCommunityMembers } from '../features/members/queries'
 import { memberApi } from '../features/members/api'
 import type { MemberInteractions } from '../features/members/memberInteractions'
@@ -83,8 +68,41 @@ import { Inbox } from '../features/notifications/Inbox'
 import { roleKeys } from '../features/roles/queryKeys'
 import { useCommunityRoles } from '../features/roles/queries'
 import { GlobalSearch } from '../features/search/GlobalSearch'
-import { DataFailure } from './WorkspacePrimitives'
+import { DataFailure, LoadingState } from './WorkspacePrimitives'
+import { ChannelToolbar, WorkspaceTitlebar } from './WorkspaceChrome'
 import { resolvedPresence } from './workspaceUtils'
+
+const loadChannelDialogs = () => import('../features/channels/ChannelDialogs')
+const loadCommunityDialog = () => import('../features/communities/CommunityDialog')
+const loadCommunitySettingsDialog = () => import('../features/communities/CommunitySettingsDialog')
+const loadConversationDialogs = () => import('../features/conversations/ConversationDialogs')
+const loadMemberAdministration = () => import('../features/members/MemberAdministration')
+const loadProfileDialogs = () => import('../features/members/ProfileDialogs')
+
+const ChannelDialog = lazy(() => loadChannelDialogs().then((module) => ({
+  default: module.ChannelDialog,
+})))
+const ChannelSettingsDialog = lazy(() => loadChannelDialogs().then((module) => ({
+  default: module.ChannelSettingsDialog,
+})))
+const CommunityDialog = lazy(() => loadCommunityDialog().then((module) => ({
+  default: module.CommunityDialog,
+})))
+const CommunitySettingsDialog = lazy(() => loadCommunitySettingsDialog().then((module) => ({
+  default: module.CommunitySettingsDialog,
+})))
+const DirectDialog = lazy(() => loadConversationDialogs().then((module) => ({
+  default: module.DirectDialog,
+})))
+const ModerationDialog = lazy(() => loadMemberAdministration().then((module) => ({
+  default: module.ModerationDialog,
+})))
+const MemberProfileDialog = lazy(() => loadProfileDialogs().then((module) => ({
+  default: module.MemberProfileDialog,
+})))
+const ProfileDialog = lazy(() => loadProfileDialogs().then((module) => ({
+  default: module.ProfileDialog,
+})))
 
 type Modal =
   | { readonly kind: 'community' }
@@ -101,6 +119,23 @@ type Modal =
     }
   | { readonly kind: 'direct' }
   | null
+
+function CompactMembersDialog({
+  onClose,
+  children,
+}: {
+  readonly onClose: () => void
+  readonly children: ReactNode
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  useDialogAccessibility(dialogRef, onClose)
+  return createPortal(
+    <dialog ref={dialogRef} className="members-panel-dialog" aria-label="Member list">
+      {children}
+    </dialog>,
+    document.body,
+  )
+}
 
 function useWorkspaceApp() {
   const { pathname, navigate } = useAppRouter()
@@ -218,9 +253,19 @@ function useWorkspaceApp() {
     () => new Set(channelPermissionQuery.data?.permissions ?? []),
     [channelPermissionQuery.data?.permissions],
   )
-  const [showMembers, setShowMembers] = useState(true)
+  const [compactMembersViewport, setCompactMembersViewport] = useState(
+    () => window.matchMedia('(max-width: 1120px)').matches,
+  )
+  const [showMembers, setShowMembers] = useState(
+    () => !window.matchMedia('(max-width: 1120px)').matches,
+  )
   const [modal, setModal] = useState<Modal>(null)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [mobileViewport, setMobileViewport] = useState(
+    () => window.matchMedia('(max-width: 640px)').matches,
+  )
+  const mobileNavigationModal = mobileSidebarOpen && mobileViewport
+  const mobileNavigationTriggerRef = useRef<HTMLButtonElement>(null)
   const [memberActionBusy, setMemberActionBusy] = useState(false)
   const [memberActionError, setMemberActionError] = useState('')
   const [acknowledgedNsfw, setAcknowledgedNsfw] = useState<ReadonlySet<string>>(() => {
@@ -234,6 +279,72 @@ function useWorkspaceApp() {
     currentUser,
     Boolean(call.session && call.session.status !== 'error'),
   )
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 640px)')
+    const update = () => setMobileViewport(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 1120px)')
+    const update = () => {
+      setCompactMembersViewport(media.matches)
+      if (media.matches) setShowMembers(false)
+    }
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    if (!mobileNavigationModal) return
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : mobileNavigationTriggerRef.current
+    const focusNavigation = window.requestAnimationFrame(() => {
+      const activeDestination = document.querySelector<HTMLElement>(
+        '#community-navigation [aria-current="page"]',
+      )
+      const firstNavigationControl = document.querySelector<HTMLElement>(
+        '#community-navigation button:not([disabled])',
+      )
+      ;(activeDestination ?? firstNavigationControl)?.focus()
+    })
+    const navigationControls = () => [
+      ...document.querySelectorAll<HTMLElement>(
+        '.server-rail button:not([disabled]), '
+        + '#community-navigation button:not([disabled]), '
+        + '.mobile-sidebar-scrim',
+      ),
+    ].filter((element) => element.getClientRects().length > 0)
+    const handleNavigationKeys = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setMobileSidebarOpen(false)
+        return
+      }
+      if (event.key !== 'Tab') return
+      const controls = navigationControls()
+      if (!controls.length) return
+      const first = controls[0]
+      const last = controls.at(-1)!
+      const active = document.activeElement
+      if (event.shiftKey && (active === first || !controls.includes(active as HTMLElement))) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && (active === last || !controls.includes(active as HTMLElement))) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener('keydown', handleNavigationKeys)
+    return () => {
+      window.cancelAnimationFrame(focusNavigation)
+      window.removeEventListener('keydown', handleNavigationKeys)
+      if (previousFocus?.isConnected) previousFocus.focus()
+    }
+  }, [mobileNavigationModal])
   const visiblePresence = useMemo(() => {
     const records = (communityData.presence.data ?? [])
       .filter((item) => item.user !== currentUser.id)
@@ -379,6 +490,9 @@ function useWorkspaceApp() {
     directConversation.clearError()
   }
 
+  if (memberships.isLoading) {
+    return <LoadingState fullscreen>Loading your communities…</LoadingState>
+  }
   if (memberships.isError) {
     return <main className="fatal-startup"><section><h1>Could not load your communities</h1><p>{errorMessage(memberships.error)}</p><button className="primary-action" type="button" onClick={() => void memberships.refetch()}>Try again</button></section></main>
   }
@@ -397,14 +511,30 @@ function useWorkspaceApp() {
         : callOccupancy.isError
           ? { label: 'Could not refresh call occupancy.', error: callOccupancy.error, retry: callOccupancy.refetch }
       : null
+  const membersPanel = community && showMembers ? (
+    <MembersPanel
+      memberships={communityData.members.data ?? []}
+      presence={visiblePresence}
+      roles={communityData.roles.data ?? []}
+      memberRoles={communityData.memberRoles.data ?? []}
+      hasMore={Boolean(communityData.members.hasNextPage)}
+      loadingMore={communityData.members.isFetchingNextPage}
+      onLoadMore={() => void communityData.members.fetchNextPage()}
+      interactions={communityMemberInteractions}
+      error={communityData.members.isError ? communityData.members.error : undefined}
+      onRetry={() => void communityData.members.refetch()}
+      onClose={compactMembersViewport ? () => setShowMembers(false) : undefined}
+    />
+  ) : null
 
   return (
     <div className="app-shell">
-      <header className="app-titlebar">
-        <div className="wordmark"><span className="wordmark-mark"><i /><i /></span><strong>{config.name}</strong></div>
-        <GlobalSearch onOpenMember={(person) => setModal({ kind: 'member', user: person })} />
-        <Inbox currentUser={currentUser} />
-      </header>
+      <WorkspaceTitlebar
+        name={config.name}
+        search={<GlobalSearch onOpenMember={(person) => setModal({ kind: 'member', user: person })} />}
+        inbox={<Inbox currentUser={currentUser} />}
+        inert={mobileNavigationModal}
+      />
 
       <div className={`app-grid ${showMembers && community ? '' : 'members-hidden'} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''}`}>
         <CommunityRail
@@ -455,25 +585,40 @@ function useWorkspaceApp() {
           />
         )}
 
-        <main className="content-panel">
+        <main
+          className="content-panel"
+          inert={mobileNavigationModal ? true : undefined}
+          aria-busy={community
+            ? communityData.channels.isLoading
+            : conversationsData.conversations.isLoading || conversationsData.members.isLoading}
+        >
           {community && activeChannel ? (
             <>
-              <header className="channel-toolbar">
-                <button className="mobile-nav-button" type="button" aria-label="Open community navigation" onClick={() => setMobileSidebarOpen((value) => !value)}><Menu size={18} /></button>
-                <div className="channel-toolbar-title"><ChannelIcon kind={activeChannel.kind} /><strong>{activeChannel.name}</strong>{activeChannel.topic ? <><span /><p>{activeChannel.topic}</p></> : null}</div>
-                <div className="channel-toolbar-actions">
-                  <button type="button" title={channelMute.muted ? 'Unmute channel notifications' : 'Mute channel notifications'} onClick={() => void channelMute.toggle()}>{channelMute.muted ? <BellOff size={18} /> : <Bell size={18} />}</button>
-                  {(channelPermissions.has('manage_channels') || channelPermissions.has('manage_roles')) ? <button type="button" title="Channel settings" onClick={() => setModal({ kind: 'channelSettings', channel: activeChannel })}><Settings size={18} /></button> : null}
-                  <button className={showMembers ? 'active' : ''} type="button" title="Member list" onClick={() => setShowMembers((value) => !value)}><Users size={19} /></button>
-                </div>
-              </header>
+              <ChannelToolbar
+                channel={activeChannel}
+                navigationOpen={mobileSidebarOpen}
+                navigationTriggerRef={mobileNavigationTriggerRef}
+                muted={channelMute.muted}
+                canManage={channelPermissions.has('manage_channels') || channelPermissions.has('manage_roles')}
+                membersOpen={showMembers}
+                onToggleNavigation={() => {
+                  setShowMembers(false)
+                  setMobileSidebarOpen((value) => !value)
+                }}
+                onToggleMute={() => void channelMute.toggle()}
+                onOpenSettings={() => setModal({ kind: 'channelSettings', channel: activeChannel })}
+                onToggleMembers={() => {
+                  setMobileSidebarOpen(false)
+                  setShowMembers((value) => !value)
+                }}
+              />
               {activeChannel.nsfw && !acknowledgedNsfw.has(activeChannel.id) ? (
                 <section className="nsfw-gate"><strong>Age-restricted channel</strong><p>This channel may contain content intended for adults.</p><button className="primary-action" type="button" onClick={() => {
                   const next = new Set(acknowledgedNsfw)
                   next.add(activeChannel.id)
                   sessionStorage.setItem('thiscord_nsfw_ack', JSON.stringify([...next]))
                   setAcknowledgedNsfw(next)
-                }}>Continue</button></section>
+                }}>Enter age-restricted channel</button></section>
               ) : activeChannel.kind === 'voice'
                 ? (
                     <VoiceChannelSurface
@@ -487,7 +632,7 @@ function useWorkspaceApp() {
           ) : community ? (
             communityData.channels.isError
               ? <DataFailure error={communityData.channels.error} onRetry={() => void communityData.channels.refetch()} label="Could not load channels." />
-              : <div className="loading-state">{communityData.channels.isLoading ? 'Loading channels…' : 'Select a channel.'}</div>
+              : <LoadingState>{communityData.channels.isLoading ? 'Loading channels…' : 'Select a channel.'}</LoadingState>
           ) : (
             conversationsData.conversations.isError || conversationsData.members.isError
               ? <DataFailure
@@ -495,43 +640,39 @@ function useWorkspaceApp() {
                   onRetry={() => { void conversationsData.conversations.refetch(); void conversationsData.members.refetch() }}
                   label="Could not load direct messages."
                 />
-               : <ConversationView
-                    key={activeConversation?.id ?? 'direct-home'}
-                    conversation={activeConversation}
-                    members={conversationMembers}
-                    currentUser={currentUser}
-                    callTarget={activeConversationCallTarget}
-                    callOccupancy={callOccupancy.data ?? []}
-                    callActive={Boolean(
-                      activeConversationCallTarget
-                      && call.session
-                      && sameCallTarget(call.session.target.target, activeConversationCallTarget.target)
-                    )}
-                    muted={conversationMute.muted}
-                    onStartCall={(target) => void call.join(target)}
-                    onToggleMute={() => void conversationMute.toggle()}
-                    onOpenNavigation={() => setMobileSidebarOpen((value) => !value)}
-                    memberInteractions={directMemberInteractions}
-                  />
+               : conversationsData.conversations.isLoading || conversationsData.members.isLoading
+                 ? <LoadingState>Loading conversations…</LoadingState>
+                 : <ConversationView
+                      key={activeConversation?.id ?? 'direct-home'}
+                      conversation={activeConversation}
+                      members={conversationMembers}
+                      currentUser={currentUser}
+                      callTarget={activeConversationCallTarget}
+                      callOccupancy={callOccupancy.data ?? []}
+                      callActive={Boolean(
+                        activeConversationCallTarget
+                        && call.session
+                        && sameCallTarget(call.session.target.target, activeConversationCallTarget.target)
+                      )}
+                      muted={conversationMute.muted}
+                      navigationOpen={mobileSidebarOpen}
+                      onStartCall={(target) => void call.join(target)}
+                      onToggleMute={() => void conversationMute.toggle()}
+                      onOpenNavigation={() => setMobileSidebarOpen((value) => !value)}
+                      memberInteractions={directMemberInteractions}
+                    />
           )}
         </main>
         {mobileSidebarOpen ? <button className="mobile-sidebar-scrim" type="button" aria-label="Close navigation" onClick={() => setMobileSidebarOpen(false)} /> : null}
-        {community && showMembers ? (
-          communityData.members.isError
-            ? <aside className="members-panel"><DataFailure error={communityData.members.error} onRetry={() => void communityData.members.refetch()} label="Could not load members." /></aside>
-            : <MembersPanel
-                memberships={communityData.members.data ?? []}
-                presence={visiblePresence}
-                roles={communityData.roles.data ?? []}
-                memberRoles={communityData.memberRoles.data ?? []}
-                hasMore={Boolean(communityData.members.hasNextPage)}
-                loadingMore={communityData.members.isFetchingNextPage}
-                onLoadMore={() => void communityData.members.fetchNextPage()}
-                interactions={communityMemberInteractions}
-              />
-        ) : null}
+        {!compactMembersViewport ? membersPanel : null}
       </div>
+      {compactMembersViewport && membersPanel ? (
+        <CompactMembersDialog onClose={() => setShowMembers(false)}>
+          {membersPanel}
+        </CompactMembersDialog>
+      ) : null}
 
+      <Suspense fallback={<div className="modal-loading" role="status">Opening dialog…</div>}>
       {modal?.kind === 'community' ? (
         <CommunityDialog
           onClose={() => setModal(null)}
@@ -674,6 +815,7 @@ function useWorkspaceApp() {
           navigate(appRoutes.conversations(created.id))
         }} />
       ) : null}
+      </Suspense>
       {actionError ? <div className="toast-error" role="alert">{actionError}<button type="button" aria-label="Dismiss error" onClick={clearActionError}><X size={14} /></button></div> : null}
       {backgroundFailure ? <div className="toast-error" role="alert"><span><strong>{backgroundFailure.label}</strong> {errorMessage(backgroundFailure.error)}</span><button type="button" onClick={() => void backgroundFailure.retry()}>Retry</button></div> : null}
       {!backgroundFailure && (presence.error || realtimeStatus === 'degraded') ? <div className="toast-error connection-warning" role="status"><span>{presence.error || 'Live updates are reconnecting…'}</span></div> : null}

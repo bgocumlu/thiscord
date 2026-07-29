@@ -19,7 +19,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import type { JitsiTrack } from 'lib-jitsi-meet'
 import type { CallParticipantRecord, CallTargetDescriptor, Channel } from '@thiscord/shared'
-import { useCall } from './CallProvider'
+import { useCall, useParticipantSpeaking } from './CallProvider'
 import { mergeCallParticipants } from './participantSync'
 import type { CallParticipant } from './types'
 import { channelCallTarget, sameCallTarget } from './targets'
@@ -121,6 +121,7 @@ function ParticipantTile({
   const tileElement = useRef<HTMLElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null)
+  const speaking = useParticipantSpeaking(participant.id)
   const videoTrack = participant.screenTrack ?? participant.videoTrack
   const membership = memberInteractions?.memberships?.find(
     (item) => item.user === participant.userId,
@@ -157,7 +158,7 @@ function ParticipantTile({
   return (
     <article
       ref={tileElement}
-      className={`voice-tile ${participant.speaking ? 'speaking' : ''} ${featured ? 'spotlighted' : ''} ${participant.screenTrack ? 'screen-share' : ''}`}
+      className={`voice-tile ${speaking ? 'speaking' : ''} ${featured ? 'spotlighted' : ''} ${participant.screenTrack ? 'screen-share' : ''}`}
       tabIndex={hasMenu ? 0 : undefined}
       aria-label={`${participant.name}${participant.local ? ', you' : ''}`}
       onContextMenu={hasMenu ? (event) => {
@@ -426,7 +427,7 @@ export function CallSurface({
 
       {session.error && session.status !== 'error' ? <div className="call-warning">{session.error}</div> : null}
       {devicesOpen ? (
-        <section className="call-device-panel" aria-label="Call devices">
+        <section id="call-device-panel" className="call-device-panel" aria-label="Call devices">
           <label><Mic size={14} /><span>Microphone</span><select value={call.microphoneDeviceId} onChange={(event) => void call.selectMicrophone(event.target.value)}><option value="">System default</option>{deviceOptions(call.devices, 'audioinput', 'Microphone')}</select></label>
           <label><Video size={14} /><span>Camera</span><select value={call.cameraDeviceId} onChange={(event) => void call.selectCamera(event.target.value)}><option value="">System default</option>{deviceOptions(call.devices, 'videoinput', 'Camera')}</select></label>
           <label><Volume2 size={14} /><span>Speaker</span><select value={call.speakerDeviceId} onChange={(event) => void call.selectSpeaker(event.target.value)}><option value="">System default</option>{deviceOptions(call.devices, 'audiooutput', 'Speaker')}</select></label>
@@ -447,7 +448,13 @@ export function CallSurface({
             <MonitorUp size={18} /><span>{session.screenSharing ? 'Stop sharing' : 'Share screen'}</span>
           </button>
         ) : null}
-        <button className={`control-button ${devicesOpen ? 'active' : ''}`} type="button" onClick={() => { setDevicesOpen((value) => !value); void call.refreshDevices() }}>
+        <button
+          className={`control-button ${devicesOpen ? 'active' : ''}`}
+          type="button"
+          aria-expanded={devicesOpen}
+          aria-controls="call-device-panel"
+          onClick={() => { setDevicesOpen((value) => !value); void call.refreshDevices() }}
+        >
           <Settings2 size={18} /><span>Devices</span>
         </button>
         <button className="control-button leave-control" type="button" onClick={() => void call.leave()}>

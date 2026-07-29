@@ -3,8 +3,12 @@ import type {
   Role,
   User,
 } from '@thiscord/shared'
-import { MoreVertical } from 'lucide-react'
-import { useState } from 'react'
+import { MoreVertical, X } from 'lucide-react'
+import {
+  useMemo,
+  useState,
+  type CSSProperties,
+} from 'react'
 import { DataFailure } from '../../components/WorkspacePrimitives'
 import { resolvedPresence } from '../../components/workspaceUtils'
 import {
@@ -16,16 +20,24 @@ import type { PresenceRecord } from './api'
 import { Avatar } from './Avatar'
 import { MemberContextMenuItems } from './MemberContextMenuItems'
 import type { MemberInteractions } from './memberInteractions'
+import { roleTextColors } from '../roles/colorContrast'
+
+type RoleColorProperties = CSSProperties & {
+  readonly '--role-color-dark': string
+  readonly '--role-color-light': string
+}
 
 function MemberRow({
   membership,
   status,
   highestRole,
+  roleColorStyle,
   interactions,
 }: {
   readonly membership: Membership
   readonly status: ReturnType<typeof resolvedPresence>
   readonly highestRole?: Role
+  readonly roleColorStyle?: RoleColorProperties
   readonly interactions: MemberInteractions
 }) {
   const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null)
@@ -54,7 +66,10 @@ function MemberRow({
       >
         <Avatar user={user} status={status} />
         <span>
-          <strong style={highestRole?.color ? { color: highestRole.color } : undefined}>
+          <strong
+            className={highestRole?.color ? 'role-colored-text' : undefined}
+            style={roleColorStyle}
+          >
             {membership.nickname || user.displayName}
           </strong>
           <small>{user.customStatus || `@${user.handle}`}</small>
@@ -109,6 +124,7 @@ export function MembersPanel({
   onLoadMore,
   error,
   onRetry,
+  onClose,
 }: {
   readonly memberships: Membership[]
   readonly presence: PresenceRecord[]
@@ -120,10 +136,28 @@ export function MembersPanel({
   readonly onLoadMore: () => void
   readonly error?: unknown
   readonly onRetry?: () => void
+  readonly onClose?: () => void
 }) {
+  const roleColorStyles = useMemo(() => new Map<string, RoleColorProperties>(roles.map((
+    role,
+  ): readonly [string, RoleColorProperties] => {
+    const colors = roleTextColors(role.color)
+    return [role.id, {
+      '--role-color-dark': colors.dark,
+      '--role-color-light': colors.light,
+    } as RoleColorProperties]
+  })), [roles])
   if (error) {
     return (
-      <aside className="members-panel">
+      <aside id="member-list-panel" className="members-panel" aria-label="Members">
+        {onClose ? (
+          <div className="members-summary">
+            <div><h2>Members</h2><small>Unavailable</small></div>
+            <button type="button" aria-label="Close member list" onClick={onClose}>
+              <X size={16} />
+            </button>
+          </div>
+        ) : null}
         <DataFailure error={error} onRetry={onRetry ?? (() => undefined)} label="Could not load members." />
       </aside>
     )
@@ -173,20 +207,28 @@ export function MembersPanel({
   )).length
 
   return (
-    <aside className="members-panel">
+    <aside id="member-list-panel" className="members-panel" aria-labelledby="members-panel-title">
       <div className="members-summary">
         <div>
-          <strong>Members</strong>
+          <h2 id="members-panel-title">Members</h2>
           <small>
             {memberships.length}{hasMore ? '+' : ''} member{memberships.length === 1 ? '' : 's'}
             {' · '}{onlineCount} online{hasMore ? ' shown' : ''}
           </small>
         </div>
+        {onClose ? (
+          <button type="button" aria-label="Close member list" onClick={onClose}>
+            <X size={16} />
+          </button>
+        ) : null}
       </div>
       <div className="members-scroll">
         {groups.map((group) => (
           <section className="member-group" key={group.label}>
-            <h3 style={group.role?.color ? { color: group.role.color } : undefined}>
+            <h3
+              className={group.role?.color ? 'role-colored-text' : undefined}
+              style={group.role ? roleColorStyles.get(group.role.id) : undefined}
+            >
               {group.label} — {group.items.length}
             </h3>
             {group.items.map((membership) => {
@@ -199,6 +241,7 @@ export function MembersPanel({
                   membership={membership}
                   status={status}
                   highestRole={highestRole}
+                  roleColorStyle={highestRole ? roleColorStyles.get(highestRole.id) : undefined}
                   interactions={interactions}
                   key={membership.id}
                 />

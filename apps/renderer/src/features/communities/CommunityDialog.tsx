@@ -49,7 +49,7 @@ export function CommunityDialog({ onClose, onCreated }: {
             <label><span>Description</span><textarea name="description" maxLength={policyLimits.community.descriptionMax} rows={3} /></label>
           </>
         ) : <label><span>Invite code or link</span><input name="code" required autoFocus /></label>}
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
         <button className="primary-action" type="submit" disabled={busy}>
           {busy ? 'Working…' : mode === 'create' ? 'Create community' : 'Join community'}
         </button>

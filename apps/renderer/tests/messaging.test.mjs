@@ -5,6 +5,7 @@ import { createChannelMessageAdapter } from '../src/features/messaging/channelMe
 import { createConversationMessageAdapter } from '../src/features/conversations/conversationMessageAdapter.ts'
 import {
   mergeFocusedMessage,
+  messageWindowRange,
   shouldShowEmptyMessageState,
 } from '../src/features/messaging/messagePresentation.ts'
 import { fetchReactionBatches } from '../src/features/messaging/reactionBatches.ts'
@@ -61,6 +62,13 @@ test('message empty state stays hidden while any request is pending or failed', 
   assert.equal(shouldShowEmptyMessageState(0, [false, false]), true)
   assert.equal(shouldShowEmptyMessageState(0, [false, true]), false)
   assert.equal(shouldShowEmptyMessageState(1, [false, false]), false)
+})
+
+test('message rendering stays bounded while older and newer windows remain addressable', () => {
+  assert.deepEqual(messageWindowRange(1_000, 1_000, 400), { start: 600, end: 1_000 })
+  assert.deepEqual(messageWindowRange(1_000, 600, 400), { start: 200, end: 600 })
+  assert.deepEqual(messageWindowRange(120, 120, 400), { start: 0, end: 120 })
+  assert.deepEqual(messageWindowRange(1_000, 0, 400), { start: 600, end: 1_000 })
 })
 
 function adapterFixture() {

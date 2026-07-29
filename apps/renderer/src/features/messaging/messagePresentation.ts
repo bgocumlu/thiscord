@@ -19,3 +19,17 @@ export function shouldShowEmptyMessageState(
 ) {
   return visibleMessageCount === 0 && !pendingOrFailed.some(Boolean)
 }
+
+export function messageWindowRange(
+  messageCount: number,
+  requestedEnd: number,
+  windowSize: number,
+) {
+  const end = requestedEnd > 0 && requestedEnd <= messageCount
+    ? requestedEnd
+    : messageCount
+  return {
+    start: Math.max(0, end - windowSize),
+    end,
+  }
+}

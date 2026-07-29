@@ -1,7 +1,7 @@
 {
   "name": "Thiscord",
   "short_name": "Thiscord",
-  "description": "Thiscord",
+  "description": "Communities, messages, voice, and video in one place.",
   "theme_color": "#111216",
   "background_color": "#0b0c0f",
   "display": "standalone",

@@ -120,8 +120,8 @@ export function ProfileDialog({ user, onClose, onLogout }: {
           <label><span>New password</span><input name="newPassword" type="password" minLength={8} autoComplete="new-password" /></label>
           <label><span>Confirm new password</span><input name="newPasswordConfirm" type="password" minLength={8} autoComplete="new-password" /></label>
         </details>
-        {error ? <p className="form-error">{error}</p> : null}
-        {saved ? <p className="form-notice">Saved.</p> : null}
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
+        {saved ? <p className="form-notice" role="status">Saved.</p> : null}
         <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button>
       </form>
       {user.verified === false && user.email ? (

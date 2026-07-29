@@ -71,10 +71,34 @@ export function Inbox({ currentUser }: { readonly currentUser: User }) {
   const { navigate } = useAppRouter()
   const notifications = useNotifications(currentUser.id)
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const items = notifications.data ?? []
   const unread = items.filter((item) => !item.readAt)
   const unreadCount = notifications.unreadCount.data?.count ?? unread.length
   useNotificationSound(items, notifications.isSuccess, currentUser)
+
+  useEffect(() => {
+    if (!open) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
+    const closeOnPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (
+        !popoverRef.current?.contains(target)
+        && !triggerRef.current?.contains(target)
+      ) setOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('pointerdown', closeOnPointerDown)
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('pointerdown', closeOnPointerDown)
+    }
+  }, [open])
 
   const openNotification = (notification: Notification) => {
     if (!notification.readAt) {
@@ -100,9 +124,12 @@ export function Inbox({ currentUser }: { readonly currentUser: User }) {
     <>
       <div className="titlebar-actions">
         <button
+          ref={triggerRef}
           className={open ? 'active' : ''}
           type="button"
           title="Inbox"
+          aria-expanded={open}
+          aria-controls="notifications-popover"
           onClick={() => setOpen((value) => !value)}
         >
           <InboxIcon size={17} />
@@ -110,7 +137,13 @@ export function Inbox({ currentUser }: { readonly currentUser: User }) {
         </button>
       </div>
       {open ? (
-        <div className="notifications-popover">
+        <div
+          ref={popoverRef}
+          id="notifications-popover"
+          className="notifications-popover"
+          role="region"
+          aria-label="Inbox notifications"
+        >
           <header>
             <span><strong>Inbox</strong><small>{unreadCount} unread</small></span>
             {unreadCount ? (
@@ -135,7 +168,12 @@ export function Inbox({ currentUser }: { readonly currentUser: User }) {
                 <strong>{notification.type.replace(/_/g, ' ')}</strong>
                 <small>{formatTime(notification.created)}</small>
               </span>
-              {!notification.readAt ? <i /> : null}
+              {!notification.readAt ? (
+                <>
+                  <i aria-hidden="true" />
+                  <span className="visually-hidden">Unread</span>
+                </>
+              ) : null}
             </button>
           ))}
           {notifications.hasNextPage ? (

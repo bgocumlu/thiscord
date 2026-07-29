@@ -6,6 +6,7 @@ import App from './App.tsx'
 import type { DesktopApi } from '@thiscord/shared'
 import { AuthProvider } from './auth/AuthProvider'
 import { PocketBaseContext, RuntimeContext } from './lib/contexts'
+import { applyAppearance, readStoredAppearance } from './lib/appearance'
 import { createPocketBase } from './lib/pocketbase'
 import { loadRuntimeConfig } from './lib/runtimeConfig'
 
@@ -14,6 +15,8 @@ declare global {
     desktop?: DesktopApi
   }
 }
+
+applyAppearance(readStoredAppearance())
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +31,16 @@ const queryClient = new QueryClient({
 let startupName = 'Thiscord'
 
 async function bootstrap() {
+  if (
+    import.meta.env.DEV
+    && new URLSearchParams(window.location.search).get('renderer-test') === 'workspace-controls'
+  ) {
+    const { RendererTestHarness } = await import('./testing/RendererTestHarness')
+    createRoot(document.getElementById('root')!).render(
+      <StrictMode><RendererTestHarness /></StrictMode>,
+    )
+    return
+  }
   const config = await loadRuntimeConfig()
   startupName = config.name
   const pocketBase = await createPocketBase(config)

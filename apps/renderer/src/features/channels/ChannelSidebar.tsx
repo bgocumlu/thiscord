@@ -39,7 +39,8 @@ import { usePocketBase } from '../../lib/contexts'
 import { Avatar } from '../members/Avatar'
 import { MemberContextMenuItems } from '../members/MemberContextMenuItems'
 import type { MemberInteractions } from '../members/memberInteractions'
-import { useCall } from '../calls/CallProvider'
+import { useCall, useParticipantSpeaking } from '../calls/CallProvider'
+import { loadJitsiEngine } from '../calls/jitsiEngine'
 import { mergeCallParticipants } from '../calls/participantSync'
 import { CallDock } from '../calls/CallSurface'
 import { channelCallTarget, participantBelongsToTarget, sameCallTarget } from '../calls/targets'
@@ -106,12 +107,25 @@ export function ChannelSidebar({
     channel.kind !== 'category' && (!channel.parent || !categoryIds.has(channel.parent))
   ))
   return (
-    <aside className="channel-sidebar">
+    <aside
+      id="community-navigation"
+      className="channel-sidebar"
+      aria-label={`${community.name} channels`}
+    >
       <div className="community-header">
         <span><strong>{community.name}</strong></span>
         <button type="button" onClick={onSettings} title="Community settings"><Settings size={16} /></button>
       </div>
-      {bannerUrl ? <img className="community-banner" src={bannerUrl} alt="" /> : null}
+      {bannerUrl ? (
+        <img
+          className="community-banner"
+          src={bannerUrl}
+          alt=""
+          width="640"
+          height="180"
+          decoding="async"
+        />
+      ) : null}
       <div className="channel-scroll">
         {uncategorized.map((channel) => (
           <ChannelButton channel={channel} occupants={voiceOccupancy} active={channel.id === activeChannelId} unread={unreadChannelIds.has(channel.id)} onSelect={onSelect} permissions={effectivePermissions} memberInteractions={memberInteractions} key={channel.id} />
@@ -119,7 +133,11 @@ export function ChannelSidebar({
         {categories.map((category) => (
           <section className="channel-category" key={category.id}>
             <div className="category-heading">
-              <button type="button" aria-expanded={!collapsed.has(category.id)} onClick={() => setCollapsed((current) => {
+              <button
+                type="button"
+                aria-expanded={!collapsed.has(category.id)}
+                aria-controls={`category-${category.id}-channels`}
+                onClick={() => setCollapsed((current) => {
                 const next = new Set(current)
                 if (next.has(category.id)) next.delete(category.id)
                 else next.add(category.id)
@@ -132,11 +150,13 @@ export function ChannelSidebar({
                 </span>
               ) : null}
             </div>
-            {!collapsed.has(category.id) ? channels.flatMap((channel) => (
-              channel.parent === category.id
-                ? [<ChannelButton channel={channel} occupants={voiceOccupancy} active={channel.id === activeChannelId} unread={unreadChannelIds.has(channel.id)} onSelect={onSelect} permissions={effectivePermissions} memberInteractions={memberInteractions} key={channel.id} />]
-                : []
-            )) : null}
+            <div id={`category-${category.id}-channels`} className="category-channels">
+              {!collapsed.has(category.id) ? channels.flatMap((channel) => (
+                channel.parent === category.id
+                  ? [<ChannelButton channel={channel} occupants={voiceOccupancy} active={channel.id === activeChannelId} unread={unreadChannelIds.has(channel.id)} onSelect={onSelect} permissions={effectivePermissions} memberInteractions={memberInteractions} key={channel.id} />]
+                  : []
+              )) : null}
+            </div>
           </section>
         ))}
         {hasMore ? <button className="secondary-action sidebar-load-more" type="button" disabled={loadingMore} onClick={onLoadMore}>{loadingMore ? 'Loading…' : 'Load more channels'}</button> : null}
@@ -175,6 +195,7 @@ function VoiceParticipantRow({
   readonly interactions: MemberInteractions
 }) {
   const call = useCall()
+  const speaking = useParticipantSpeaking(participant.id)
   const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null)
   const longPressTimer = useRef<number | undefined>(undefined)
   const longPressStart = useRef({ x: 0, y: 0 })
@@ -262,7 +283,7 @@ function VoiceParticipantRow({
         onPointerCancel={clearLongPress}
         onPointerLeave={clearLongPress}
       >
-        <span className={`voice-member-avatar ${participant.speaking ? 'speaking' : ''}`}>{initials(participant.name)}</span>
+        <span className={`voice-member-avatar ${speaking ? 'speaking' : ''}`}>{initials(participant.name)}</span>
         <span>{participant.name}</span>
         {participant.serverMuted || participant.muted ? <MicOff size={12} /> : null}
       </button>
@@ -358,9 +379,18 @@ function ChannelButton({
   const callParticipants = mergeCallParticipants(liveParticipants, sharedParticipants, target.target)
   return (
     <>
-      <button className={`channel-row ${active ? 'active' : ''} ${unread ? 'unread' : ''} ${callParticipants.length ? 'connected' : ''}`} type="button" onClick={() => onSelect(channel)}>
+      <button
+        className={`channel-row ${active ? 'active' : ''} ${unread ? 'unread' : ''} ${callParticipants.length ? 'connected' : ''}`}
+        type="button"
+        aria-current={active ? 'page' : undefined}
+        onPointerEnter={channel.kind === 'voice' ? () => void loadJitsiEngine().catch(() => undefined) : undefined}
+        onPointerDown={channel.kind === 'voice' ? () => void loadJitsiEngine().catch(() => undefined) : undefined}
+        onFocus={channel.kind === 'voice' ? () => void loadJitsiEngine().catch(() => undefined) : undefined}
+        onClick={() => onSelect(channel)}
+      >
         <ChannelIcon kind={channel.kind} />
         <span className="channel-name">{channel.name}</span>
+        {unread ? <span className="visually-hidden">Unread</span> : null}
       </button>
       {callParticipants.length ? (
         <div className="voice-member-list">

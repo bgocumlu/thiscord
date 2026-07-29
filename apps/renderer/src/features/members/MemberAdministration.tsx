@@ -142,7 +142,7 @@ export function MemberAdminRow({
             <button type="button" disabled={busy} onClick={() => setModerationAction('ban')}>Ban</button>
           </div>
         ) : null}
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
       </article>
       {moderationAction ? (
         <ModerationDialog

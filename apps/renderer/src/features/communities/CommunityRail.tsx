@@ -25,7 +25,7 @@ export function CommunityRail({
   const client = usePocketBase()
   return (
     <nav className="server-rail" aria-label="Communities">
-      <button className={`server-button direct-button ${directActive ? 'active' : ''}`} type="button" title="Direct messages" onClick={onOpenDirect}>
+      <button className={`server-button direct-button ${directActive ? 'active' : ''}`} type="button" title="Direct messages" aria-current={directActive ? 'page' : undefined} onClick={onOpenDirect}>
         <MessageSquareText size={22} strokeWidth={1.9} />
       </button>
       <span className="rail-divider" />
@@ -39,9 +39,12 @@ export function CommunityRail({
             type="button"
             key={community.id}
             title={community.name}
+            aria-current={community.id === activeId ? 'page' : undefined}
             onClick={() => onSelect(community)}
           >
-            {icon ? <img src={icon} alt="" /> : <span>{initials(community.name)}</span>}
+            {icon ? (
+              <img src={icon} alt="" width="128" height="128" decoding="async" />
+            ) : <span>{initials(community.name)}</span>}
           </button>
         )
       })}

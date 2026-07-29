@@ -8,7 +8,10 @@
   -moz-osx-font-smoothing: grayscale;
   --accent: var(--brand-accent, #6957e8);
   --accent-contrast: #ffffff;
-  --accent-light: color-mix(in srgb, var(--accent) 58%, white);
+  --avatar-contrast: #ffffff;
+  --danger-contrast: #20232a;
+  --media-copy: #ffffff;
+  --accent-light: var(--brand-accent-emphasis-dark, #a89ff4);
   --danger: #e36570;
   --canvas: #0d0f13;
   --panel: #14171d;
@@ -35,6 +38,7 @@
   --outline-strong: #3a3c45;
   --copy-secondary: #b9bbc4;
   --copy-tertiary: #9598a2;
+  --control-copy: var(--muted);
   --success: #55c790;
   --success-strong: #4cc38a;
   --warning: #d6a64a;
@@ -44,6 +48,27 @@
   --presence-dnd: #e3636b;
   --presence-offline: #666a74;
   --media-black: #000000;
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-border: color-mix(in srgb, var(--accent) 58%, var(--border));
+  --accent-text: var(--accent-light);
+  --success-surface: color-mix(in srgb, var(--success) 12%, var(--surface-base));
+  --success-border: color-mix(in srgb, var(--success) 60%, var(--border));
+  --success-text: color-mix(in srgb, var(--success) 78%, white);
+  --warning-surface: color-mix(in srgb, var(--warning) 12%, var(--surface-base));
+  --warning-border: color-mix(in srgb, var(--warning) 60%, var(--border));
+  --warning-text: color-mix(in srgb, var(--warning) 78%, white);
+  --danger-surface: color-mix(in srgb, var(--danger) 12%, var(--surface-base));
+  --danger-border: color-mix(in srgb, var(--danger) 60%, var(--border));
+  --danger-text: color-mix(in srgb, var(--danger) 78%, white);
+  --shadow-compact: 0 8px 20px color-mix(in srgb, black 25%, transparent);
+  --shadow-overlay: 0 14px 40px color-mix(in srgb, black 40%, transparent);
+  --shadow-drawer: 18px 0 45px color-mix(in srgb, black 42%, transparent);
+  --shadow-floating: 0 18px 50px color-mix(in srgb, black 48%, transparent);
+  --shadow-modal: 0 25px 80px color-mix(in srgb, black 55%, transparent);
+  --scrim-soft: rgba(3, 4, 6, .58);
+  --scrim-strong: rgba(3, 4, 6, .76);
+  --glass-outline: rgba(255, 255, 255, .08);
+  --message-hover: rgba(255, 255, 255, .018);
   color-scheme: dark;
 }
 
@@ -62,7 +87,7 @@
   --text: #20232a;
   --muted: #5d6470;
   --faint: #737b88;
-  --accent-light: color-mix(in srgb, var(--accent) 82%, black);
+  --accent-light: var(--brand-accent-emphasis-light, #5745d1);
   --surface-sunken: #e7e9ed;
   --surface-base: #ffffff;
   --surface-layer-1: #f4f5f7;
@@ -76,7 +101,13 @@
   --outline-input: #bfc5cf;
   --outline-strong: #aeb6c2;
   --copy-secondary: #5d6470;
-  --copy-tertiary: #737b88;
+  --control-copy: #565e6a;
+  --copy-tertiary: color-mix(in srgb, var(--text) 68%, var(--canvas));
+  --faint: color-mix(in srgb, var(--text) 68%, var(--canvas));
+  --success-text: color-mix(in srgb, var(--success) 62%, black);
+  --warning-text: color-mix(in srgb, var(--warning) 58%, black);
+  --danger-text: color-mix(in srgb, var(--danger) 72%, black);
+  --message-hover: rgba(32, 35, 42, .035);
 }
 
 * {
@@ -133,16 +164,21 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
-::selection {
-  background: rgba(118, 103, 244, 0.35);
-  color: white;
+.visually-hidden {
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
-:root.reduce-motion *,
-:root.reduce-motion *::before,
-:root.reduce-motion *::after {
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent-contrast);
+}
+
+:root.reduce-motion {
   scroll-behavior: auto !important;
-  transition-duration: 0.001ms !important;
-  animation-duration: 0.001ms !important;
-  animation-iteration-count: 1 !important;
 }

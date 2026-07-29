@@ -40,8 +40,22 @@ export function ScreenSourceDialog({
               onClick={() => onSelect(source.id, shareSystemAudio)}
               key={source.id}
             >
-              <img src={source.thumbnailUrl} alt="" />
-              <span>{source.appIconUrl ? <img src={source.appIconUrl} alt="" /> : null}<strong>{source.name}</strong></span>
+              <img
+                src={source.thumbnailUrl}
+                alt=""
+                width={320}
+                height={180}
+                decoding="async"
+              />
+              <span>{source.appIconUrl ? (
+                <img
+                  src={source.appIconUrl}
+                  alt=""
+                  width={18}
+                  height={18}
+                  decoding="async"
+                />
+              ) : null}<strong>{source.name}</strong></span>
             </button>
           ))}
         </div>

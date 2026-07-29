@@ -33,7 +33,7 @@ export default defineConfig({
             id: distribution.id,
             name: distribution.name,
             short_name: distribution.name.slice(0, 30),
-            description: distribution.name,
+            description: `${distribution.name} brings communities, messages, voice, and video together.`,
             start_url: './',
             scope: './',
             display: 'standalone',
@@ -54,6 +54,10 @@ export default defineConfig({
               /<meta name="application-name" content="[^"]*"\s*\/?>/,
               `<meta name="application-name" content="${escapeHtml(distribution.name)}" />`,
             )
+            .replace(
+              /<meta\s+name="description"\s+content="[^"]*"\s*\/?>/,
+              `<meta name="description" content="${escapeHtml(distribution.name)} brings communities, messages, voice, and video together." />`,
+            )
           writeFileSync(indexPath, brandedHtml)
         }
         copyFileSync(
@@ -64,6 +68,10 @@ export default defineConfig({
     },
   ],
   base: publicBasePath,
+  build: {
+    // The call engine is intentionally deferred; exact budgets are enforced after each build.
+    chunkSizeWarningLimit: 1_100,
+  },
   server: {
     port: Number(process.env.PORT ?? 5173),
     strictPort: true,

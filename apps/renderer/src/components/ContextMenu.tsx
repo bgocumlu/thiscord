@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -8,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { contextDialogTabTarget } from './contextMenuKeyboard'
 
 export interface ContextMenuPoint {
   readonly x: number
@@ -16,10 +18,20 @@ export interface ContextMenuPoint {
 
 const CloseMenuContext = createContext<() => void>(() => undefined)
 
-function menuItems(menu: HTMLElement) {
+function dialogControls(menu: HTMLElement) {
   return [...menu.querySelectorAll<HTMLElement>(
-    '[role="menuitem"]:not([disabled]), [role="menuitemcheckbox"]:not([disabled])',
+    'button:not([disabled]), input:not([disabled])',
   )]
+}
+
+function contextMenuHost(point: ContextMenuPoint, returnFocus: HTMLElement | null) {
+  const focusedDialog = returnFocus?.closest<HTMLDialogElement>('dialog[open]')
+  if (focusedDialog) return focusedDialog
+
+  const pointDialog = document
+    .elementFromPoint(point.x, point.y)
+    ?.closest<HTMLDialogElement>('dialog[open]')
+  return pointDialog ?? document.body
 }
 
 export function ContextMenu({
@@ -34,70 +46,147 @@ export function ContextMenu({
   readonly children: ReactNode
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState(point)
+  const [returnFocus] = useState<HTMLElement | null>(() => (
+    document.activeElement instanceof HTMLElement ? document.activeElement : null
+  ))
+  const [portalRoot] = useState(() => contextMenuHost(point, returnFocus))
+  const constrainedToDialog = portalRoot instanceof HTMLDialogElement
+  const [position, setPosition] = useState(() => {
+    if (!constrainedToDialog) return point
+    const bounds = portalRoot.getBoundingClientRect()
+    return {
+      x: point.x - bounds.left,
+      y: point.y - bounds.top,
+    }
+  })
+
+  const closeAndRestoreFocus = useCallback(() => {
+    onClose()
+    window.requestAnimationFrame(() => {
+      const activeElement = document.activeElement
+      if (
+        !activeElement
+        || activeElement === document.body
+        || !activeElement.isConnected
+      ) {
+        returnFocus?.focus()
+      }
+    })
+  }, [onClose, returnFocus])
 
   useLayoutEffect(() => {
     const menu = menuRef.current
     if (!menu) return
     const padding = 8
     const bounds = menu.getBoundingClientRect()
+    const hostBounds = constrainedToDialog
+      ? portalRoot.getBoundingClientRect()
+      : {
+          left: 0,
+          top: 0,
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }
+    const pointInHost = {
+      x: point.x - hostBounds.left,
+      y: point.y - hostBounds.top,
+    }
     setPosition({
-      x: Math.max(padding, Math.min(point.x, window.innerWidth - bounds.width - padding)),
-      y: Math.max(padding, Math.min(point.y, window.innerHeight - bounds.height - padding)),
+      x: Math.max(
+        padding,
+        Math.min(pointInHost.x, hostBounds.width - bounds.width - padding),
+      ),
+      y: Math.max(
+        padding,
+        Math.min(pointInHost.y, hostBounds.height - bounds.height - padding),
+      ),
     })
-    menuItems(menu)[0]?.focus()
-  }, [point])
+    dialogControls(menu)[0]?.focus()
+  }, [constrainedToDialog, point, portalRoot])
 
   useEffect(() => {
     const closeOnPointer = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) onClose()
+      if (!menuRef.current?.contains(event.target as Node)) closeAndRestoreFocus()
     }
-    const closeOnViewportChange = () => onClose()
+    const closeOnResize = () => closeAndRestoreFocus()
+    const closeOnScroll = (event: Event) => {
+      const target = event.target
+      if (
+        target instanceof Node
+        && (
+          menuRef.current?.contains(target)
+          || (constrainedToDialog && portalRoot.contains(target))
+        )
+      ) return
+      closeAndRestoreFocus()
+    }
     window.addEventListener('pointerdown', closeOnPointer)
-    window.addEventListener('resize', closeOnViewportChange)
-    window.addEventListener('scroll', closeOnViewportChange, true)
+    window.addEventListener('resize', closeOnResize)
+    window.addEventListener('scroll', closeOnScroll, true)
     return () => {
       window.removeEventListener('pointerdown', closeOnPointer)
-      window.removeEventListener('resize', closeOnViewportChange)
-      window.removeEventListener('scroll', closeOnViewportChange, true)
+      window.removeEventListener('resize', closeOnResize)
+      window.removeEventListener('scroll', closeOnScroll, true)
     }
-  }, [onClose])
+  }, [closeAndRestoreFocus, constrainedToDialog, portalRoot])
 
   const navigate = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape' || event.key === 'Tab') {
+    if (event.key === 'Escape') {
       event.preventDefault()
-      onClose()
+      closeAndRestoreFocus()
       return
     }
+    const controls = dialogControls(event.currentTarget)
+    if (event.key === 'Tab') {
+      event.preventDefault()
+      if (!controls.length) {
+        closeAndRestoreFocus()
+        return
+      }
+      const currentIndex = controls.indexOf(document.activeElement as HTMLElement)
+      const nextIndex = contextDialogTabTarget(currentIndex, controls.length, event.shiftKey)
+      if (nextIndex === null) {
+        closeAndRestoreFocus()
+      } else {
+        controls[nextIndex]?.focus()
+      }
+      return
+    }
+    if (event.target instanceof HTMLInputElement && event.target.type === 'range') return
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
-    const items = menuItems(event.currentTarget)
-    if (!items.length) return
-    const currentIndex = items.indexOf(document.activeElement as HTMLElement)
+    if (!controls.length) return
+    const currentIndex = controls.indexOf(document.activeElement as HTMLElement)
     const nextIndex = event.key === 'Home'
       ? 0
       : event.key === 'End'
-        ? items.length - 1
+        ? controls.length - 1
         : event.key === 'ArrowDown'
-          ? (currentIndex + 1 + items.length) % items.length
-          : (currentIndex - 1 + items.length) % items.length
-    items[nextIndex]?.focus()
+          ? (currentIndex + 1 + controls.length) % controls.length
+          : (currentIndex - 1 + controls.length) % controls.length
+    controls[nextIndex]?.focus()
   }
 
   return createPortal(
-    <CloseMenuContext.Provider value={onClose}>
+    <CloseMenuContext.Provider value={closeAndRestoreFocus}>
       <div
         ref={menuRef}
         className="context-menu"
-        role="menu"
+        role="dialog"
         aria-label={label}
-        style={{ left: position.x, top: position.y }}
+        style={{
+          left: position.x,
+          top: position.y,
+          position: constrainedToDialog ? 'absolute' : undefined,
+          maxWidth: constrainedToDialog ? 'calc(100% - 16px)' : undefined,
+          maxHeight: constrainedToDialog ? 'calc(100% - 16px)' : undefined,
+        }}
         onKeyDown={navigate}
       >
         {children}
       </div>
     </CloseMenuContext.Provider>,
-    document.body,
+    portalRoot,
   )
 }
 
@@ -121,10 +210,8 @@ export function ContextMenuItem({
     <button
       className={danger ? 'danger' : ''}
       type="button"
-      role={checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
-      aria-checked={checked}
+      aria-pressed={checked}
       disabled={disabled}
-      tabIndex={-1}
       onClick={() => {
         close()
         void onSelect()

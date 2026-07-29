@@ -48,19 +48,26 @@ export function DirectSidebar({
     ))?.expand?.user?.displayName ?? 'Direct message'
   }
   return (
-    <aside className="channel-sidebar direct-sidebar">
+    <aside
+      id="community-navigation"
+      className="channel-sidebar direct-sidebar"
+      aria-label="Direct messages navigation"
+    >
       <div className="community-header direct-header"><strong>Messages</strong><button type="button" onClick={onCreate} title="New message"><Plus size={17} /></button></div>
       <div className="channel-scroll">
         {conversations.map((conversation) => {
           const target = conversationCallTarget(conversation, members, currentUser.id)
+          const name = nameFor(conversation)
+          const unread = conversation.id !== activeId && unreadConversationIds.has(conversation.id)
           const participantCount = callOccupancy.filter((participant) => (
             participantBelongsToTarget(participant, target.target)
           )).length
           return (
-          <button className={`direct-row ${conversation.id === activeId ? 'active' : ''} ${conversation.id !== activeId && unreadConversationIds.has(conversation.id) ? 'unread' : ''}`} type="button" onClick={() => onSelect(conversation)} key={conversation.id}>
-            <span className="direct-avatar">{initials(nameFor(conversation))}</span>
-            <span><strong>{nameFor(conversation)}</strong><small>{conversation.kind === 'group' ? 'Group message' : 'Direct message'}</small></span>
+          <button className={`direct-row ${conversation.id === activeId ? 'active' : ''} ${unread ? 'unread' : ''}`} type="button" aria-current={conversation.id === activeId ? 'page' : undefined} onClick={() => onSelect(conversation)} key={conversation.id}>
+            <span className="direct-avatar" aria-hidden="true">{initials(name)}</span>
+            <span><strong>{name}</strong><small>{conversation.kind === 'group' ? 'Group message' : 'Direct message'}</small></span>
             {participantCount ? <span className="direct-call-presence" title={`${participantCount} in call`}><PhoneCall size={12} />{participantCount}</span> : null}
+            {unread ? <span className="visually-hidden">Unread</span> : null}
           </button>
           )
         })}

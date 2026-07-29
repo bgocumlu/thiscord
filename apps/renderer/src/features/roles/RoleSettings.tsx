@@ -84,7 +84,7 @@ export function RoleSettings({
         </button>
       </form>
       <div className="role-layout">
-        <nav>
+        <nav aria-label="Community roles">
           {roles.map((role) => {
             const ordered = editable.toSorted((left, right) => right.position - left.position)
             const index = ordered.findIndex((item) => item.id === role.id)
@@ -117,7 +117,7 @@ export function RoleSettings({
           <RoleEditor role={selected} permissions={permissions} onChanged={onChanged} key={selected.id} />
         ) : <p>Select an editable role.</p>}
       </div>
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
     </div>
   )
 }
@@ -189,7 +189,7 @@ function RoleEditor({
       </div>
       <label className="checkbox-line"><input name="hoist" type="checkbox" defaultChecked={role.hoist} /><span>Show separately in the member list</span></label>
       <label className="checkbox-line"><input name="mentionable" type="checkbox" defaultChecked={role.mentionable} /><span>Allow members to mention this role</span></label>
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
       <div className="role-actions">
         <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save role'}</button>
         <button className="danger-action" type="button" disabled={busy} onClick={() => void remove()}>Delete role</button>

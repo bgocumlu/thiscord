@@ -116,7 +116,7 @@ export function GroupSettingsDialog({
           )
         })}
       </div>
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
       <button className="danger-action modal-logout" type="button" disabled={busy} onClick={() => void removeMember(currentUser.id)}>
         {busy ? 'Working…' : 'Leave group'}
       </button>
@@ -174,7 +174,7 @@ export function DirectDialog({ onClose, onCreated }: {
         </label>
         <label><span>{kind === 'direct' ? 'Handle' : 'Handles'}</span><input name="handles" placeholder={kind === 'direct' ? '@handle' : '@handle, @another'} required /></label>
         {kind === 'group' ? <label><span>Group name</span><input name="name" required maxLength={policyLimits.conversation.nameMax} /></label> : null}
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
         <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Starting…' : 'Start conversation'}</button>
       </form>
     </ModalFrame>

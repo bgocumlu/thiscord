@@ -427,17 +427,18 @@ function CommunitySettingsView({
   return createPortal(
     <dialog ref={dialogRef} className="modal-backdrop" aria-label={`${community.name} settings`}>
       <section className="settings-card">
-        <aside>
+        <nav className="settings-navigation" aria-label={`${community.name} settings sections`}>
           <strong>{community.name}</strong>
           {availableTabs.map((item) => (
             <button
               className={tab === item ? 'active' : ''}
               type="button"
+              aria-current={tab === item ? 'page' : undefined}
               onClick={() => onTabChange(item)}
               key={item}
             >{item}</button>
           ))}
-        </aside>
+        </nav>
         <div className="settings-content">
           <header>
             <h2>{tab[0].toUpperCase() + tab.slice(1)}</h2>
@@ -445,8 +446,8 @@ function CommunitySettingsView({
               <X size={18} />
             </button>
           </header>
-          {error ? <p className="form-error settings-feedback">{error}</p> : null}
-          {notice ? <p className="form-notice settings-feedback">{notice}</p> : null}
+          {error ? <p className="form-error settings-feedback" role="alert">{error}</p> : null}
+          {notice ? <p className="form-notice settings-feedback" role="status">{notice}</p> : null}
           {tab === 'general' ? (
             <GeneralSettings
               community={community}
