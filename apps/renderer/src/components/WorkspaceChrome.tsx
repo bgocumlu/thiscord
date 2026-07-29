@@ -119,6 +119,7 @@ export function WorkspaceHelp({ supportUrl }: {
             <div><dt>Search everywhere</dt><dd><kbd>Ctrl</kbd><kbd>K</kbd></dd></div>
             <div><dt>Search this conversation</dt><dd><kbd>Ctrl</kbd><kbd>F</kbd></dd></div>
             <div><dt>Focus the message box</dt><dd><kbd>/</kbd></dd></div>
+            <div><dt>New line in a message</dt><dd><kbd>Shift</kbd><kbd>Enter</kbd></dd></div>
             <div><dt>Open item actions</dt><dd><kbd>Shift</kbd><kbd>F10</kbd></dd></div>
             <div><dt>Close menus and dialogs</dt><dd><kbd>Esc</kbd></dd></div>
           </dl>

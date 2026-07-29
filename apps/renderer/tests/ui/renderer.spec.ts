@@ -112,6 +112,42 @@ test.describe('renderer accessibility and responsive contracts', () => {
     expect(styles.fitsViewport).toBe(true)
   })
 
+  test('mobile Enter adds lines and the send button submits the message', async ({ page }) => {
+    await mountWorkspaceControls(page)
+
+    const composer = page.getByRole('textbox', { name: 'Message #general' })
+    await composer.fill('First line')
+    await composer.press('Enter')
+    await composer.type('Second line')
+    await expect(composer).toHaveValue('First line\nSecond line')
+
+    await page.getByRole('button', { name: 'Send' }).click()
+    await expect(composer).toHaveValue('')
+  })
+
+  test('desktop composer grows for multiline drafts and Enter sends', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 700 })
+    await mountWorkspaceControls(page)
+
+    const composer = page.getByRole('textbox', { name: 'Message #general' })
+    const singleLineHeight = await composer.evaluate((element) => element.getBoundingClientRect().height)
+    await composer.fill('First line')
+    await composer.press('Shift+Enter')
+    await composer.type('Second line')
+    await expect(composer).toHaveValue('First line\nSecond line')
+    const multilineHeight = await composer.evaluate((element) => element.getBoundingClientRect().height)
+    expect(multilineHeight).toBeGreaterThan(singleLineHeight)
+
+    await composer.press('Enter')
+    await expect(composer).toHaveValue('')
+  })
+
+  test('rendered message text preserves authored line breaks', async ({ page }) => {
+    await mountWorkspaceControls(page)
+
+    await expect(page.locator('.message-content p')).toHaveCSS('white-space', 'pre-wrap')
+  })
+
   test('non-square avatar images remain fixed square crops', async ({ page }) => {
     await mountWorkspaceControls(page)
 
@@ -295,5 +331,38 @@ test.describe('coarse pointer message actions', () => {
     await expect(confirmation.getByRole('button', { name: 'Delete message', exact: true })).toBeVisible()
     await confirmation.getByRole('button', { name: 'Cancel' }).click()
     await expect(confirmation).toBeHidden()
+  })
+
+  test('message more actions copy the complete message text', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.goto('/auth/reset?renderer-test=workspace-controls')
+    await expect(page.locator('[data-renderer-test-ready="true"]')).toBeVisible()
+
+    await page.getByRole('button', { name: 'More actions for message from Berkay' }).click()
+    const actions = page.getByRole('dialog', { name: 'Actions for message from Berkay' })
+    await actions.getByRole('button', { name: 'Copy text' }).click()
+
+    await expect(page.getByRole('status')).toHaveText('Message text copied.')
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe('A retained production message row')
+  })
+
+  test('single-line mobile composer controls share one vertical center', async ({ page }) => {
+    await page.goto('/auth/reset?renderer-test=workspace-controls')
+    await expect(page.locator('[data-renderer-test-ready="true"]')).toBeVisible()
+
+    const geometry = await page.locator('.composer').evaluate((composer) => (
+      [...composer.querySelectorAll('button, textarea')].map((control) => {
+        const bounds = control.getBoundingClientRect()
+        return {
+          height: bounds.height,
+          center: bounds.top + bounds.height / 2,
+        }
+      })
+    ))
+    const centers = geometry.map(({ center }) => center)
+
+    expect(geometry.every(({ height }) => height === 44)).toBe(true)
+    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThanOrEqual(0.5)
   })
 })

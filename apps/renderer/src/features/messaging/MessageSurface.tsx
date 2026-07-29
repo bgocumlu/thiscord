@@ -1,6 +1,7 @@
 import { policyLimits, type User } from '@thiscord/shared'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import {
+  Copy,
   Ellipsis,
   FileText,
   MessageSquareText,
@@ -55,6 +56,7 @@ import {
   mergeFocusedMessage,
   shouldShowEmptyMessageState,
 } from './messagePresentation'
+import { shouldSubmitMessageComposer } from './messageComposerBehavior'
 import { createReadReceiptCoordinator } from './readState'
 import { useMessageWindow } from './useMessageWindow'
 
@@ -194,6 +196,7 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const reactionPickerId = useId()
   const [actionError, setActionError] = useState('')
+  const [actionNotice, setActionNotice] = useState('')
   const author = message.expand?.author
   if (!author) return null
   const deleted = Boolean(message.deletedAt)
@@ -207,6 +210,16 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
       await action()
     } catch (caught) {
       setActionError(errorMessage(caught))
+    }
+  }
+  const copyText = async () => {
+    setActionError('')
+    setActionNotice('')
+    try {
+      await navigator.clipboard.writeText(message.content)
+      setActionNotice('Message text copied.')
+    } catch {
+      setActionError('Could not copy the message text. Check clipboard access and try again.')
     }
   }
   return (
@@ -235,7 +248,7 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
         {deleted
           ? <p>Message deleted</p>
           : (
-              <Suspense fallback={<p>{message.content}</p>}>
+              <Suspense fallback={<p className="message-content-fallback">{message.content}</p>}>
                 <RichMessage content={message.content} embedsEnabled={message.embedsEnabled} />
               </Suspense>
             )}
@@ -307,6 +320,11 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
           <ContextMenuItem icon={<MessageSquareText size={15} />} onSelect={() => onReply(message)}>
             Reply
           </ContextMenuItem>
+          {message.content ? (
+            <ContextMenuItem icon={<Copy size={15} />} onSelect={copyText}>
+              Copy text
+            </ContextMenuItem>
+          ) : null}
           {adapter.policy.canPin(message, currentUser) ? (
             <ContextMenuItem
               icon={message.pinned ? <PinOff size={15} /> : <Pin size={15} />}
@@ -353,6 +371,9 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
         />
       ) : null}
       {actionError ? <div className="message-action-error" role="alert">{actionError}</div> : null}
+      {actionNotice
+        ? <span className="visually-hidden" role="status">{actionNotice}</span>
+        : null}
     </article>
   )
 }
@@ -428,7 +449,7 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
   const [draft, setDraft] = useState(editing?.content ?? '')
   const [files, setFiles] = useState<File[]>([])
   const fileInput = useRef<HTMLInputElement>(null)
-  const composerInput = useRef<HTMLInputElement>(null)
+  const composerInput = useRef<HTMLTextAreaElement>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
@@ -529,13 +550,27 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
           title={editing ? 'Attachments cannot be changed while editing' : 'Add attachment'}
           onClick={() => fileInput.current?.click()}
         ><Paperclip size={18} /></button>
-        <input
+        <textarea
           ref={composerInput}
+          rows={1}
           value={draft}
           disabled={Boolean(disabledReason) || busy}
           aria-label={placeholder}
           aria-keyshortcuts="/"
           onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            const multilineEnter = window.matchMedia(
+              '(max-width: 640px), (pointer: coarse)',
+            ).matches
+            if (!shouldSubmitMessageComposer({
+              key: event.key,
+              shiftKey: event.shiftKey,
+              isComposing: event.nativeEvent.isComposing,
+              multilineEnter,
+            })) return
+            event.preventDefault()
+            event.currentTarget.form?.requestSubmit()
+          }}
           placeholder={disabledReason || placeholder}
           maxLength={policyLimits.message.contentMax}
         />

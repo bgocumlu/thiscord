@@ -1426,9 +1426,11 @@
 }
 
 .composer {
+  --composer-control-size: 32px;
+
   min-height: 42px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 3px;
   flex: 0 0 auto;
   border: 1px solid var(--border-strong);
@@ -1438,24 +1440,32 @@
   padding: 4px 5px;
 }
 
-.composer input {
+.composer textarea {
   min-width: 0;
+  min-height: var(--composer-control-size);
+  max-height: calc(var(--composer-control-size) + 1.45em * 5);
   flex: 1;
+  field-sizing: content;
+  box-sizing: border-box;
+  resize: none;
+  overflow-y: auto;
   border: 0;
   outline: 0;
   background: transparent;
   color: var(--text);
+  font-family: inherit;
   font-size: 14px;
-  padding: 0 6px;
+  line-height: 1.45;
+  padding: calc((var(--composer-control-size) - 1.45em) / 2) 6px;
 }
 
-.composer input::placeholder {
+.composer textarea::placeholder {
   color: var(--faint);
 }
 
 .composer button {
-  width: 30px;
-  height: 30px;
+  width: var(--composer-control-size);
+  height: var(--composer-control-size);
   display: grid;
   place-items: center;
   flex: 0 0 auto;

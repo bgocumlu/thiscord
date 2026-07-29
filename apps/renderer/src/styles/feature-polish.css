@@ -116,6 +116,16 @@
   overflow-wrap: anywhere;
 }
 
+.message-content p,
+.message-content li,
+.message-content-fallback {
+  white-space: pre-wrap;
+}
+
+.message-content p + p {
+  margin-top: 0.65em;
+}
+
 .message-content > :first-child,
 .message-content p:first-child {
   margin-top: 0;

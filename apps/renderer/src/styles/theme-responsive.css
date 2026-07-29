@@ -96,7 +96,7 @@
   color: var(--text) !important;
 }
 
-:root[data-theme="light"] .composer input,
+:root[data-theme="light"] .composer textarea,
 :root[data-theme="light"] .empty-channel h2 {
   color: var(--text);
 }
@@ -557,6 +557,10 @@
   button {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  .composer {
+    --composer-control-size: 44px;
   }
 
   input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]):not([type="file"]),

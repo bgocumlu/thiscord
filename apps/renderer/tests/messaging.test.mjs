@@ -8,6 +8,7 @@ import {
   messageWindowRange,
   shouldShowEmptyMessageState,
 } from '../src/features/messaging/messagePresentation.ts'
+import { shouldSubmitMessageComposer } from '../src/features/messaging/messageComposerBehavior.ts'
 import { fetchReactionBatches } from '../src/features/messaging/reactionBatches.ts'
 import {
   createReadReceiptCoordinator,
@@ -69,6 +70,21 @@ test('message rendering stays bounded while older and newer windows remain addre
   assert.deepEqual(messageWindowRange(1_000, 600, 400), { start: 200, end: 600 })
   assert.deepEqual(messageWindowRange(120, 120, 400), { start: 0, end: 120 })
   assert.deepEqual(messageWindowRange(1_000, 0, 400), { start: 600, end: 1_000 })
+})
+
+test('message composer keyboard behavior distinguishes desktop, mobile, and IME input', () => {
+  const desktopEnter = {
+    key: 'Enter',
+    shiftKey: false,
+    isComposing: false,
+    multilineEnter: false,
+  }
+
+  assert.equal(shouldSubmitMessageComposer(desktopEnter), true)
+  assert.equal(shouldSubmitMessageComposer({ ...desktopEnter, shiftKey: true }), false)
+  assert.equal(shouldSubmitMessageComposer({ ...desktopEnter, isComposing: true }), false)
+  assert.equal(shouldSubmitMessageComposer({ ...desktopEnter, multilineEnter: true }), false)
+  assert.equal(shouldSubmitMessageComposer({ ...desktopEnter, key: 'a' }), false)
 })
 
 function adapterFixture() {
