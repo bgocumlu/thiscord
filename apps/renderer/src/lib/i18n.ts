@@ -15,6 +15,12 @@ export const i18nInstance = createInstance()
 
 const localeLoaders = {
   en: async () => en,
+  de: async () => (await import('../locales/de/translation.json')).default,
+  es: async () => (await import('../locales/es/translation.json')).default,
+  fr: async () => (await import('../locales/fr/translation.json')).default,
+  ja: async () => (await import('../locales/ja/translation.json')).default,
+  'pt-BR': async () => (await import('../locales/pt-BR/translation.json')).default,
+  ru: async () => (await import('../locales/ru/translation.json')).default,
   tr: async () => (await import('../locales/tr/translation.json')).default,
 } satisfies Record<SupportedLocale, () => Promise<typeof en>>
 
@@ -23,7 +29,7 @@ void i18nInstance.init({
   lng: defaultLocale,
   fallbackLng: defaultLocale,
   supportedLngs: [...supportedLocales],
-  load: 'languageOnly',
+  load: 'currentOnly',
   initAsync: false,
   keySeparator: '.',
   nsSeparator: ':',

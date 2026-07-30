@@ -231,18 +231,18 @@
       "communityChannels": "{{communityName}} kanal",
       "communitySettings": "Topluluk ayarları",
       "createChannelInCategory": "{{categoryName}} konumunda kanal oluştur",
-    "deafen": "Sağırlaştır",
-    "deafenBeforeJoining": "Katılmadan önce sağırlaştır",
+      "deafen": "Sağırlaştır",
+      "deafenBeforeJoining": "Katılmadan önce sağırlaştır",
       "disconnectParticipant": "Katılımcının bağlantısı kesilsin mi?",
       "disconnectParticipantAction": "Katılımcının bağlantısını kes",
       "disconnectParticipantDescription": "{{name}} adlı kişinin bu çağrıyla bağlantısı kesilsin mi? Erişimi varsa yeniden katılabilir.",
       "loading": "Yükleniyor…",
       "loadMoreChannels": "Daha fazla kanal yükle",
       "moreActionsForParticipant": "{{participantName}} için daha fazla işlem",
-    "mute": "Sessize al",
+      "mute": "Sessize al",
       "muteBeforeJoining": "Katılmadan önce sessize alın",
-    "undeafen": "Sağırlaştırmayı kaldır",
-    "unmute": "Sesi aç",
+      "undeafen": "Sağırlaştırmayı kaldır",
+      "unmute": "Sesi aç",
       "unmuteBeforeJoining": "Katılmadan önce sesi açın",
       "unread": "Okunmamış",
       "userSettings": "Kullanıcı ayarları",
@@ -309,8 +309,8 @@
         },
         "targets": {
           "channel": "Kanal",
-        "community": "Topluluk",
-        "invite": "Davet",
+          "community": "Topluluk",
+          "invite": "Davet",
           "membership": "Üyelik",
           "message": "Mesaj",
           "role": "Rol",
@@ -467,7 +467,7 @@
       "youDoNotHavePermissionToSpeak": "Konuşma izniniz yok"
     },
     "messageAdapter": {
-    "linkedMessageOutsideConversation": "Bağlantılı mesaj bu sohbete ait değil."
+      "linkedMessageOutsideConversation": "Bağlantılı mesaj bu sohbete ait değil."
     },
     "view": {
       "couldNotLoadThisConversation": "Bu sohbet yüklenemedi.",
@@ -566,7 +566,6 @@
       "displayName": "Ekran adı",
       "doNotDisturb": "Rahatsız etmeyin",
       "emailNotVerified": "E-posta doğrulanmadı",
-      "english": "İngilizce",
       "handle": "Kullanıcı adı",
       "idle": "Boşta",
       "invisible": "Görünmez",
@@ -590,14 +589,13 @@
       "signOut": "Oturumu kapat",
       "support": "Destek",
       "theme": "Tema",
-      "turkish": "Türkçe",
       "updates": "Güncellemeler",
       "userSettings": "Kullanıcı ayarları",
       "useSystemSetting": "Sistem ayarını kullan",
       "verificationEmailSent": "Doğrulama e-postası gönderildi."
     },
     "usePresenceLifecycle": {
-    "presenceCouldNotReachTheServerRetrying": "Durum bilgisi sunucuya ulaşamadı. Yeniden deneniyor…"
+      "presenceCouldNotReachTheServerRetrying": "Durum bilgisi sunucuya ulaşamadı. Yeniden deneniyor…"
     }
   },
   "messaging": {

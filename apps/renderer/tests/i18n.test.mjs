@@ -43,9 +43,18 @@ test('English translations preserve the original interface wording', () => {
   assert.equal(t('members.contextMenuItems.removeTimeout'), 'Remove Timeout')
 })
 
-test('Turkish loads on demand with interpolation and local-only preference storage', async () => {
+test('supported translations load on demand with interpolation and local-only storage', async () => {
   const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
   const values = new Map()
+  const expectations = {
+    de: ['Änderungen speichern', 'Thiscord öffnen'],
+    es: ['Guardar cambios', 'Abrir Thiscord'],
+    fr: ['Enregistrer les modifications', 'Ouvrir Thiscord'],
+    ja: ['変更を保存する', 'Thiscord を開く'],
+    'pt-BR': ['Salvar alterações', 'Abra Thiscord'],
+    ru: ['Сохранить изменения', 'Открыть Thiscord'],
+    tr: ['Değişiklikleri kaydet', "Thiscord'yi aç"],
+  }
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
     value: {
@@ -55,12 +64,21 @@ test('Turkish loads on demand with interpolation and local-only preference stora
     },
   })
   try {
-    await setLocalePreference('tr')
-    assert.equal(i18nInstance.resolvedLanguage, 'tr')
-    assert.equal(t('members.profileDialogs.saveChanges'), 'Değişiklikleri kaydet')
-    assert.equal(t('common.memberCount', { count: 3 }), '3 üye')
-    assert.equal(t('app.openName', { name: 'Thiscord' }), "Thiscord'yi aç")
-    assert.equal(values.get(localePreferenceStorageKey), 'tr')
+    for (const [locale, [saveChanges, openName]] of Object.entries(expectations)) {
+      await setLocalePreference(locale)
+      assert.equal(i18nInstance.resolvedLanguage, locale)
+      assert.equal(t('members.profileDialogs.saveChanges'), saveChanges)
+      assert.equal(t('app.openName', { name: 'Thiscord' }), openName)
+      assert.equal(values.get(localePreferenceStorageKey), locale)
+    }
+
+    await setLocalePreference('ru')
+    assert.equal(t('common.memberCount', { count: 1 }), '1 участник')
+    assert.equal(t('common.memberCount', { count: 2 }), '2 участника')
+    assert.equal(t('common.memberCount', { count: 5 }), '5 участников')
+
+    await setLocalePreference('ja')
+    assert.equal(t('common.memberCount', { count: 3 }), '3 メンバー')
   } finally {
     await setLocalePreference('en')
     if (originalStorage) Object.defineProperty(globalThis, 'localStorage', originalStorage)
@@ -90,18 +108,23 @@ test('locale initialization and document metadata use the resolved language', as
   }
 })
 
-test('the source catalog contains complete English values', async () => {
-  const catalog = JSON.parse(await readFile(
-    new URL('../src/locales/en/translation.json', import.meta.url),
-    'utf8',
-  ))
-  const entries = flattenCatalog(catalog)
+test('every supported catalog contains a complete set of translated interface strings', async () => {
+  for (const locale of ['en', 'de', 'es', 'fr', 'ja', 'pt-BR', 'ru', 'tr']) {
+    const catalog = JSON.parse(await readFile(
+      new URL(`../src/locales/${locale}/translation.json`, import.meta.url),
+      'utf8',
+    ))
+    const entries = flattenCatalog(catalog)
 
-  assert.ok(entries.length > 700)
-  for (const [key, value] of entries) {
-    assert.equal(typeof value, 'string', `${key} must resolve to a string`)
-    assert.notEqual(value.trim(), '', `${key} must have an English value`)
-    assert.notEqual(value, key, `${key} must not fall back to its key`)
+    const translatedEntries = entries.filter(([, value]) => value.trim() !== '')
+    assert.ok(
+      translatedEntries.length > 700,
+      `${locale} must contain the complete translated catalog`,
+    )
+    for (const [key, value] of translatedEntries) {
+      assert.equal(typeof value, 'string', `${locale}:${key} must resolve to a string`)
+      assert.notEqual(value, key, `${locale}:${key} must not fall back to its key`)
+    }
   }
 })
 

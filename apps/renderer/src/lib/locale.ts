@@ -1,9 +1,33 @@
 export const defaultLocale = 'en'
-export const supportedLocales = [defaultLocale, 'tr'] as const
+export const supportedLocales = [
+  defaultLocale,
+  'de',
+  'es',
+  'fr',
+  'ja',
+  'pt-BR',
+  'ru',
+  'tr',
+] as const
 export const localePreferenceStorageKey = 'thiscord.locale.v1'
 
 export type SupportedLocale = (typeof supportedLocales)[number]
 export type LocalePreference = SupportedLocale | 'auto'
+
+export const localeMetadata = {
+  en: { nativeName: 'English' },
+  de: { nativeName: 'Deutsch' },
+  es: { nativeName: 'Español' },
+  fr: { nativeName: 'Français' },
+  ja: { nativeName: '日本語' },
+  'pt-BR': { nativeName: 'Português (Brasil)' },
+  ru: { nativeName: 'Русский' },
+  tr: { nativeName: 'Türkçe' },
+} satisfies Record<SupportedLocale, { readonly nativeName: string }>
+
+const baseLocaleDefaults: Readonly<Record<string, SupportedLocale>> = {
+  pt: 'pt-BR',
+}
 
 export function browserLocaleStorage(): Storage | undefined {
   try {
@@ -23,8 +47,21 @@ function browserLanguages() {
   }
 }
 
-function baseLocale(locale: string) {
-  return locale.trim().replace('_', '-').split('-')[0]?.toLowerCase() ?? ''
+function canonicalLocale(locale: string) {
+  try {
+    return Intl.getCanonicalLocales(locale.trim().replaceAll('_', '-'))[0] ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function matchSupportedLocale(locale: string): SupportedLocale | undefined {
+  const canonical = canonicalLocale(locale)
+  if (!canonical) return undefined
+  if (isSupportedLocale(canonical)) return canonical
+  const base = canonical.split('-')[0]?.toLowerCase() ?? ''
+  if (isSupportedLocale(base)) return base
+  return baseLocaleDefaults[base]
 }
 
 export function isSupportedLocale(locale: string): locale is SupportedLocale {
@@ -38,8 +75,7 @@ export function readLocalePreference(
   try {
     const value = storage.getItem(localePreferenceStorageKey)
     if (!value || value === 'auto') return 'auto'
-    const candidate = baseLocale(value)
-    return isSupportedLocale(candidate) ? candidate : 'auto'
+    return matchSupportedLocale(value) ?? 'auto'
   } catch {
     return 'auto'
   }
@@ -67,8 +103,8 @@ export function resolveLocale(
 ): SupportedLocale {
   if (preference !== 'auto') return preference
   for (const locale of detectedLocales) {
-    const candidate = baseLocale(locale)
-    if (isSupportedLocale(candidate)) return candidate
+    const candidate = matchSupportedLocale(locale)
+    if (candidate) return candidate
   }
   return defaultLocale
 }

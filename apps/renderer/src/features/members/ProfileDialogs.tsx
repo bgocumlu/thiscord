@@ -12,7 +12,9 @@ import {
 import { usePocketBase, useRuntimeConfig } from '../../lib/contexts'
 import {
   browserLocaleStorage,
+  localeMetadata,
   readLocalePreference,
+  supportedLocales,
   type LocalePreference,
 } from '../../lib/locale'
 import { errorMessage } from '../../lib/pocketbase'
@@ -130,8 +132,11 @@ export function ProfileDialog({ user, onClose, onLogout }: {
               onChange={changeLocale}
             >
               <option value="auto">{t("members.profileDialogs.automaticLanguage")}</option>
-              <option value="en">{t("members.profileDialogs.english")}</option>
-              <option value="tr">{t("members.profileDialogs.turkish")}</option>
+              {supportedLocales.map((locale) => (
+                <option value={locale} key={locale}>
+                  {localeMetadata[locale].nativeName}
+                </option>
+              ))}
             </select>
             <small className="field-description">
               {t("members.profileDialogs.languageStoredOnThisDevice")}

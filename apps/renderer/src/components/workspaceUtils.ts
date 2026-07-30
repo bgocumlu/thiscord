@@ -4,34 +4,28 @@ import { i18nInstance } from '../lib/i18n'
 import {
   defaultLocale,
   isSupportedLocale,
+  supportedLocales,
   type SupportedLocale,
 } from '../lib/locale'
 
-const timeFormatters = {
-  en: new Intl.DateTimeFormat('en', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }),
-  tr: new Intl.DateTimeFormat('tr', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }),
-} satisfies Record<SupportedLocale, Intl.DateTimeFormat>
+function dateTimeFormatters(options: Intl.DateTimeFormatOptions) {
+  return Object.fromEntries(supportedLocales.map((locale) => [
+    locale,
+    Intl.DateTimeFormat(locale, options),
+  ])) as Record<SupportedLocale, Intl.DateTimeFormat>
+}
 
-const dateTimeFormatters = {
-  en: new Intl.DateTimeFormat('en', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }),
-  tr: new Intl.DateTimeFormat('tr', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }),
-} satisfies Record<SupportedLocale, Intl.DateTimeFormat>
+const timeFormatters = dateTimeFormatters({
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
+const dateAndTimeFormatters = dateTimeFormatters({
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+})
 
 function activeLocale() {
   const locale = i18nInstance.resolvedLanguage ?? defaultLocale
@@ -48,7 +42,7 @@ export function formatTime(value: string) {
   const locale = activeLocale()
   return (date.toDateString() === today.toDateString()
     ? timeFormatters[locale]
-    : dateTimeFormatters[locale]).format(date)
+    : dateAndTimeFormatters[locale]).format(date)
 }
 
 export function resolvedPresence(userId: string, presence: PresenceRecord[]): User['status'] {
