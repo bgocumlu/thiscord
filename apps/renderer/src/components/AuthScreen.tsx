@@ -142,7 +142,7 @@ export function AuthScreen() {
           <>
             <header><h1>{t("auth.screen.signIn")}</h1><p>{t("auth.screen.useYourEmailAddressOrHandle")}</p></header>
             <form onSubmit={submit}>
-              <label><span>{t("auth.screen.emailOrHandle")}</span><div><UserRound size={17} /><input name="identity" autoComplete="username" required autoFocus /></div></label>
+              <label><span>{t("auth.screen.emailOrHandle")}</span><div><UserRound size={17} /><input name="identity" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} required autoFocus /></div></label>
               <label><span>{t("auth.screen.password")}</span><div><LockKeyhole size={17} /><input name="password" type="password" autoComplete="current-password" minLength={8} required /></div></label>
               {error ? <p className="form-error" role="alert">{error}</p> : null}
               <button className="primary-action" type="submit" disabled={!ready || busy}>{busy ? t("auth.screen.signingIn") : t("auth.screen.signIn")}</button>
@@ -161,7 +161,7 @@ export function AuthScreen() {
             <form onSubmit={submit}>
               <label><span>{t("auth.screen.email")}</span><div><Mail size={17} /><input name="email" type="email" autoComplete="email" required autoFocus /></div></label>
               <label><span>{t("auth.screen.displayName")}</span><div><UserRound size={17} /><input name="displayName" autoComplete="name" maxLength={80} required /></div></label>
-              <label><span>{t("auth.screen.handle")}</span><div><span className="field-prefix">@</span><input name="handle" autoComplete="username" minLength={2} maxLength={32} pattern="[a-zA-Z0-9._-]+" aria-describedby="handle-help" required /></div><small className="field-hint" id="handle-help">{t("auth.screen.handleRequirements")}</small></label>
+              <label><span>{t("auth.screen.handle")}</span><div><span className="field-prefix">@</span><input name="handle" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} minLength={2} maxLength={32} pattern="[a-zA-Z0-9._-]+" aria-describedby="handle-help" required /></div><small className="field-hint" id="handle-help">{t("auth.screen.handleRequirements")}</small></label>
               <label><span>{t("auth.screen.password")}</span><div><LockKeyhole size={17} /><input name="password" type="password" autoComplete="new-password" minLength={8} aria-describedby="password-help" required /></div><small className="field-hint" id="password-help">{t("auth.screen.useAtLeast8Characters")}</small></label>
               <label><span>{t("auth.screen.confirmPassword")}</span><div><LockKeyhole size={17} /><input name="passwordConfirm" type="password" autoComplete="new-password" minLength={8} required /></div></label>
               {error ? <p className="form-error" role="alert">{error}</p> : null}

@@ -105,7 +105,7 @@ export function GroupSettingsDialog({
             <button className="secondary-action" type="submit" disabled={busy}>{busy ? t("conversations.dialogs.saving") : t("conversations.dialogs.renameGroup")}</button>
           </form>
           <form className="modal-form compact-form" onSubmit={(event) => void addMember(event)}>
-            <label><span>{t("conversations.dialogs.addMemberByHandle")}</span><input name="handle" placeholder={t("conversations.dialogs.handle")} required /></label>
+            <label><span>{t("conversations.dialogs.addMemberByHandle")}</span><input name="handle" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={t("conversations.dialogs.handle")} required /></label>
             <button className="secondary-action" type="submit" disabled={busy}>{busy ? t("conversations.dialogs.adding") : t("conversations.dialogs.addMember")}</button>
           </form>
         </>
@@ -187,7 +187,7 @@ export function DirectDialog({ onClose, onCreated }: {
             <option value="group">{t("conversations.dialogs.groupConversation")}</option>
           </select>
         </label>
-        <label><span>{kind === 'direct' ? t("conversations.dialogs.handle") : t("conversations.dialogs.handles")}</span><input name="handles" placeholder={kind === 'direct' ? t("conversations.dialogs.handle") : t("conversations.dialogs.handleAnother")} required /></label>
+        <label><span>{kind === 'direct' ? t("conversations.dialogs.handle") : t("conversations.dialogs.handles")}</span><input name="handles" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={kind === 'direct' ? t("conversations.dialogs.handle") : t("conversations.dialogs.handleAnother")} required /></label>
         {kind === 'group' ? <label><span>{t("conversations.dialogs.groupName")}</span><input name="name" required maxLength={policyLimits.conversation.nameMax} /></label> : null}
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         <button className="primary-action" type="submit" disabled={busy}>{busy ? t("conversations.dialogs.starting") : t("conversations.dialogs.startConversation")}</button>

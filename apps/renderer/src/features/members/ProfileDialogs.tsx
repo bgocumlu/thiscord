@@ -118,7 +118,7 @@ export function ProfileDialog({ user, onClose, onLogout }: {
     <ModalFrame title={t("members.profileDialogs.userSettings")} onClose={onClose}>
       <form className="modal-form" onSubmit={(event) => void submit(event)}>
         <label><span>{t("members.profileDialogs.displayName")}</span><input name="displayName" autoComplete="name" defaultValue={user.displayName} required maxLength={policyLimits.profile.displayNameMax} /></label>
-        <label><span>{t("members.profileDialogs.handle")}</span><input name="handle" autoComplete="username" defaultValue={user.handle} required minLength={policyLimits.profile.handleMin} maxLength={policyLimits.profile.handleMax} pattern="[a-zA-Z0-9._-]+" /></label>
+        <label><span>{t("members.profileDialogs.handle")}</span><input name="handle" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} defaultValue={user.handle} required minLength={policyLimits.profile.handleMin} maxLength={policyLimits.profile.handleMax} pattern="[a-zA-Z0-9._-]+" /></label>
         <label><span>{t("members.profileDialogs.bio")}</span><textarea name="bio" autoComplete="off" defaultValue={user.bio} maxLength={policyLimits.profile.bioMax} rows={3} /></label>
         <label><span>{t("members.profileDialogs.presence")}</span><select name="status" defaultValue={user.status}><option value="online">{t("members.profileDialogs.online")}</option><option value="idle">{t("members.profileDialogs.idle")}</option><option value="dnd">{t("members.profileDialogs.doNotDisturb")}</option><option value="offline">{t("members.profileDialogs.invisible")}</option></select></label>
         <ImageFileField name="avatar" label={t("members.profileDialogs.avatar")} currentUrl={avatarUrl} />

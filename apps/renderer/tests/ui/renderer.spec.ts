@@ -396,6 +396,8 @@ test.describe('coarse pointer message actions', () => {
         return {
           height: bounds.height,
           center: bounds.top + bounds.height / 2,
+          fontSize: Number.parseFloat(getComputedStyle(control).fontSize),
+          editable: control instanceof HTMLTextAreaElement,
         }
       })
     ))
@@ -403,5 +405,32 @@ test.describe('coarse pointer message actions', () => {
 
     expect(geometry.every(({ height }) => height === 44)).toBe(true)
     expect(Math.max(...centers) - Math.min(...centers)).toBeLessThanOrEqual(0.5)
+    expect(geometry.filter(({ editable }) => editable).every(({ fontSize }) => fontSize >= 16)).toBe(true)
+  })
+
+  test('touch search controls share their 44px container without zoom-sized text', async ({ page }) => {
+    await page.goto('/auth/reset?renderer-test=workspace-controls')
+    await expect(page.locator('[data-renderer-test-ready="true"]')).toBeVisible()
+
+    const geometry = await page.locator('.chat-inline-search').evaluate((search) => {
+      const container = search.getBoundingClientRect()
+      const input = search.querySelector('input')!
+      const inputBounds = input.getBoundingClientRect()
+      const button = search.querySelector('button')!
+      const buttonBounds = button.getBoundingClientRect()
+      return {
+        containerHeight: container.height,
+        inputHeight: inputBounds.height,
+        inputFontSize: Number.parseFloat(getComputedStyle(input).fontSize),
+        buttonHeight: buttonBounds.height,
+      }
+    })
+
+    expect(geometry).toEqual({
+      containerHeight: 44,
+      inputHeight: 44,
+      inputFontSize: 16,
+      buttonHeight: 44,
+    })
   })
 })

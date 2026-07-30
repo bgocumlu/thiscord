@@ -1245,13 +1245,13 @@
 
 .message-meta > strong {
   color: var(--author-color);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .message-meta time,
 .edited {
   color: var(--faint);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .role-mark {
@@ -1261,7 +1261,7 @@
   border: 1px solid var(--outline-strong);
   border-radius: 3px;
   color: var(--copy-secondary);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
   padding: 1px 4px;
   text-transform: uppercase;
@@ -1281,7 +1281,7 @@
   align-items: center;
   gap: 6px;
   color: var(--faint);
-  font-size: 11px;
+  font-size: 12px;
   margin: 0 0 3px -22px;
 }
 
@@ -1363,7 +1363,7 @@
   background: var(--surface-layer-3);
   color: var(--copy-tertiary);
   cursor: pointer;
-  font-size: 10px;
+  font-size: 12px;
   padding: 0 6px;
 }
 

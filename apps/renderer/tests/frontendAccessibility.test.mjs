@@ -70,6 +70,20 @@ test('profile identity fields declare autofill intent and omit custom status', a
   assert.doesNotMatch(members, /customStatus/)
 })
 
+test('handle and identity fields disable destructive mobile keyboard assistance', async () => {
+  const [auth, profile, conversations] = await Promise.all([
+    source('../src/components/AuthScreen.tsx'),
+    source('../src/features/members/ProfileDialogs.tsx'),
+    source('../src/features/conversations/ConversationDialogs.tsx'),
+  ])
+
+  for (const component of [auth, profile, conversations]) {
+    assert.match(component, /autoCapitalize="none"/)
+    assert.match(component, /autoCorrect="off"/)
+    assert.match(component, /spellCheck=\{false\}/)
+  }
+})
+
 test('member rows open profiles instead of navigating directly to messages', async () => {
   const members = await source('../src/features/members/MembersPanel.tsx')
   assert.match(members, /className=\{`member-row[\s\S]*?onClick=\{\(\) => interactions\.onOpenProfile\(user\)\}/)
@@ -184,6 +198,22 @@ test('component styles consume theme tokens instead of embedding raw colors', as
   const styles = await rendererStyles()
   assert.doesNotMatch(styles, /#[\da-f]{3,8}\b/i)
   assert.doesNotMatch(styles, /\brgba?\(/i)
+})
+
+test('mobile controls preserve readable input sizing and complete safe areas', async () => {
+  const [application, rootStyles, responsive] = await Promise.all([
+    source('../src/styles/application-surfaces.css'),
+    source('../src/index.css'),
+    source('../src/styles/theme-responsive.css'),
+  ])
+
+  assert.match(application, /@media \(min-width: 641px\) and \(min-height: 520px\)/)
+  assert.match(responsive, /@media \(pointer: coarse\)[\s\S]*?min-height:\s*44px;/)
+  assert.match(responsive, /composer textarea[\s\S]*?font-size:\s*16px;/)
+  for (const inset of ['top', 'right', 'bottom', 'left']) {
+    assert.match(rootStyles, new RegExp(`--safe-${inset}:\\s*env\\(safe-area-inset-${inset}\\)`))
+    assert.match(responsive, new RegExp(`var\\(--safe-${inset}\\)`))
+  }
 })
 
 test('asynchronous loading states use the shared polite live region', async () => {
