@@ -32,19 +32,38 @@
 }
 
 .loading-state.fullscreen,
-.fatal-startup,
-.auth-shell {
+.fatal-startup {
   width: 100%;
   min-height: 100dvh;
   background: var(--surface-sunken);
 }
 
 .auth-shell {
+  isolation: isolate;
+  width: 100%;
   height: 100dvh;
-  min-height: 0;
-  place-items: start center;
+  min-height: 100dvh;
+  position: relative;
+  place-items: center;
   overflow-y: auto;
-  padding-block: 16px;
+  background-color: var(--surface-sunken);
+  background-position: center;
+  background-size: cover;
+  padding: 88px clamp(24px, 4vw, 64px) 40px;
+}
+
+@media (min-width: 641px) {
+  .auth-shell {
+    background-image: url('../assets/auth-background.png');
+  }
+}
+
+.auth-identity {
+  position: fixed;
+  z-index: 1;
+  top: 34px;
+  left: clamp(28px, 3.2vw, 56px);
+  max-width: 300px;
 }
 
 .fatal-startup section {
@@ -67,12 +86,15 @@
 }
 
 .auth-panel {
-  width: min(408px, calc(100vw - 32px));
-  border: 1px solid var(--border-strong);
-  border-radius: 9px;
-  background: var(--surface-layer-2);
+  width: min(460px, calc(100vw - 32px));
+  position: relative;
+  z-index: 1;
+  border: 0;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-layer-2) 97%, black);
+  box-shadow: var(--shadow-modal);
   margin-block: auto;
-  padding: 30px;
+  padding: 36px 38px 38px;
 }
 
 .auth-brand {
@@ -84,10 +106,10 @@
 
 .auth-product-note {
   max-width: 34ch;
-  color: var(--faint);
+  color: color-mix(in srgb, var(--accent-light) 26%, var(--text));
   font-size: 12px;
   line-height: 1.5;
-  margin: 0 0 30px;
+  margin: 0;
 }
 
 .auth-brand strong {
@@ -178,7 +200,7 @@
 }
 
 .auth-panel label > div {
-  height: 39px;
+  height: 42px;
   display: flex;
   align-items: center;
   gap: 9px;

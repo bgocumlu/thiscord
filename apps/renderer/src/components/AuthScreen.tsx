@@ -90,15 +90,16 @@ export function AuthScreen() {
 
   return (
     <main className="auth-shell">
-      <section className="auth-panel">
+      <header className="auth-identity">
         <div className="auth-brand">
-          <span className="wordmark-mark"><i /><i /></span>
+          <span className="wordmark-mark" aria-hidden="true"><i /><i /></span>
           <strong>{config.name}</strong>
         </div>
         <p className="auth-product-note">
-
           {t("auth.screen.communitiesConversationsAndCallsInOneFocusedWorkspace")}
         </p>
+      </header>
+      <section className="auth-panel">
         {invite ? (
           <div className="auth-invite-context">
             <span>{t("auth.screen.invitation")}</span>

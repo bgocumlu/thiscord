@@ -26,9 +26,20 @@
 :root[data-theme="light"] .notifications-popover > header,
 :root[data-theme="light"] .composer-context,
 :root[data-theme="light"] .composer-files,
-:root[data-theme="light"] .fatal-startup,
-:root[data-theme="light"] .auth-shell {
+:root[data-theme="light"] .fatal-startup {
   background: var(--panel);
+}
+
+:root[data-theme="light"] .auth-shell {
+  background-color: var(--surface-sunken);
+  background-image:
+    radial-gradient(circle at 18% 18%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 32%),
+    radial-gradient(circle at 84% 76%, color-mix(in srgb, var(--accent-light) 13%, transparent), transparent 30%),
+    linear-gradient(135deg, var(--surface-layer-1), var(--surface-sunken));
+}
+
+:root[data-theme="light"] .auth-product-note {
+  color: var(--muted);
 }
 
 :root[data-theme="light"] .event-card,
@@ -62,6 +73,35 @@
 :root[data-theme="light"] .member-admin-list select {
   background: var(--panel-raised);
   color: var(--text);
+}
+
+@media (max-width: 640px) {
+  .auth-shell {
+    align-content: start;
+    background-image:
+      radial-gradient(circle at 18% 8%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 38%),
+      radial-gradient(circle at 92% 68%, color-mix(in srgb, var(--accent-light) 16%, transparent), transparent 36%),
+      linear-gradient(145deg, var(--surface-layer-2), var(--surface-sunken));
+    padding: 22px 16px 28px;
+  }
+
+  .auth-identity {
+    width: min(460px, 100%);
+    position: relative;
+    top: auto;
+    left: auto;
+    margin: 0 auto 22px;
+  }
+
+  .auth-product-note {
+    max-width: none;
+  }
+
+  .auth-panel {
+    width: min(460px, 100%);
+    margin-block: 0;
+    padding: 30px 26px 32px;
+  }
 }
 
 :root[data-theme="light"] .event-card:hover,
