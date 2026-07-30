@@ -3,7 +3,6 @@
 }
 
 .app-shell {
-  --titlebar-height: 46px;
   height: 100%;
   min-width: 0;
   color: var(--text);
@@ -11,13 +10,13 @@
 }
 
 .app-titlebar {
-  height: var(--titlebar-height);
+  height: calc(46px + var(--safe-top));
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(280px, 500px) minmax(180px, 1fr);
   align-items: center;
   border-bottom: 1px solid var(--border);
   background: var(--panel);
-  padding: 0 14px 0 16px;
+  padding: var(--safe-top) max(14px, var(--safe-right)) 0 max(16px, var(--safe-left));
   -webkit-app-region: drag;
 }
 
@@ -156,12 +155,13 @@
 }
 
 .app-grid {
-  height: calc(100% - var(--titlebar-height));
+  height: calc(100% - 46px - var(--safe-top));
   position: relative;
   display: grid;
   grid-template-columns: 72px 250px minmax(0, 1fr) 256px;
   min-width: 0;
   overflow: hidden;
+  padding-inline: var(--safe-left) var(--safe-right);
 }
 
 .mobile-nav-button,
@@ -181,7 +181,7 @@
   gap: 7px;
   border-right: 1px solid var(--border);
   background: var(--canvas);
-  padding: 12px 9px;
+  padding: 12px 9px max(12px, var(--safe-bottom));
 }
 
 .server-button {
@@ -1441,7 +1441,7 @@
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   background: var(--panel-raised);
-  margin: 0 16px 18px;
+  margin: 0 16px max(18px, var(--safe-bottom));
   padding: 4px 5px;
 }
 
@@ -1989,11 +1989,20 @@
   padding: 8px 14px;
 }
 
-.voice-control-group {
+.native-call:not(.conversation-call) > .voice-controls {
+  padding-bottom: max(8px, var(--safe-bottom));
+}
+
+.voice-control-group,
+.voice-control-strip {
   display: flex;
   align-items: center;
   gap: 7px;
-  flex: 0 0 auto;
+}
+
+.voice-control-strip {
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .voice-control-secondary {
@@ -2076,9 +2085,6 @@
 }
 
 .leave-control {
-  position: sticky;
-  z-index: 2;
-  right: 0;
   flex: 0 0 auto;
   border-color: var(--danger-border);
   background: var(--danger-surface);

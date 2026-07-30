@@ -433,4 +433,55 @@ test.describe('coarse pointer message actions', () => {
       buttonHeight: 44,
     })
   })
+
+  test('mobile call controls keep disconnect pinned while secondary controls scroll', async ({ page }) => {
+    await page.goto('/auth/reset?renderer-test=workspace-controls')
+    await expect(page.locator('[data-renderer-test-ready="true"]')).toBeVisible()
+    await page.evaluate(() => {
+      const fixture = document.createElement('section')
+      fixture.className = 'conversation-call'
+      fixture.dataset.callControlsFixture = 'true'
+      fixture.style.cssText = 'width:268px;position:fixed;inset:auto 0 0 52px;z-index:100'
+      fixture.innerHTML = `
+        <div class="voice-controls" aria-label="Mobile call controls">
+          <div class="voice-control-strip">
+            <div class="voice-control-group"><button class="control-button">Mute</button><button class="control-button">Deafen</button></div>
+            <div class="voice-control-group"><button class="control-button off">Camera</button></div>
+            <div class="voice-control-group voice-control-secondary"><button class="control-button">Devices</button></div>
+          </div>
+          <button class="control-button leave-control" aria-label="Disconnect">Leave</button>
+        </div>
+      `
+      document.body.append(fixture)
+    })
+
+    const controls = page.getByLabel('Mobile call controls')
+    const disconnect = page.getByRole('button', { name: 'Disconnect' })
+    await expect(disconnect).toBeVisible()
+    const geometry = await controls.evaluate((toolbar) => {
+      const strip = toolbar.querySelector('.voice-control-strip')!
+      const leave = toolbar.querySelector('.leave-control')!
+      const toolbarBounds = toolbar.getBoundingClientRect()
+      const stripBounds = strip.getBoundingClientRect()
+      const leaveBounds = leave.getBoundingClientRect()
+      return {
+        toolbarRight: toolbarBounds.right,
+        toolbarScrollWidth: toolbar.scrollWidth,
+        toolbarClientWidth: toolbar.clientWidth,
+        stripRight: stripBounds.right,
+        stripScrollable: strip.scrollWidth > strip.clientWidth,
+        leaveLeft: leaveBounds.left,
+        leaveRight: leaveBounds.right,
+        leaveWidth: leaveBounds.width,
+        leaveHeight: leaveBounds.height,
+      }
+    })
+
+    expect(geometry.leaveRight).toBeLessThanOrEqual(geometry.toolbarRight)
+    expect(geometry.stripRight).toBeLessThanOrEqual(geometry.leaveLeft)
+    expect(geometry.toolbarScrollWidth).toBe(geometry.toolbarClientWidth)
+    expect(geometry.stripScrollable).toBe(true)
+    expect(geometry.leaveWidth).toBeGreaterThanOrEqual(44)
+    expect(geometry.leaveHeight).toBeGreaterThanOrEqual(44)
+  })
 })

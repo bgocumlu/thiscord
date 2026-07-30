@@ -226,10 +226,6 @@
 }
 
 @media (max-width: 640px) {
-  .app-titlebar {
-    grid-template-columns: auto 1fr auto;
-  }
-
   .mobile-search-button {
     width: 32px;
     height: 32px;
@@ -416,13 +412,9 @@
   }
 
   .voice-controls {
-    overflow-x: auto;
+    overflow-x: hidden;
     justify-content: flex-start;
     padding-inline: 12px;
-  }
-
-  .voice-control-group {
-    flex: 0 0 auto;
   }
 
   .leave-control {
@@ -612,14 +604,6 @@
 
 /* Coarse pointers need forgiving hit areas even when the visual chrome stays compact. */
 @media (pointer: coarse) {
-  .app-shell {
-    padding:
-      var(--safe-top)
-      var(--safe-right)
-      var(--safe-bottom)
-      var(--safe-left);
-  }
-
   button {
     min-width: 44px;
     min-height: 44px;
@@ -670,14 +654,8 @@
     padding-right: 50px;
   }
 
-  .app-titlebar {
-    padding-left: 16px;
-    padding-right: 14px;
-  }
-
-  .composer-wrap,
   .sidebar-footer {
-    padding-bottom: 0;
+    padding-bottom: var(--safe-bottom);
   }
 
   :is(.app-shell, .auth-shell) :is(small, .auth-panel label > span) {

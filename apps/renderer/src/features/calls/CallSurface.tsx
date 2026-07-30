@@ -458,34 +458,36 @@ export function CallSurface({
         </section>
       ) : null}
       <div className="voice-controls">
-        <div className="voice-control-group" role="group" aria-label={t("calls.surface.audioControls")}>
-          <button className={`control-button ${session.microphoneMuted ? 'off' : ''}`} type="button" title={session.canSpeak ? '' : t("calls.surface.youDoNotHavePermissionToSpeak")} disabled={session.actionBusy || !session.canSpeak} onClick={() => void call.toggleMicrophone()}>
-            {session.microphoneMuted ? <MicOff size={18} /> : <Mic size={18} />}<span>{session.microphoneMuted ? t("calls.surface.unmute") : t("calls.surface.mute")}</span>
-          </button>
-          <button className={`control-button ${session.deafened ? 'active' : ''}`} type="button" disabled={session.actionBusy} onClick={() => void call.toggleDeafen()}>
-            <Headphones size={18} /><span>{session.deafened ? t("calls.surface.undeafen") : t("calls.surface.deafen")}</span>
-          </button>
-        </div>
-        <div className="voice-control-group" role="group" aria-label={t("calls.surface.videoAndSharingControls")}>
-          <button className={`control-button ${session.cameraEnabled ? '' : 'off'}`} type="button" title={session.canStreamVideo ? '' : t("calls.surface.youDoNotHavePermissionToShareVideo")} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleCamera()}>
-            {session.cameraEnabled ? <Video size={18} /> : <VideoOff size={18} />}<span>{session.cameraEnabled ? t("calls.surface.cameraOff") : t("calls.surface.camera")}</span>
-          </button>
-          {screenShareAvailable ? (
-            <button className={`control-button screen-share-action ${session.screenSharing ? 'active' : ''}`} type="button" title={session.canStreamVideo ? '' : t("calls.surface.youDoNotHavePermissionToShareVideo")} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleScreenShare()}>
-              <MonitorUp size={18} /><span>{session.screenSharing ? t("calls.surface.stopSharing") : t("calls.surface.shareScreen")}</span>
+        <div className="voice-control-strip">
+          <div className="voice-control-group" role="group" aria-label={t("calls.surface.audioControls")}>
+            <button className={`control-button ${session.microphoneMuted ? 'off' : ''}`} type="button" title={session.canSpeak ? '' : t("calls.surface.youDoNotHavePermissionToSpeak")} disabled={session.actionBusy || !session.canSpeak} onClick={() => void call.toggleMicrophone()}>
+              {session.microphoneMuted ? <MicOff size={18} /> : <Mic size={18} />}<span>{session.microphoneMuted ? t("calls.surface.unmute") : t("calls.surface.mute")}</span>
             </button>
-          ) : null}
-        </div>
-        <div className="voice-control-group voice-control-secondary" role="group" aria-label={t("calls.surface.callSettings")}>
-          <button
-            className={`control-button ${devicesOpen ? 'active' : ''}`}
-            type="button"
-            aria-expanded={devicesOpen}
-            aria-controls="call-device-panel"
-            onClick={() => { setDevicesOpen((value) => !value); void call.refreshDevices() }}
-          >
-            <Settings2 size={18} /><span>{t("calls.surface.devices")}</span>
-          </button>
+            <button className={`control-button ${session.deafened ? 'active' : ''}`} type="button" disabled={session.actionBusy} onClick={() => void call.toggleDeafen()}>
+              <Headphones size={18} /><span>{session.deafened ? t("calls.surface.undeafen") : t("calls.surface.deafen")}</span>
+            </button>
+          </div>
+          <div className="voice-control-group" role="group" aria-label={t("calls.surface.videoAndSharingControls")}>
+            <button className={`control-button ${session.cameraEnabled ? '' : 'off'}`} type="button" title={session.canStreamVideo ? '' : t("calls.surface.youDoNotHavePermissionToShareVideo")} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleCamera()}>
+              {session.cameraEnabled ? <Video size={18} /> : <VideoOff size={18} />}<span>{session.cameraEnabled ? t("calls.surface.cameraOff") : t("calls.surface.camera")}</span>
+            </button>
+            {screenShareAvailable ? (
+              <button className={`control-button screen-share-action ${session.screenSharing ? 'active' : ''}`} type="button" title={session.canStreamVideo ? '' : t("calls.surface.youDoNotHavePermissionToShareVideo")} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleScreenShare()}>
+                <MonitorUp size={18} /><span>{session.screenSharing ? t("calls.surface.stopSharing") : t("calls.surface.shareScreen")}</span>
+              </button>
+            ) : null}
+          </div>
+          <div className="voice-control-group voice-control-secondary" role="group" aria-label={t("calls.surface.callSettings")}>
+            <button
+              className={`control-button ${devicesOpen ? 'active' : ''}`}
+              type="button"
+              aria-expanded={devicesOpen}
+              aria-controls="call-device-panel"
+              onClick={() => { setDevicesOpen((value) => !value); void call.refreshDevices() }}
+            >
+              <Settings2 size={18} /><span>{t("calls.surface.devices")}</span>
+            </button>
+          </div>
         </div>
         <button className="control-button leave-control" type="button" onClick={() => void call.leave()}>
           <PhoneOff size={18} /><span>{t("calls.surface.disconnect")}</span>

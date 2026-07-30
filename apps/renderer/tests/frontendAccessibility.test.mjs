@@ -201,18 +201,32 @@ test('component styles consume theme tokens instead of embedding raw colors', as
 })
 
 test('mobile controls preserve readable input sizing and complete safe areas', async () => {
-  const [application, rootStyles, responsive] = await Promise.all([
+  const [application, rootStyles, responsive, workspace, callSurface, html] = await Promise.all([
     source('../src/styles/application-surfaces.css'),
     source('../src/index.css'),
     source('../src/styles/theme-responsive.css'),
+    source('../src/styles/workspace-core.css'),
+    source('../src/features/calls/CallSurface.tsx'),
+    source('../index.html'),
   ])
 
   assert.match(application, /@media \(min-width: 641px\) and \(min-height: 520px\)/)
   assert.match(responsive, /@media \(pointer: coarse\)[\s\S]*?min-height:\s*44px;/)
   assert.match(responsive, /composer textarea[\s\S]*?font-size:\s*16px;/)
+  assert.match(html, /name="apple-mobile-web-app-capable" content="yes"/)
+  assert.match(html, /name="apple-mobile-web-app-status-bar-style" content="black-translucent"/)
+  assert.match(workspace, /\.app-titlebar\s*\{[\s\S]*?height:\s*calc\(46px \+ var\(--safe-top\)\)/)
+  assert.match(workspace, /\.app-grid\s*\{[\s\S]*?height:\s*calc\(100% - 46px - var\(--safe-top\)\)/)
+  assert.match(workspace, /\.app-titlebar\s*\{[\s\S]*?padding:\s*var\(--safe-top\)/)
+  assert.match(workspace, /\.app-grid\s*\{[\s\S]*?padding-inline:\s*var\(--safe-left\) var\(--safe-right\)/)
+  assert.match(workspace, /\.composer\s*\{[\s\S]*?margin:[^;]*var\(--safe-bottom\)/)
+  assert.match(callSurface, /<div className="voice-control-strip">[\s\S]*?<button className="control-button leave-control"/)
+  assert.match(workspace, /\.voice-control-strip\s*\{[\s\S]*?overflow-x:\s*auto;/)
+  assert.doesNotMatch(workspace, /\.leave-control\s*\{[\s\S]*?position:\s*sticky;/)
+  assert.doesNotMatch(responsive, /\.app-shell\s*\{[\s\S]*?padding:[\s\S]*?var\(--safe-top\)/)
   for (const inset of ['top', 'right', 'bottom', 'left']) {
     assert.match(rootStyles, new RegExp(`--safe-${inset}:\\s*env\\(safe-area-inset-${inset}\\)`))
-    assert.match(responsive, new RegExp(`var\\(--safe-${inset}\\)`))
+    assert.match(`${workspace}\n${responsive}`, new RegExp(`var\\(--safe-${inset}\\)`))
   }
 })
 
