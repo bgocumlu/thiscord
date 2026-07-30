@@ -6,6 +6,7 @@ import type {
   JitsiParticipant,
   JitsiTrack,
 } from 'lib-jitsi-meet'
+import { t } from '../../lib/i18n'
 import { jitsiConnectionOptions } from './jitsiEngine'
 import type { RejectedMediaType } from './localMediaPolicy'
 
@@ -50,10 +51,10 @@ export function startConferenceLifecycle(
   const conferenceEvents = jitsi.events.conference
 
   connection.addEventListener(connectionEvents.CONNECTION_FAILED, () => {
-    if (handlers.current()) handlers.recover('Couldn’t reach the media server.')
+    if (handlers.current()) handlers.recover(t("calls.conferenceLifecycle.couldntReachTheMediaServer"))
   })
   connection.addEventListener(connectionEvents.CONNECTION_DISCONNECTED, () => {
-    if (handlers.current()) handlers.recover('The media connection was interrupted.')
+    if (handlers.current()) handlers.recover(t("calls.conferenceLifecycle.theMediaConnectionWasInterrupted"))
   })
   connection.addEventListener(connectionEvents.CONNECTION_ESTABLISHED, () => {
     if (!handlers.current()) return
@@ -74,7 +75,7 @@ export function startConferenceLifecycle(
       if (handlers.current()) {
         handlers.onDisplayNameChanged(
           String(participantId),
-          String(name || 'Participant'),
+          String(name || t("calls.conferenceLifecycle.participant")),
         )
       }
     })
@@ -113,7 +114,7 @@ export function startConferenceLifecycle(
       if (!handlers.current()) return
       const code = String(details[0] || '')
       if (recoverableConferenceFailures.has(code)) {
-        handlers.recover('The call connection was interrupted.')
+        handlers.recover(t("calls.conferenceLifecycle.theCallConnectionWasInterrupted"))
       } else {
         handlers.onRejected()
       }

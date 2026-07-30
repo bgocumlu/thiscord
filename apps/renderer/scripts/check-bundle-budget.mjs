@@ -11,9 +11,19 @@ const budgets = [
     maximumBytes: 300_000,
   },
   {
+    label: 'i18n runtime',
+    pattern: /^i18next-[\w-]+\.js$/,
+    maximumBytes: 70_000,
+  },
+  {
+    label: 'English translation catalog',
+    pattern: /^i18n-en-[\w-]+\.js$/,
+    maximumBytes: 50_000,
+  },
+  {
     label: 'workspace',
     pattern: /^WorkspaceApp-[\w-]+\.js$/,
-    maximumBytes: 125_000,
+    maximumBytes: 135_000,
   },
   {
     label: 'rich messages',

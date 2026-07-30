@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type {
   CallParticipantRecord,
   CallTargetDescriptor,
@@ -88,7 +89,7 @@ export function ConversationView({
   )
   const title = conversation?.kind === 'group'
     ? conversation.name
-    : recipient?.displayName ?? 'Direct message'
+    : recipient?.displayName ?? t("conversations.view.directMessage")
   const callParticipantCount = callTarget
     ? callOccupancy.filter((participant) => participantBelongsToTarget(participant, callTarget.target)).length
     : 0
@@ -100,20 +101,20 @@ export function ConversationView({
         <button
           className="mobile-nav-button"
           type="button"
-          aria-label="Open messages navigation"
+          aria-label={t("conversations.view.openMessagesNavigation")}
           aria-expanded={navigationOpen}
           aria-controls="community-navigation"
           onClick={onOpenNavigation}
         ><Menu size={18} /></button>
         <div className="direct-empty-content">
           <MessageSquareText size={34} />
-          <h1>Your messages</h1>
-          <p>Select a conversation or start a new one.</p>
+          <h1>{t("conversations.view.yourMessages")}</h1>
+          <p>{t("conversations.view.selectAConversationOrStartANewOne")}</p>
         </div>
       </div>
     )
   }
-  if (!adapter) return <LoadingState>Loading conversation membership…</LoadingState>
+  if (!adapter) return <LoadingState>{t("conversations.view.loadingConversationMembership")}</LoadingState>
 
   return (
     <div className="direct-view">
@@ -121,7 +122,7 @@ export function ConversationView({
         <button
           className="mobile-nav-button"
           type="button"
-          aria-label="Open messages navigation"
+          aria-label={t("conversations.view.openMessagesNavigation")}
           aria-expanded={navigationOpen}
           aria-controls="community-navigation"
           onClick={onOpenNavigation}
@@ -132,25 +133,27 @@ export function ConversationView({
         <span className="direct-view-title">
           <strong title={title}>{title}</strong>
           <small>
-            {conversationMembers.length} members
-            {callParticipantCount ? ` · ${callParticipantCount} in call` : ''}
+            {callParticipantCount
+              ? t("conversations.view.membersParticipants", {
+                members: t("common.memberCount", { count: conversationMembers.length }),
+                participants: t("calls.participantCount", { count: callParticipantCount }),
+              })
+              : t("common.memberCount", { count: conversationMembers.length })}
           </small>
         </span>
         <button
           type="button"
-          title={muted ? 'Unmute call notifications' : 'Mute call notifications'}
-          aria-label={muted
-            ? 'Unmute conversation call notifications'
-            : 'Mute conversation call notifications'}
+          title={muted ? t("conversations.view.unmuteCallNotifications") : t("conversations.view.muteCallNotifications")}
+          aria-label={muted ? t("conversations.view.unmuteConversationCallNotifications") : t("conversations.view.muteConversationCallNotifications")}
           onClick={onToggleMute}
         >{muted ? <BellOff size={17} /> : <Bell size={17} />}</button>
         <button
           className={callParticipantCount ? 'active' : ''}
           type="button"
-          title={callParticipantCount ? 'Join call' : 'Start call'}
+          title={callParticipantCount ? t("conversations.view.joinCall") : t("conversations.view.startCall")}
           aria-label={callParticipantCount
-            ? `Join call with ${callParticipantCount} participant${callParticipantCount === 1 ? '' : 's'}`
-            : 'Start call'}
+            ? t("calls.joinParticipantCount", { count: callParticipantCount })
+            : t("conversations.view.startCall")}
           onPointerEnter={() => void loadJitsiEngine().catch(() => undefined)}
           onPointerDown={() => void loadJitsiEngine().catch(() => undefined)}
           onFocus={() => void loadJitsiEngine().catch(() => undefined)}
@@ -159,7 +162,7 @@ export function ConversationView({
           }}
         ><Phone size={17} /></button>
         {conversation.kind === 'group' ? (
-          <button type="button" aria-label="Group settings" onClick={() => setSettingsOpen(true)}>
+          <button type="button" aria-label={t("conversations.view.groupSettings")} onClick={() => setSettingsOpen(true)}>
             <Settings size={17} />
           </button>
         ) : null}
@@ -168,7 +171,7 @@ export function ConversationView({
         <CallSurface
           target={callTarget}
           occupancy={callOccupancy}
-          description={`${conversationMembers.length} members`}
+          description={t("common.memberCount", { count: conversationMembers.length })}
           presentation="conversation"
           memberInteractions={memberInteractions}
         />
@@ -183,23 +186,23 @@ export function ConversationView({
           <div className="channel-intro">
             <span><MessageSquareText size={24} /></span>
             <small className="channel-intro-kicker">
-              {conversation.kind === 'group' ? 'Group conversation' : 'Direct conversation'}
+              {conversation.kind === 'group' ? t("conversations.view.groupConversation") : t("conversations.view.directConversation")}
             </small>
             <h1>{title}</h1>
           </div>
         )}
-        placeholder={`Message ${title}`}
-        searchLabel={`Search ${title}`}
+        placeholder={t("conversations.view.messageConversation", { conversationName: title })}
+        searchLabel={t("conversations.view.searchConversation", { conversationName: title })}
         highlightedMessageId={highlightedMessageId}
         messageElementPrefix="direct-message-"
-        emptyTitle="No messages yet"
-        emptyDescription="Send the first message in this conversation."
-        searchErrorLabel="Could not search this conversation."
-        historyErrorLabel="Could not load this conversation."
+        emptyTitle={t("conversations.view.noMessagesYet")}
+        emptyDescription={t("conversations.view.sendTheFirstMessageInThisConversation")}
+        searchErrorLabel={t("conversations.view.couldNotSearchThisConversation")}
+        historyErrorLabel={t("conversations.view.couldNotLoadThisConversation")}
         className="direct-message-surface"
       />
       {settingsOpen ? (
-        <Suspense fallback={<div className="modal-loading" role="status">Opening dialog…</div>}>
+        <Suspense fallback={<div className="modal-loading" role="status">{t("conversations.view.openingDialog")}</div>}>
           <GroupSettingsDialog
             conversation={conversation}
             members={conversationMembers}

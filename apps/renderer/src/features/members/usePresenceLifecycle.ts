@@ -4,6 +4,7 @@ import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createCoalescedReporter } from '../../lib/coalescedReporter'
 import { usePocketBase } from '../../lib/contexts'
+import { t } from '../../lib/i18n'
 import { useQueryClient } from '@tanstack/react-query'
 import type { CommunityMemberPage, PresenceRecord } from './api'
 import { memberApi } from './api'
@@ -73,7 +74,7 @@ export function usePresenceLifecycle(user: User, activeCall = false): PresenceLi
     let idleTimer: number | undefined
     let heartbeatTimer: number | undefined
     const reporter = createCoalescedReporter(() => {
-      setError('Presence could not reach the server. Retrying…')
+      setError(t("members.usePresenceLifecycle.presenceCouldNotReachTheServerRetrying"))
     })
 
     const updateLocal = (nextStatus: PresenceStatus) => {

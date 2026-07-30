@@ -5,16 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc -b && vite build && node scripts/check-bundle-budget.mjs",
+    "build": "npm run i18n:check && tsc -b && vite build && node scripts/check-bundle-budget.mjs",
     "test": "tsx --test tests/*.test.mjs",
     "test:ui": "playwright test --config playwright.config.ts",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
+    "i18n:extract": "i18next-cli extract && i18next-cli types",
+    "i18n:check": "i18next-cli extract --ci --dry-run && i18next-cli types --ci && i18next-cli status && i18next-cli lint",
     "preview": "vite preview"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.2",
     "@thiscord/shared": "0.1.0",
+    "i18next": "^26.3.6",
     "lib-jitsi-meet": "file:../../vendor/jitsi/lib-jitsi-meet",
     "lucide-react": "^1.25.0",
     "pocketbase": "^0.27.0",
@@ -35,6 +38,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "i18next-cli": "^1.66.2",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.16"

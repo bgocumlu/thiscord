@@ -3,6 +3,7 @@ import { workspaceName, workspacePaths } from "./workspaces.mjs";
 
 run("npm", ["run", "check:policies", "-w", workspaceName(workspacePaths.shared)]);
 run("npm", ["run", "build", "-w", workspaceName(workspacePaths.shared)]);
+run("npm", ["run", "i18n:check", "-w", workspaceName(workspacePaths.renderer)]);
 run("npm", ["run", "lint", "-w", workspaceName(workspacePaths.renderer)]);
 run("npm", ["run", "typecheck", "--workspaces", "--if-present"]);
 run("npm", ["run", "test", "--workspaces", "--if-present"]);

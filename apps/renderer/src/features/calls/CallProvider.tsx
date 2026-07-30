@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from 'react'
 import { usePocketBase } from '../../lib/contexts'
+import { t } from '../../lib/i18n'
 import { errorMessage } from '../../lib/pocketbase'
 import { callAccessWasRevoked, callApi } from './api'
 import { startConferenceLifecycle } from './conferenceLifecycle'
@@ -178,7 +179,7 @@ function useCallProviderModel(user: User) {
     onRetry: () => recoveryRetryRef.current(),
     onExhausted: () => {
       void terminalFailureRef.current(
-        'Couldn’t recover the media connection. Check the network or media server, then retry.',
+        t("calls.provider.recoveryExhausted"),
       )
     },
   }), [publish])
@@ -592,7 +593,7 @@ function useCallProviderModel(user: User) {
             ...fresh,
             ...existing,
             userId: fresh.userId || existing?.userId || '',
-            name: remote.getDisplayName() || existing?.name || 'Participant',
+            name: remote.getDisplayName() || existing?.name || t("calls.provider.participant"),
           })
           publish()
         },
@@ -639,7 +640,7 @@ function useCallProviderModel(user: User) {
         },
         onRejected: () => {
           void terminalFailureRef.current(
-            'The media server rejected this call session. Retry the connection.',
+            t("calls.provider.sessionRejected"),
           )
         },
         onKicked: () => {
@@ -698,9 +699,11 @@ function useCallProviderModel(user: User) {
       )
       if (moderatingCurrentCall && session) {
         if (action === 'kick') {
-          if (!session.canRemoveMembers) throw new Error('You do not have permission to remove members from this call.')
+          if (!session.canRemoveMembers) {
+            throw new Error(t("calls.provider.youDoNotHavePermissionToRemoveMembersFromThisCall"))
+          }
         } else if (!session.canMuteMembers) {
-          throw new Error('You do not have permission to mute members in this call.')
+          throw new Error(t("calls.provider.youDoNotHavePermissionToMuteMembersInThisCall"))
         }
       }
       await callApi.moderate(client, target, userId, action)

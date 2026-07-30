@@ -19,11 +19,11 @@ test('workspace complementary landmarks have explicit accessible names', async (
     source('../src/components/WorkspaceApp.tsx'),
   ])
 
-  assert.match(channels, /<aside[\s\S]*?aria-label=\{`\$\{community\.name\} channels`\}/)
-  assert.match(conversations, /<aside[\s\S]*?aria-label="Direct messages navigation"/)
+  assert.match(channels, /<aside[\s\S]*?aria-label=\{t\("channels\.sidebar\.communityChannels", \{ communityName: community\.name \}\)\}/)
+  assert.match(conversations, /<aside[\s\S]*?aria-label=\{t\("conversations\.directSidebar\.directMessagesNavigation"\)\}/)
   assert.match(members, /aria-labelledby="members-panel-title"/)
-  assert.match(members, /<h2 id="members-panel-title">Members<\/h2>/)
-  assert.match(workspace, /className="members-panel-dialog" aria-label="Member list"/)
+  assert.match(members, /<h2 id="members-panel-title">\{t\("members\.panel\.members"\)\}<\/h2>/)
+  assert.match(workspace, /className="members-panel-dialog" aria-label=\{t\("workspace\.app\.memberList"\)\}/)
   assert.match(workspace, /onClose=\{compactMembersViewport \? \(\) => setShowMembers\(false\)/)
 })
 
@@ -34,10 +34,10 @@ test('unread navigation and notification states are programmatically exposed', a
     source('../src/features/notifications/Inbox.tsx'),
   ])
 
-  assert.match(channels, /\{unread \? <span className="visually-hidden">Unread<\/span> : null\}/)
-  assert.match(conversations, /\{unread \? <span className="visually-hidden">Unread<\/span> : null\}/)
+  assert.match(channels, /\{unread \? <span className="visually-hidden">\{t\("channels\.sidebar\.unread"\)\}<\/span> : null\}/)
+  assert.match(conversations, /\{unread \? <span className="visually-hidden">\{t\("conversations\.directSidebar\.unread"\)\}<\/span> : null\}/)
   assert.match(conversations, /className="direct-avatar" aria-hidden="true"/)
-  assert.match(notifications, /<span className="visually-hidden">Unread<\/span>/)
+  assert.match(notifications, /<span className="visually-hidden">\{t\("notifications\.inbox\.unreadLabel"\)\}<\/span>/)
   assert.match(notifications, /<i aria-hidden="true" \/>/)
 })
 
@@ -55,7 +55,8 @@ test('avatars leave adjacent user names to visible text while preserving presenc
   assert.doesNotMatch(avatar, /aria-label=\{user\.displayName\}/)
   assert.match(avatar, /aria-hidden=\{status \? undefined : true\}/)
   assert.match(avatar, /<span aria-hidden="true">\{initials/)
-  assert.match(avatar, /aria-label=\{presenceLabels\[status\] \?\? status\}/)
+  assert.match(avatar, /aria-label=\{presenceLabel\(status\)\}/)
+  assert.match(avatar, /t\(presenceLabelKeys\[status as keyof typeof presenceLabelKeys\]\)/)
 })
 
 test('profile identity fields declare autofill intent and omit custom status', async () => {
@@ -87,12 +88,12 @@ test('settings sections use labeled navigation with current-page state', async (
   ])
   assert.match(settings, /<nav className="settings-navigation" aria-label=/)
   assert.match(settings, /aria-current=\{tab === item \? 'page' : undefined\}/)
-  assert.match(roles, /<nav aria-label="Community roles">/)
+  assert.match(roles, /<nav aria-label=\{t\("roles\.settings\.communityRoles"\)\}>/)
 })
 
 test('age-restricted channel action names its destination', async () => {
   const workspace = await source('../src/components/WorkspaceApp.tsx')
-  assert.match(workspace, />Enter age-restricted channel<\/button>/)
+  assert.match(workspace, />\{t\("workspace\.app\.enterAgeRestrictedChannel"\)\}<\/button>/)
   assert.doesNotMatch(workspace, />Continue<\/button>/)
 })
 
@@ -108,7 +109,8 @@ test('context actions expose mixed controls as a keyboard-reachable dialog', asy
 test('message reactions and realtime additions expose programmatic state', async () => {
   const messages = await source('../src/features/messaging/MessageSurface.tsx')
   assert.match(messages, /aria-pressed=\{reacted\}/)
-  assert.match(messages, /aria-label=\{`\$\{reacted \? 'Remove' : 'Add'\}/)
+  assert.match(messages, /aria-label=\{reacted[\s\S]*?t\("messaging\.messageSurface\.removeReaction"/)
+  assert.match(messages, /t\("messaging\.messageSurface\.addReactionWithCount"/)
   assert.match(messages, /role="log"/)
   assert.match(messages, /aria-relevant="additions text"/)
 })
@@ -140,13 +142,13 @@ test('message discovery exposes touch and keyboard accelerators', async () => {
     source('../src/components/WorkspaceChrome.tsx'),
   ])
 
-  assert.match(messages, /More actions for message from/)
+  assert.match(messages, /messaging\.messageSurface\.moreActionsForAuthorMessage/)
   assert.match(messages, /aria-keyshortcuts="\/"/)
   assert.match(messages, /aria-keyshortcuts="Control\+f Meta\+f"/)
-  assert.match(chrome, /Help and tips/)
-  assert.match(chrome, /Focus the message box/)
-  assert.match(chrome, /Press and hold a message/)
-  assert.match(chrome, /aria-label="Close help"/)
+  assert.match(chrome, /workspace\.chrome\.helpAndTips/)
+  assert.match(chrome, /workspace\.chrome\.focusTheMessageBox/)
+  assert.match(chrome, /workspace\.chrome\.pressAndHoldAMessageToReactReplyOrOpenMoreActions/)
+  assert.match(chrome, /aria-label=\{t\("workspace\.chrome\.closeHelp"\)\}/)
 })
 
 test('message errors remain inside contained rows and use semantic error copy', async () => {
@@ -198,9 +200,9 @@ test('asynchronous loading states use the shared polite live region', async () =
   assert.match(primitives, /role: 'status'/)
   assert.match(primitives, /'aria-live': 'polite'/)
   assert.match(primitives, /'aria-atomic': true/)
-  assert.match(workspace, /return <LoadingState fullscreen>Loading your communities…<\/LoadingState>/)
+  assert.match(workspace, /return <LoadingState fullscreen>\{t\("workspace\.app\.loadingYourCommunities"\)\}<\/LoadingState>/)
   assert.match(workspace, /\? communityData\.channels\.isLoading[\s\S]*: conversationsData\.conversations\.isLoading \|\| conversationsData\.members\.isLoading/)
-  assert.match(workspace, /<LoadingState>Loading conversations…<\/LoadingState>/)
+  assert.match(workspace, /<LoadingState>\{t\("workspace\.app\.loadingConversations"\)\}<\/LoadingState>/)
   assert.match(messages, /aria-busy=\{history\.isLoading \|\| \(searchActive && filteredMessages\.isLoading\)\}/)
   for (const consumer of [app, workspace, messages, conversation]) {
     assert.match(consumer, /<LoadingState/)

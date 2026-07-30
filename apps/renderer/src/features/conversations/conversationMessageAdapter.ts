@@ -5,6 +5,7 @@ import type {
 } from '@thiscord/shared'
 import type { QueryClient } from '@tanstack/react-query'
 import type PocketBase from 'pocketbase'
+import { t } from '../../lib/i18n'
 import type { MessageSurfaceAdapter } from '../messaging/messageSurfaceContract'
 import { fetchReactionBatches } from '../messaging/reactionBatches'
 import { conversationApi } from './api'
@@ -54,7 +55,7 @@ export function createConversationMessageAdapter({
     async load(messageId) {
       const message = await conversationApi.getMessage(client, messageId)
       if (message.conversation !== conversation.id) {
-        throw new Error('The linked message does not belong to this conversation.')
+        throw new Error(t("conversations.messageAdapter.linkedMessageOutsideConversation"))
       }
       return message
     },

@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type { Notification, User } from '@thiscord/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Inbox as InboxIcon } from 'lucide-react'
@@ -11,6 +12,15 @@ import { appRoutes } from '../navigation/routes'
 import { notificationApi } from './api'
 import { notificationKeys } from './queryKeys'
 import { useNotifications } from './queries'
+
+const notificationTypeKeys = {
+  reply: 'notifications.inbox.types.reply',
+  mention: 'notifications.inbox.types.mention',
+  mention_everyone: 'notifications.inbox.types.mentionEveryone',
+  role_mention: 'notifications.inbox.types.roleMention',
+  direct_message: 'notifications.inbox.types.directMessage',
+  conversation_call: 'notifications.inbox.types.conversationCall',
+} as const satisfies Record<Notification['type'], string>
 
 function useNotificationSound(
   notifications: readonly Notification[],
@@ -127,7 +137,7 @@ export function Inbox({ currentUser }: { readonly currentUser: User }) {
           ref={triggerRef}
           className={open ? 'active' : ''}
           type="button"
-          title="Inbox"
+          title={t("notifications.inbox.inbox")}
           aria-expanded={open}
           aria-controls="notifications-popover"
           onClick={() => setOpen((value) => !value)}
@@ -142,10 +152,10 @@ export function Inbox({ currentUser }: { readonly currentUser: User }) {
           id="notifications-popover"
           className="notifications-popover"
           role="region"
-          aria-label="Inbox notifications"
+          aria-label={t("notifications.inbox.inboxNotifications")}
         >
           <header>
-            <span><strong>Inbox</strong><small>{unreadCount} unread</small></span>
+            <span><strong>{t("notifications.inbox.inbox")}</strong><small>{unreadCount}  {t("notifications.inbox.unread")}</small></span>
             {unreadCount ? (
               <button
                 type="button"
@@ -154,7 +164,7 @@ export function Inbox({ currentUser }: { readonly currentUser: User }) {
                     queryKey: notificationKeys.list(currentUser.id),
                   }))
                   .catch(() => undefined)}
-              ><Check size={14} />Mark all read</button>
+              ><Check size={14} />{t("notifications.inbox.markAllRead")}</button>
             ) : null}
           </header>
           {items.map((notification) => (
@@ -165,13 +175,13 @@ export function Inbox({ currentUser }: { readonly currentUser: User }) {
             >
               <Avatar user={notification.expand?.actor ?? currentUser} size="small" />
               <span>
-                <strong>{notification.type.replace(/_/g, ' ')}</strong>
+                <strong>{t(notificationTypeKeys[notification.type])}</strong>
                 <small>{formatTime(notification.created)}</small>
               </span>
               {!notification.readAt ? (
                 <>
                   <i aria-hidden="true" />
-                  <span className="visually-hidden">Unread</span>
+                  <span className="visually-hidden">{t("notifications.inbox.unreadLabel")}</span>
                 </>
               ) : null}
             </button>
@@ -182,16 +192,16 @@ export function Inbox({ currentUser }: { readonly currentUser: User }) {
               type="button"
               disabled={notifications.isFetchingNextPage}
               onClick={() => void notifications.fetchNextPage()}
-            >{notifications.isFetchingNextPage ? 'Loading…' : 'Load older notifications'}</button>
+            >{notifications.isFetchingNextPage ? t("notifications.inbox.loading") : t("notifications.inbox.loadOlderNotifications")}</button>
           ) : null}
           {notifications.isError ? (
             <DataFailure
               error={notifications.error}
               onRetry={() => void notifications.refetch()}
-              label="Could not load notifications."
+              label={t("notifications.inbox.couldNotLoadNotifications")}
             />
           ) : null}
-          {!items.length && !notifications.isError ? <p>No notifications.</p> : null}
+          {!items.length && !notifications.isError ? <p>{t("notifications.inbox.noNotifications")}</p> : null}
         </div>
       ) : null}
     </>

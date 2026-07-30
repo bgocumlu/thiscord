@@ -45,6 +45,7 @@
   },
   "packageManager": "npm@11.16.0",
   "allowScripts": {
+    "@swc/core@1.15.46": true,
     "electron@39.8.10": true,
     "electron-winstaller@5.4.0": true,
     "esbuild@0.28.1": true,

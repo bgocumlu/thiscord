@@ -1,3 +1,4 @@
+import { t, useLocale } from './lib/i18n'
 import type { InvitePreview } from '@thiscord/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, useEffect, useState } from 'react'
@@ -58,20 +59,20 @@ function InviteRoute({ code }: { readonly code: string }) {
     }
   }
 
-  if (!preview && !error) return <LoadingState fullscreen>Loading invitation…</LoadingState>
+  if (!preview && !error) return <LoadingState fullscreen>{t("app.loadingInvitation")}</LoadingState>
   if (preview) {
     return (
       <main className="fatal-startup invite-preview-page">
         <section>
-          <span className="invite-kicker">You’re invited</span>
+          <span className="invite-kicker">{t("app.youreInvited")}</span>
           <h1>{preview.community.name}</h1>
           {preview.community.description ? <p>{preview.community.description}</p> : null}
-          <p>{preview.memberCount} member{preview.memberCount === 1 ? '' : 's'}</p>
+          <p>{t("common.memberCount", { count: preview.memberCount })}</p>
           {error ? <p className="form-error" role="alert">{error}</p> : null}
           <button className="primary-action" type="button" disabled={busy} onClick={() => void accept()}>
-            {busy ? 'Joining…' : 'Join community'}
+            {busy ? t("app.joining") : t("app.joinCommunity")}
           </button>
-          <button type="button" className="secondary-action" onClick={() => navigate(appRoutes.conversations(), { replace: true })}>Not now</button>
+          <button type="button" className="secondary-action" onClick={() => navigate(appRoutes.conversations(), { replace: true })}>{t("app.notNow")}</button>
         </section>
       </main>
     )
@@ -79,10 +80,10 @@ function InviteRoute({ code }: { readonly code: string }) {
   return (
     <main className="fatal-startup">
       <section>
-        <h1>Invite unavailable</h1>
+        <h1>{t("app.inviteUnavailable")}</h1>
         <p>{error}</p>
         <button className="primary-action" type="button" onClick={() => navigate(appRoutes.conversations(), { replace: true })}>
-          Open {config.name}
+          {t("app.openName", { name: config.name })}
         </button>
       </section>
     </main>
@@ -107,15 +108,18 @@ function AppContent() {
   const config = useRuntimeConfig()
   const { pathname } = useAppRouter()
   if (parseAppRoute(pathname).kind === 'auth') return <AuthScreen />
-  if (!ready && !user) return <LoadingState fullscreen>Opening {config.name}…</LoadingState>
+  if (!ready && !user) {
+    return <LoadingState fullscreen>{t("app.openingName", { name: config.name })}</LoadingState>
+  }
   return user ? (
-    <Suspense fallback={<LoadingState fullscreen>Opening your workspace…</LoadingState>}>
+    <Suspense fallback={<LoadingState fullscreen>{t("app.openingYourWorkspace")}</LoadingState>}>
       <CallProvider user={user}><AuthenticatedApp /></CallProvider>
     </Suspense>
   ) : <AuthScreen />
 }
 
 function App() {
+  useLocale()
   return <AppRouter><AppContent /></AppRouter>
 }
 

@@ -1,3 +1,4 @@
+import { t } from '../lib/i18n'
 import type {
   Channel,
   Message,
@@ -130,7 +131,7 @@ function MembersContextDialogHarness({
     <dialog
       ref={dialogRef}
       className="members-panel-dialog"
-      aria-label="Member list context test"
+      aria-label={t("testing.harness.memberListContextTest")}
       onCancel={(event) => {
         event.preventDefault()
         onClose()
@@ -139,21 +140,22 @@ function MembersContextDialogHarness({
       <aside className="members-panel">
         <button
           type="button"
-          aria-label="More actions for test member"
+          aria-label={t("testing.harness.moreActionsForTestMember")}
           onClick={(event) => {
             const bounds = event.currentTarget.getBoundingClientRect()
             setMenuPoint({ x: bounds.right, y: bounds.bottom })
           }}
         >
-          More actions for test member
+
+          {t("testing.harness.moreActionsForTestMember")}
         </button>
         {menuPoint ? (
           <ContextMenu
             point={menuPoint}
-            label="Actions for test member"
+            label={t("testing.harness.actionsForTestMember")}
             onClose={() => setMenuPoint(null)}
           >
-            <ContextMenuItem onSelect={() => undefined}>Message</ContextMenuItem>
+            <ContextMenuItem onSelect={() => undefined}>{t("testing.harness.message")}</ContextMenuItem>
           </ContextMenu>
         ) : null}
       </aside>
@@ -172,19 +174,19 @@ export function RendererTestHarness() {
         <div className="app-shell" data-renderer-test-ready="true">
           <WorkspaceTitlebar
             name="Thiscord"
-            search={<search className="global-search"><input aria-label="Search" /></search>}
+            search={<search className="global-search"><input aria-label={t("testing.harness.search")} /></search>}
             help={<WorkspaceHelp />}
             inbox={(
               <div className="titlebar-actions">
-                <button type="button" aria-label="Inbox">
+                <button type="button" aria-label={t("testing.harness.inbox")}>
                   <InboxIcon size={17} /><span className="action-badge">8</span>
                 </button>
               </div>
             )}
           />
           <div className="app-grid members-hidden">
-            <nav className="server-rail" aria-label="Communities" />
-            <aside className="channel-sidebar" aria-label="Channels" />
+            <nav className="server-rail" aria-label={t("testing.harness.communities")} />
+            <aside className="channel-sidebar" aria-label={t("testing.harness.channels")} />
             <main className="content-panel">
               <ChannelToolbar
                 channel={channel}
@@ -212,18 +214,19 @@ export function RendererTestHarness() {
                 currentUser={currentUser}
                 onOpenProfile={(user) => setProfileName(user.displayName)}
                 intro={null}
-                placeholder="Message #general"
-                searchLabel="Search #general"
+                placeholder={t("testing.harness.messageGeneral")}
+                searchLabel={t("testing.harness.searchGeneral")}
                 highlightedMessageId=""
                 messageElementPrefix="renderer-test-message-"
-                emptyTitle="No messages"
-                searchErrorLabel="Could not search messages."
-                historyErrorLabel="Could not load messages."
+                emptyTitle={t("testing.harness.noMessages")}
+                searchErrorLabel={t("testing.harness.couldNotSearchMessages")}
+                historyErrorLabel={t("testing.harness.couldNotLoadMessages")}
               />
-              {profileName ? <output aria-label="Opened profile">{profileName}</output> : null}
+              {profileName ? <output aria-label={t("testing.harness.openedProfile")}>{profileName}</output> : null}
               <div className="voice-controls">
                 <button className="control-button screen-share-action" type="button">
-                  Share screen
+
+                  {t("testing.harness.shareScreen")}
                 </button>
               </div>
               <button
@@ -231,22 +234,24 @@ export function RendererTestHarness() {
                 type="button"
                 onClick={() => setContextOpen(true)}
               >
-                Open context actions
+
+                {t("testing.harness.openContextActions")}
               </button>
               {contextOpen ? (
                 <ContextMenu
                   point={{ x: 24, y: 24 }}
-                  label="Test context actions"
+                  label={t("testing.harness.testContextActions")}
                   onClose={() => setContextOpen(false)}
                 >
-                  <ContextMenuItem onSelect={() => undefined}>Mute</ContextMenuItem>
+                  <ContextMenuItem onSelect={() => undefined}>{t("testing.harness.mute")}</ContextMenuItem>
                 </ContextMenu>
               ) : null}
               <button
                 type="button"
                 onClick={() => setMembersContextOpen(true)}
               >
-                Open members context test
+
+                {t("testing.harness.openMembersContextTest")}
               </button>
               {membersContextOpen ? (
                 <MembersContextDialogHarness

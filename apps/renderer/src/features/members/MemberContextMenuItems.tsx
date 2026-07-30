@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import {
   Ban,
   Clock3,
@@ -66,12 +67,14 @@ export function MemberContextMenuItems({
     <>
       {user && onOpenProfile ? (
         <ContextMenuItem icon={<UserRound size={15} />} onSelect={onOpenProfile}>
-          View Profile
+
+          {t("members.contextMenuItems.viewProfile")}
         </ContextMenuItem>
       ) : null}
       {user && !isCurrentUser && onMessage ? (
         <ContextMenuItem icon={<MessageSquareText size={15} />} onSelect={onMessage}>
-          Message
+
+          {t("members.contextMenuItems.message")}
         </ContextMenuItem>
       ) : null}
 
@@ -83,10 +86,11 @@ export function MemberContextMenuItems({
             checked={localAudio.muted}
             onSelect={() => localAudio.onMutedChange(!localAudio.muted)}
           >
-            Mute Locally
+
+            {t("members.contextMenuItems.muteLocally")}
           </ContextMenuItem>
           <ContextMenuSlider
-            label="User Volume"
+            label={t("members.contextMenuItems.userVolume")}
             value={localAudio.volume}
             onChange={localAudio.onVolumeChange}
           />
@@ -98,7 +102,8 @@ export function MemberContextMenuItems({
           checked={spotlight.active}
           onSelect={spotlight.onToggle}
         >
-          Spotlight Video
+
+          {t("members.contextMenuItems.spotlightVideo")}
         </ContextMenuItem>
       ) : null}
 
@@ -111,7 +116,7 @@ export function MemberContextMenuItems({
           checked={callModeration.serverMuted}
           onSelect={() => callModeration.onServerMuteChange(!callModeration.serverMuted)}
         >
-          {callModeration.serverMuted ? 'Remove Server Mute' : 'Server Mute'}
+          {callModeration.serverMuted ? t("members.contextMenuItems.removeServerMute") : t("members.contextMenuItems.serverMute")}
         </ContextMenuItem>
       ) : null}
       {callModeration?.canDisconnect ? (
@@ -120,7 +125,8 @@ export function MemberContextMenuItems({
           danger
           onSelect={callModeration.onDisconnect}
         >
-          Disconnect From Call
+
+          {t("members.contextMenuItems.disconnectFromCall")}
         </ContextMenuItem>
       ) : null}
 
@@ -137,23 +143,23 @@ export function MemberContextMenuItems({
                 : 'timeout',
             )}
           >
-            {membership.timeoutUntil && new Date(membership.timeoutUntil).getTime() > mountedAt
-              ? 'Remove Timeout'
-              : 'Timeout'}
+            {membership.timeoutUntil && new Date(membership.timeoutUntil).getTime() > mountedAt ? t("members.contextMenuItems.removeTimeout") : t("members.contextMenuItems.timeout")}
           </ContextMenuItem>
           <ContextMenuItem
             icon={<UserX size={15} />}
             danger
             onSelect={() => communityModeration.onAction('kick')}
           >
-            Kick From Community
+
+            {t("members.contextMenuItems.kickFromCommunity")}
           </ContextMenuItem>
           <ContextMenuItem
             icon={<Ban size={15} />}
             danger
             onSelect={() => communityModeration.onAction('ban')}
           >
-            Ban From Community
+
+            {t("members.contextMenuItems.banFromCommunity")}
           </ContextMenuItem>
         </>
       ) : null}

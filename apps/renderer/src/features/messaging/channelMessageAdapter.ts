@@ -1,6 +1,7 @@
 import type { Channel, Message, Permission } from '@thiscord/shared'
 import type { QueryClient } from '@tanstack/react-query'
 import type PocketBase from 'pocketbase'
+import { t } from '../../lib/i18n'
 import { messageApi } from './api'
 import type { MessageSurfaceAdapter } from './messageSurfaceContract'
 import { messageKeys } from './queryKeys'
@@ -31,10 +32,10 @@ export function createChannelMessageAdapter({
     persistedReadMessage: '',
     policy: {
       disabledReason: channel.kind === 'announcement' && !permissions.has('manage_messages')
-        ? 'Only moderators can post announcements.'
+        ? t("messaging.channelMessageAdapter.onlyModeratorsCanPostAnnouncements")
         : permissions.has('send_messages')
           ? undefined
-          : 'You cannot send messages in this channel.',
+          : t("messaging.channelMessageAdapter.youCannotSendMessagesInThisChannel"),
       canEdit: (message, currentUser) => (
         message.author === currentUser.id || permissions.has('manage_messages')
       ),
@@ -53,7 +54,7 @@ export function createChannelMessageAdapter({
     async load(messageId) {
       const message = await messageApi.get(client, messageId)
       if (message.channel !== channel.id) {
-        throw new Error('The linked message does not belong to this channel.')
+        throw new Error(t("messaging.channelMessageAdapter.linkedMessageOutsideChannel"))
       }
       return message
     },

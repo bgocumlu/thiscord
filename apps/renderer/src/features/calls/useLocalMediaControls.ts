@@ -5,6 +5,7 @@ import {
   useEffect,
   useState,
 } from 'react'
+import { t } from '../../lib/i18n'
 import { errorMessage } from '../../lib/pocketbase'
 import { ScreenAudioMixerEffect } from './ScreenAudioMixerEffect'
 import {
@@ -95,7 +96,7 @@ export function useLocalMediaControls({
       return
     }
     if (!session.canSpeak) {
-      publish({ error: 'You do not have permission to speak in this call.' })
+      publish({ error: t("calls.useLocalMediaControls.youDoNotHavePermissionToSpeakInThisCall") })
       return
     }
     const audio = runtime.localParticipant()?.audioTrack
@@ -216,7 +217,7 @@ export function useLocalMediaControls({
     const local = runtime.localParticipant()
     if (!conference || !local) return
     if (!session?.canStreamVideo) {
-      publish({ error: 'You do not have permission to share video in this call.' })
+      publish({ error: t("calls.useLocalMediaControls.youDoNotHavePermissionToShareVideoInThisCall") })
       return
     }
     const existing = kind === 'desktop' ? local.screenTrack : local.videoTrack
@@ -260,7 +261,7 @@ export function useLocalMediaControls({
             ? tracks.filter((track) => track.getType() === 'video')
             : tracks
           if (kind === 'desktop' && !publishableTracks.length) {
-            throw new Error('The browser did not provide a screen video track.')
+            throw new Error(t("calls.useLocalMediaControls.screenVideoTrackUnavailable"))
           }
           const addFailures = await Promise.all(publishableTracks.map(async (track) => {
             runtime.addTrack(track)
@@ -323,14 +324,16 @@ export function useLocalMediaControls({
       return
     }
     if (!session?.canStreamVideo) {
-      publish({ error: 'You do not have permission to share video in this call.' })
+      publish({ error: t("calls.useLocalMediaControls.youDoNotHavePermissionToShareVideoInThisCall") })
       return
     }
     publish({ actionBusy: true, error: '' })
     setScreenPickerError('')
     try {
       const sources = await window.desktop.getDisplaySources()
-      if (!sources.length) throw new Error('No windows or displays are available to share.')
+      if (!sources.length) {
+        throw new Error(t("calls.useLocalMediaControls.noShareSourcesAvailable"))
+      }
       setScreenSources(sources)
     } catch (caught) {
       publish({ error: mediaErrorMessage(caught, 'screen') })
@@ -380,7 +383,9 @@ export function useLocalMediaControls({
         ...(deviceId ? { micDeviceId: deviceId } : {}),
       })
       replacement = tracks.find((track) => track.getType() === 'audio') ?? null
-      if (!replacement) throw new Error('The selected microphone could not be opened.')
+      if (!replacement) {
+        throw new Error(t("calls.useLocalMediaControls.selectedMicrophoneUnavailable"))
+      }
       if (existing.isMuted()) await replacement.mute()
       const screenAudio = runtime.screenAudio?.microphoneTrack === existing
         ? runtime.screenAudio
@@ -447,7 +452,9 @@ export function useLocalMediaControls({
         ...(deviceId ? { cameraDeviceId: deviceId } : {}),
       })
       replacement = tracks.find((track) => track.getType() === 'video') ?? null
-      if (!replacement) throw new Error('The selected camera could not be opened.')
+      if (!replacement) {
+        throw new Error(t("calls.useLocalMediaControls.selectedCameraUnavailable"))
+      }
       await replacePublishedLocalTrack(existing, replacement, {
         conference,
         addTrack: runtime.addTrack,
@@ -495,7 +502,11 @@ export function useLocalMediaControls({
       localStorage.setItem('thiscord_speaker', deviceId)
       publish({ error: '' })
     } catch (caught) {
-      publish({ error: `Could not select that speaker: ${errorMessage(caught)}` })
+      publish({
+        error: t("calls.useLocalMediaControls.couldNotSelectThatSpeakerError", {
+          error: errorMessage(caught),
+        }),
+      })
     }
   }, [publish])
 

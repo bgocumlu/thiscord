@@ -4,6 +4,7 @@ import type {
   JitsiStreamEffect,
   JitsiTrack,
 } from 'lib-jitsi-meet'
+import { t } from '../../lib/i18n'
 
 /**
  * Mixes captured display audio into the microphone track Jitsi already
@@ -27,7 +28,9 @@ export class ScreenAudioMixerEffect implements JitsiStreamEffect {
 
   startEffect(microphoneStream: MediaStream) {
     const microphoneTrack = microphoneStream.getAudioTracks()[0]
-    if (!microphoneTrack) throw new Error('The microphone stream has no audio track to mix.')
+    if (!microphoneTrack) {
+      throw new Error(t("calls.screenAudioMixer.microphoneTrackUnavailable"))
+    }
 
     const mixer = this.jitsi.createAudioMixer()
     mixer.addMediaStream(this.capturedAudioTrack.getOriginalStream())
@@ -35,7 +38,7 @@ export class ScreenAudioMixerEffect implements JitsiStreamEffect {
     const mixedStream = mixer.start()
     if (!mixedStream?.getAudioTracks().length) {
       mixer.reset()
-      throw new Error('The shared audio stream could not be mixed with the microphone.')
+      throw new Error(t("calls.screenAudioMixer.mixFailed"))
     }
 
     this.audioMixer = mixer

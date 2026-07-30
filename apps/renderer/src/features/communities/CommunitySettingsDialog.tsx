@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type {
   Community,
   Invite,
@@ -28,6 +29,67 @@ import { communityKeys } from './queryKeys'
 
 type SettingsTab = 'general' | 'invites' | 'roles' | 'members' | 'audit'
 type AuditEvent = RecordModel & { readonly expand?: { readonly actor?: User } }
+const settingsTabKeys = {
+  general: 'communities.settings.tabs.general',
+  invites: 'communities.settings.tabs.invites',
+  roles: 'communities.settings.tabs.roles',
+  members: 'communities.settings.tabs.members',
+  audit: 'communities.settings.tabs.audit',
+} as const satisfies Record<SettingsTab, string>
+
+const auditActionKeys = {
+  'call.moderation.request': 'communities.settings.audit.actions.callModerationRequested',
+  'channel.create': 'communities.settings.audit.actions.channelCreated',
+  'channel.delete': 'communities.settings.audit.actions.channelDeleted',
+  'channel.permissions.update': 'communities.settings.audit.actions.channelPermissionsUpdated',
+  'channel.reorder': 'communities.settings.audit.actions.channelsReordered',
+  'channel.update': 'communities.settings.audit.actions.channelUpdated',
+  'community.create': 'communities.settings.audit.actions.communityCreated',
+  'community.transfer': 'communities.settings.audit.actions.communityOwnershipTransferred',
+  'community.update': 'communities.settings.audit.actions.communityUpdated',
+  'invite.revoke': 'communities.settings.audit.actions.inviteRevoked',
+  'member.ban': 'communities.settings.audit.actions.memberBanned',
+  'member.join': 'communities.settings.audit.actions.memberJoined',
+  'member.kick': 'communities.settings.audit.actions.memberKicked',
+  'member.leave': 'communities.settings.audit.actions.memberLeft',
+  'member.nickname.update': 'communities.settings.audit.actions.memberNicknameUpdated',
+  'member.roles.update': 'communities.settings.audit.actions.memberRolesUpdated',
+  'member.timeout': 'communities.settings.audit.actions.memberTimedOut',
+  'member.unban': 'communities.settings.audit.actions.memberUnbanned',
+  'member.untimeout': 'communities.settings.audit.actions.memberTimeoutRemoved',
+  'message.pin': 'communities.settings.audit.actions.messagePinned',
+  'message.unpin': 'communities.settings.audit.actions.messageUnpinned',
+  'role.create': 'communities.settings.audit.actions.roleCreated',
+  'role.delete': 'communities.settings.audit.actions.roleDeleted',
+  'role.reorder': 'communities.settings.audit.actions.rolesReordered',
+  'role.update': 'communities.settings.audit.actions.roleUpdated',
+} as const
+
+const auditTargetKeys = {
+  channel: 'communities.settings.audit.targets.channel',
+  community: 'communities.settings.audit.targets.community',
+  invite: 'communities.settings.audit.targets.invite',
+  membership: 'communities.settings.audit.targets.membership',
+  message: 'communities.settings.audit.targets.message',
+  role: 'communities.settings.audit.targets.role',
+  user: 'communities.settings.audit.targets.user',
+} as const
+
+function auditActionLabel(value: unknown) {
+  const action = String(value)
+  return action in auditActionKeys
+    ? t(auditActionKeys[action as keyof typeof auditActionKeys])
+    : t("communities.settings.audit.unknownAction", {
+        action: action.replace(/[._]/g, ' '),
+      })
+}
+
+function auditTargetLabel(value: unknown) {
+  const target = String(value || '')
+  return target in auditTargetKeys
+    ? t(auditTargetKeys[target as keyof typeof auditTargetKeys])
+    : t("communities.settings.audit.unknownTarget")
+}
 
 export function CommunitySettingsDialog({
   community,
@@ -250,7 +312,7 @@ function useCommunitySettingsActions({
         ...(data.get('bannerRemove') === '1' ? { banner: null } : { banner: data.get('banner') }),
       })
       await onChanged()
-      setNotice('Community settings saved.')
+      setNotice(t("communities.settings.communitySettingsSaved"))
     } catch (caught) {
       setError(errorMessage(caught))
     } finally {
@@ -272,7 +334,7 @@ function useCommunitySettingsActions({
       await navigator.clipboard.writeText(
         `${config.webUrl.replace(/\/$/, '')}/invite/${invite.code}`,
       )
-      setNotice('Invite created and copied.')
+      setNotice(t("communities.settings.inviteCreatedAndCopied"))
     } catch (caught) {
       setError(errorMessage(caught))
     } finally {
@@ -285,38 +347,46 @@ function useCommunitySettingsActions({
       await navigator.clipboard.writeText(
         `${config.webUrl.replace(/\/$/, '')}/invite/${invite.code}`,
       )
-      setNotice(`Invite ${invite.code} copied.`)
+      setNotice(t("communities.settings.inviteCodeCopied", { code: invite.code }))
     } catch (caught) {
-      setError(`Could not copy the invite: ${errorMessage(caught)}`)
+      setError(t("communities.settings.couldNotCopyTheInviteError", {
+        error: errorMessage(caught),
+      }))
     }
   }
   const revokeInvite = async (invite: Invite) => {
     if (!await confirm({
-      title: 'Revoke invite?',
-      description: `Revoke invite ${invite.code}? Anyone who has not used it will no longer be able to join.`,
-      confirmLabel: 'Revoke invite',
+      title: t("communities.settings.revokeInvite"),
+      description: t("communities.settings.revokeInviteDescription", {
+        code: invite.code,
+      }),
+      confirmLabel: t("communities.settings.revokeInviteAction"),
     })) return
     setError('')
     try {
       await communityApi.revokeInvite(client, invite.id)
       await queryClient.invalidateQueries({ queryKey: communityKeys.invites(community.id) })
-      setNotice(`Invite ${invite.code} revoked.`)
+      setNotice(t("communities.settings.inviteCodeRevoked", { code: invite.code }))
     } catch (caught) {
       setError(errorMessage(caught))
     }
   }
   const unban = async (ban: BanRecord) => {
-    const displayName = ban.expand?.user?.displayName ?? 'this member'
+    const displayName = ban.expand?.user?.displayName ?? t("communities.settings.thisMember")
     if (!await confirm({
-      title: 'Remove ban?',
-      description: `Unban ${displayName}? They will be able to rejoin with a valid invite.`,
-      confirmLabel: 'Remove ban',
+      title: t("communities.settings.removeBan"),
+      description: t("communities.settings.unbanNameTheyWillBeAbleToRejoinWithAValidInvite", {
+        name: displayName,
+      }),
+      confirmLabel: t("communities.settings.removeBanAction"),
     })) return
     setError('')
     try {
       await communityApi.unban(client, ban.id)
       await onBansChanged()
-      setNotice(`${ban.expand?.user?.displayName ?? 'Member'} was unbanned.`)
+      setNotice(t("communities.settings.nameWasUnbanned", {
+        name: ban.expand?.user?.displayName ?? t("communities.settings.member"),
+      }))
     } catch (caught) {
       setError(errorMessage(caught))
     }
@@ -325,9 +395,11 @@ function useCommunitySettingsActions({
     if (
       busy
       || !await confirm({
-        title: 'Permanently delete community?',
-        description: `Delete ${community.name}, its channels, memberships, messages, and call history? This cannot be undone.`,
-        confirmLabel: 'Delete community permanently',
+        title: t("communities.settings.permanentlyDeleteCommunity"),
+        description: t("communities.settings.deleteCommunityDescription", {
+          name: community.name,
+        }),
+        confirmLabel: t("communities.settings.deleteCommunityPermanently"),
       })
     ) return
     setBusy(true)
@@ -342,9 +414,11 @@ function useCommunitySettingsActions({
   }
   const leaveCommunity = async () => {
     if (busy || !await confirm({
-      title: 'Leave community?',
-      description: `Leave ${community.name}? You will need another valid invite to return.`,
-      confirmLabel: 'Leave community',
+      title: t("communities.settings.leaveCommunityTitle"),
+      description: t("communities.settings.leaveNameYouWillNeedAnotherValidInviteToReturn", {
+        name: community.name,
+      }),
+      confirmLabel: t("communities.settings.leaveCommunityAction"),
     })) return
     setBusy(true)
     setError('')
@@ -362,9 +436,9 @@ function useCommunitySettingsActions({
     if (
       busy
       || !await confirm({
-        title: 'Transfer ownership?',
-        description: 'This gives another member final control of the community and cannot be reversed without their cooperation.',
-        confirmLabel: 'Transfer ownership',
+        title: t("communities.settings.transferOwnership"),
+        description: t("communities.settings.transferOwnershipWarning"),
+        confirmLabel: t("communities.settings.transferOwnershipAction"),
       })
     ) return
     setBusy(true)
@@ -373,7 +447,7 @@ function useCommunitySettingsActions({
     try {
       await communityApi.transfer(client, community.id, data.get('userId'))
       await onChanged()
-      setNotice('Ownership transferred.')
+      setNotice(t("communities.settings.ownershipTransferred"))
     } catch (caught) {
       setError(errorMessage(caught))
     } finally {
@@ -500,13 +574,13 @@ function CommunitySettingsView({
 }) {
   const availableTabSet = new Set(availableTabs)
   return createPortal(
-    <dialog ref={dialogRef} className="modal-backdrop" aria-label={`${community.name} settings`}>
+    <dialog ref={dialogRef} className="modal-backdrop" aria-label={t("communities.settings.dialogLabel", { communityName: community.name })}>
       <section className="settings-card">
-        <nav className="settings-navigation" aria-label={`${community.name} settings sections`}>
+        <nav className="settings-navigation" aria-label={t("communities.settings.navigationLabel", { communityName: community.name })}>
           <strong>{community.name}</strong>
           {([
-            { label: 'Community', items: ['general', 'invites'] as const },
-            { label: 'People and safety', items: ['roles', 'members', 'audit'] as const },
+            { label: t("communities.settings.community"), items: ['general', 'invites'] as const },
+            { label: t("communities.settings.peopleAndSafety"), items: ['roles', 'members', 'audit'] as const },
           ]).map((group) => {
             const items = group.items.filter((item) => availableTabSet.has(item))
             if (!items.length) return null
@@ -520,7 +594,7 @@ function CommunitySettingsView({
                     aria-current={tab === item ? 'page' : undefined}
                     onClick={() => onTabChange(item)}
                     key={item}
-                  >{item}</button>
+                  >{t(settingsTabKeys[item])}</button>
                 ))}
               </div>
             )
@@ -528,8 +602,8 @@ function CommunitySettingsView({
         </nav>
         <div className="settings-content">
           <header>
-            <h2>{tab[0].toUpperCase() + tab.slice(1)}</h2>
-            <button type="button" aria-label={`Close ${community.name} settings`} onClick={onClose}>
+            <h2>{t(settingsTabKeys[tab])}</h2>
+            <button type="button" aria-label={t("communities.settings.closeDialog", { communityName: community.name })} onClick={onClose}>
               <X size={18} />
             </button>
           </header>
@@ -650,50 +724,49 @@ function GeneralSettings({
     <>
       {canManage ? (
         <form className="modal-form" onSubmit={(event) => void onSave(event)}>
-          <label><span>Name</span><input name="name" defaultValue={community.name} required maxLength={policyLimits.community.nameMax} /></label>
-          <label><span>Description</span><textarea name="description" defaultValue={community.description} maxLength={policyLimits.community.descriptionMax} rows={4} /></label>
-          <ImageFileField name="icon" label="Community icon" currentUrl={iconUrl} />
-          <ImageFileField name="banner" label="Community banner" currentUrl={bannerUrl} accept="image/png,image/jpeg,image/webp" banner />
-          <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button>
+          <label><span>{t("communities.settings.name")}</span><input name="name" defaultValue={community.name} required maxLength={policyLimits.community.nameMax} /></label>
+          <label><span>{t("communities.settings.description")}</span><textarea name="description" defaultValue={community.description} maxLength={policyLimits.community.descriptionMax} rows={4} /></label>
+          <ImageFileField name="icon" label={t("communities.settings.communityIcon")} currentUrl={iconUrl} />
+          <ImageFileField name="banner" label={t("communities.settings.communityBanner")} currentUrl={bannerUrl} accept="image/png,image/jpeg,image/webp" banner />
+          <button className="primary-action" type="submit" disabled={busy}>{busy ? t("communities.settings.saving") : t("communities.settings.saveChanges")}</button>
         </form>
       ) : (
         <div className="settings-summary">
-          <h3>{community.name}</h3><p>{community.description || 'No description.'}</p>
+          <h3>{community.name}</h3><p>{community.description || t("communities.settings.noDescription")}</p>
         </div>
       )}
       {community.owner === currentUser.id ? (
         <>
           <form className="modal-form compact-form" onSubmit={(event) => void onTransfer(event)}>
             <label>
-              <span>Transfer ownership to an administrator</span>
+              <span>{t("communities.settings.transferOwnershipToAnAdministrator")}</span>
               <select name="userId" required defaultValue="" disabled={!transferCandidates.length}>
                 <option value="" disabled>
-                  {transferCandidates.length
-                    ? 'Select an administrator'
-                    : hasMoreMembers
-                      ? 'Load more members to find administrators'
-                      : 'No other administrators'}
+                  {transferCandidates.length ? t("communities.settings.selectAnAdministrator") : hasMoreMembers ? t("communities.settings.loadMoreMembersToFindAdministrators") : t("communities.settings.noOtherAdministrators")}
                 </option>
                 {transferCandidates.map((membership) => (
                   <option value={membership.user} key={membership.id}>
-                    {membership.expand!.user!.displayName} (@{membership.expand!.user!.handle})
+                    {t("communities.settings.administratorOption", {
+                      displayName: membership.expand!.user!.displayName,
+                      handle: membership.expand!.user!.handle,
+                    })}
                   </option>
                 ))}
               </select>
             </label>
-            <button className="secondary-action" type="submit" disabled={busy || !transferCandidates.length}>Transfer ownership</button>
-            {hasMoreMembers ? <button className="secondary-action" type="button" disabled={loadingMoreMembers} onClick={onLoadMoreMembers}>{loadingMoreMembers ? 'Loading…' : 'Load more members'}</button> : null}
+            <button className="secondary-action" type="submit" disabled={busy || !transferCandidates.length}>{t("communities.settings.transferOwnershipAction")}</button>
+            {hasMoreMembers ? <button className="secondary-action" type="button" disabled={loadingMoreMembers} onClick={onLoadMoreMembers}>{loadingMoreMembers ? t("communities.settings.loading") : t("communities.settings.loadMoreMembers")}</button> : null}
           </form>
           <section className="settings-danger">
-            <h3>Delete community</h3>
-            <p>All channels, messages, roles, and memberships will be removed.</p>
-            <button className="danger-action" type="button" onClick={() => void onDelete()}>Delete community</button>
+            <h3>{t("communities.settings.deleteCommunity")}</h3>
+            <p>{t("communities.settings.allChannelsMessagesRolesAndMembershipsWillBeRemoved")}</p>
+            <button className="danger-action" type="button" onClick={() => void onDelete()}>{t("communities.settings.deleteCommunity")}</button>
           </section>
         </>
       ) : (
         <section className="settings-danger">
-          <h3>Leave community</h3>
-          <button className="danger-action" type="button" onClick={() => void onLeave()}>Leave community</button>
+          <h3>{t("communities.settings.leaveCommunityAction")}</h3>
+          <button className="danger-action" type="button" onClick={() => void onLeave()}>{t("communities.settings.leaveCommunityAction")}</button>
         </section>
       )}
     </>
@@ -724,9 +797,9 @@ function InviteSettings({
   return (
     <>
       <form className="modal-form compact-form invite-create-form" onSubmit={(event) => void onCreate(event)}>
-        <label><span>Expires after</span><select name="expiresInHours" defaultValue="168"><option value="1">1 hour</option><option value="24">1 day</option><option value="168">7 days</option><option value="720">30 days</option><option value="0">Never</option></select><small>Choose when the invite link expires</small></label>
-        <label><span>Maximum uses</span><input name="maxUses" type="number" min="0" defaultValue="0" /><small>0 means unlimited</small></label>
-        <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Creating…' : 'Create and copy invite'}</button>
+        <label><span>{t("communities.settings.expiresAfter")}</span><select name="expiresInHours" defaultValue="168"><option value="1">{t("communities.settings.oneHour")}</option><option value="24">{t("communities.settings.oneDay")}</option><option value="168">{t("communities.settings.sevenDays")}</option><option value="720">{t("communities.settings.thirtyDays")}</option><option value="0">{t("communities.settings.never")}</option></select><small>{t("communities.settings.chooseWhenTheInviteLinkExpires")}</small></label>
+        <label><span>{t("communities.settings.maximumUses")}</span><input name="maxUses" type="number" min="0" defaultValue="0" /><small>{t("communities.settings.zeroMeansUnlimited")}</small></label>
+        <button className="primary-action" type="submit" disabled={busy}>{busy ? t("communities.settings.creating") : t("communities.settings.createAndCopyInvite")}</button>
       </form>
       <div className="settings-list">
         {invites.map((invite) => (
@@ -735,19 +808,24 @@ function InviteSettings({
               <strong>{invite.code}</strong>
               <small>
                 {invite.revoked
-                  ? 'Revoked'
-                  : `${invite.uses}${invite.maxUses ? ` / ${invite.maxUses}` : ''} uses`}
-                {' · '}{invite.expiresAt ? `expires ${formatTime(invite.expiresAt)}` : 'never expires'}
+                  ? t("communities.settings.revoked")
+                  : invite.maxUses
+                    ? t("communities.settings.usesMax", {
+                      uses: t("communities.settings.inviteUseCount", { count: invite.uses }),
+                      max: invite.maxUses,
+                    })
+                    : t("communities.settings.inviteUseCount", { count: invite.uses })}
+                {' · '}{invite.expiresAt ? t("communities.settings.expiresAt", { expiry: formatTime(invite.expiresAt) }) : t("communities.settings.neverExpires")}
               </small>
             </span>
             <div>
-              <button type="button" onClick={() => void onCopy(invite)}>Copy</button>
-              {!invite.revoked ? <button type="button" onClick={() => void onRevoke(invite)}>Revoke</button> : null}
+              <button type="button" onClick={() => void onCopy(invite)}>{t("communities.settings.copy")}</button>
+              {!invite.revoked ? <button type="button" onClick={() => void onRevoke(invite)}>{t("communities.settings.revoke")}</button> : null}
             </div>
           </article>
         ))}
-        {loading ? <p>Loading invites…</p> : null}
-        {hasNextPage ? <button className="secondary-action" type="button" disabled={fetchingNextPage} onClick={onLoadMore}>{fetchingNextPage ? 'Loading…' : 'Load older invites'}</button> : null}
+        {loading ? <p>{t("communities.settings.loadingInvites")}</p> : null}
+        {hasNextPage ? <button className="secondary-action" type="button" disabled={fetchingNextPage} onClick={onLoadMore}>{fetchingNextPage ? t("communities.settings.loading") : t("communities.settings.loadOlderInvites")}</button> : null}
       </div>
     </>
   )
@@ -804,10 +882,10 @@ function MemberSettings({
     <>
       <div className="member-admin-toolbar">
         <div>
-          <strong>Community members</strong>
+          <strong>{t("communities.settings.communityMembers")}</strong>
           <small>
-            Roles and nicknames apply across this community. Configure
-            channel-specific access in Channel settings.
+
+            {t("communities.settings.permissionScopeDescription")}
           </small>
         </div>
         <label className="member-admin-search">
@@ -816,15 +894,22 @@ function MemberSettings({
             type="search"
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search members"
-            aria-label="Search community members"
+            placeholder={t("communities.settings.searchMembers")}
+            aria-label={t("communities.settings.searchCommunityMembers")}
           />
         </label>
       </div>
       <p className="member-result-count">
         {normalizedSearch
-          ? `${filteredMemberships.length} matching loaded members`
-          : `${memberships.length}${memberPagination.hasMore ? '+' : ''} members loaded`}
+          ? t("communities.settings.matchingMembersLoaded", {
+              count: filteredMemberships.length,
+            })
+          : t(
+              memberPagination.hasMore
+                ? "communities.settings.membersLoadedWithMore"
+                : "communities.settings.membersLoaded",
+              { count: memberships.length },
+            )}
       </p>
       <div className="settings-list member-admin-list">
         {filteredMemberships.map((membership) => (
@@ -841,28 +926,28 @@ function MemberSettings({
         ))}
         {normalizedSearch && !filteredMemberships.length ? (
           <div className="member-search-empty">
-            <strong>No matching members</strong>
-            <span>Try a display name, nickname, handle, or email address.</span>
+            <strong>{t("communities.settings.noMatchingMembers")}</strong>
+            <span>{t("communities.settings.tryADisplayNameNicknameHandleOrEmailAddress")}</span>
           </div>
         ) : null}
-        {memberPagination.hasMore ? <button className="secondary-action" type="button" disabled={memberPagination.loadingMore} onClick={onLoadMoreMembers}>{memberPagination.loadingMore ? 'Loading…' : 'Load more members'}</button> : null}
+        {memberPagination.hasMore ? <button className="secondary-action" type="button" disabled={memberPagination.loadingMore} onClick={onLoadMoreMembers}>{memberPagination.loadingMore ? t("communities.settings.loading") : t("communities.settings.loadMoreMembers")}</button> : null}
       </div>
       {capabilities.manageMembers ? (
         <section className="ban-list">
-          <h3>Bans</h3>
+          <h3>{t("communities.settings.bans")}</h3>
           {bans.map((ban) => (
             <article key={ban.id}>
               <span>
                 <strong>{ban.expand?.user?.displayName ?? ban.user}</strong>
-                <small>{ban.reason || 'No reason'}</small>
+                <small>{ban.reason || t("communities.settings.noReason")}</small>
               </span>
-              <button type="button" onClick={() => void onUnban(ban)}>Unban</button>
+              <button type="button" onClick={() => void onUnban(ban)}>{t("communities.settings.unban")}</button>
             </article>
           ))}
-          {banState.loading ? <p>Loading bans…</p> : null}
-          {banState.error ? <DataFailure error={banState.error} onRetry={onRetryBans} label="Could not load bans." /> : null}
-          {banState.hasMore ? <button className="secondary-action" type="button" disabled={banState.loadingMore} onClick={onLoadMoreBans}>{banState.loadingMore ? 'Loading…' : 'Load more bans'}</button> : null}
-          {!banState.loading && !bans.length ? <p>No banned members.</p> : null}
+          {banState.loading ? <p>{t("communities.settings.loadingBans")}</p> : null}
+          {banState.error ? <DataFailure error={banState.error} onRetry={onRetryBans} label={t("communities.settings.couldNotLoadBans")} /> : null}
+          {banState.hasMore ? <button className="secondary-action" type="button" disabled={banState.loadingMore} onClick={onLoadMoreBans}>{banState.loadingMore ? t("communities.settings.loading") : t("communities.settings.loadMoreBans")}</button> : null}
+          {!banState.loading && !bans.length ? <p>{t("communities.settings.noBannedMembers")}</p> : null}
         </section>
       ) : null}
     </>
@@ -887,17 +972,25 @@ function AuditSettings({
       {events.map((event) => (
         <article key={event.id} title={String(event.targetId)}>
           <span>
-            <strong>{String(event.action).replace(/\./g, ' ')}</strong>
+            <strong>{auditActionLabel(event.action)}</strong>
             <small>
-              {event.expand?.actor?.displayName ?? 'System'} · {formatTime(String(event.created))}
-              {event.reason ? ` · ${String(event.reason)}` : ''}
+              {event.reason
+                ? t("communities.settings.actorDateReason", {
+                  actor: event.expand?.actor?.displayName ?? t("communities.settings.system"),
+                  date: formatTime(String(event.created)),
+                  reason: String(event.reason),
+                })
+                : t("communities.settings.actorDate", {
+                  actor: event.expand?.actor?.displayName ?? t("communities.settings.system"),
+                  date: formatTime(String(event.created)),
+                })}
             </small>
           </span>
-          <code>{String(event.targetType || 'event')}</code>
+          <code>{auditTargetLabel(event.targetType)}</code>
         </article>
       ))}
-      {loading ? <p>Loading audit log…</p> : null}
-      {hasNextPage ? <button className="secondary-action" type="button" disabled={fetchingNextPage} onClick={onLoadMore}>{fetchingNextPage ? 'Loading…' : 'Load older events'}</button> : null}
+      {loading ? <p>{t("communities.settings.loadingAuditLog")}</p> : null}
+      {hasNextPage ? <button className="secondary-action" type="button" disabled={fetchingNextPage} onClick={onLoadMore}>{fetchingNextPage ? t("communities.settings.loading") : t("communities.settings.loadOlderEvents")}</button> : null}
     </div>
   )
 }

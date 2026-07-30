@@ -1,5 +1,6 @@
 import type { DistributionConfig, StoredAuthSession } from '@thiscord/shared'
 import PocketBase, { BaseAuthStore, ClientResponseError, type RecordModel } from 'pocketbase'
+import { t } from './i18n'
 
 export async function createPocketBase(config: DistributionConfig): Promise<PocketBase> {
   const desktop = window.desktop
@@ -40,7 +41,7 @@ export function errorMessage(error: unknown): string {
     const fieldError = data ? Object.values(data).find((item) => item?.message)?.message : undefined
     return fieldError || error.response?.message || error.message
   }
-  return error instanceof Error ? error.message : 'Something went wrong.'
+  return error instanceof Error ? error.message : t("common.pocketbase.somethingWentWrong")
 }
 
 export function requestWasDeniedOrMissing(error: unknown) {

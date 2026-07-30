@@ -1,3 +1,4 @@
+import { t, useLocale } from '../../lib/i18n'
 import { policyLimits, type User } from '@thiscord/shared'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import {
@@ -106,17 +107,17 @@ function EmojiPicker({
   const emojiButtons = (items: readonly string[]) => items.map((emoji) => (
     <button
       type="button"
-      aria-label={`Insert ${emoji}`}
+      aria-label={t("messaging.messageSurface.insertEmoji", { emoji })}
       onClick={() => onSelect(emoji)}
       key={emoji}
     >{emoji}</button>
   ))
   return (
-    <div id={id} className="reaction-picker" role="group" aria-label="Choose emoji">
-      <span className="reaction-picker-label">Frequent</span>
+    <div id={id} className="reaction-picker" role="group" aria-label={t("messaging.messageSurface.chooseEmoji")}>
+      <span className="reaction-picker-label">{t("messaging.messageSurface.frequent")}</span>
       <div className="reaction-picker-grid">{emojiButtons(frequentEmoji)}</div>
       <details>
-        <summary>More emoji</summary>
+        <summary>{t("messaging.messageSurface.moreEmoji")}</summary>
         <div className="reaction-picker-grid">{emojiButtons(moreEmoji)}</div>
       </details>
     </div>
@@ -133,8 +134,8 @@ function MessageAttachments({ message, userId }: {
   if (!token) {
     return (
       <div className="attachment-status" role={fileToken.error ? 'alert' : 'status'}>
-        <span>{fileToken.error ? 'Attachments could not be authorized.' : 'Authorizing attachments…'}</span>
-        {fileToken.error ? <button type="button" onClick={() => void fileToken.refetch()}>Retry</button> : null}
+        <span>{fileToken.error ? t("messaging.messageSurface.attachmentsCouldNotBeAuthorized") : t("messaging.messageSurface.authorizingAttachments")}</span>
+        {fileToken.error ? <button type="button" onClick={() => void fileToken.refetch()}>{t("messaging.messageSurface.retry")}</button> : null}
       </div>
     )
   }
@@ -161,12 +162,12 @@ function MessageAttachments({ message, userId }: {
                 decoding="async"
               />
             </a>
-            <figcaption><span>{displayName}</span><a href={downloadUrl}>Download</a></figcaption>
+            <figcaption><span>{displayName}</span><a href={downloadUrl}>{t("messaging.messageSurface.download")}</a></figcaption>
           </figure>
         ) : (
           <a className="attachment-card" href={downloadUrl} key={filename}>
             <span><FileText size={21} /></span>
-            <span><strong title={displayName}>{displayName}</strong><small>Download attachment</small></span>
+            <span><strong title={displayName}>{displayName}</strong><small>{t("messaging.messageSurface.downloadAttachment")}</small></span>
           </a>
         )
       })}
@@ -191,6 +192,7 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
   readonly onEdit: (message: TMessage) => void
   readonly onOpenProfile: MessageSurfaceProps<TMessage>['onOpenProfile']
 }) {
+  useLocale()
   const [reactionOpen, setReactionOpen] = useState(false)
   const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -217,9 +219,9 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
     setActionNotice('')
     try {
       await navigator.clipboard.writeText(message.content)
-      setActionNotice('Message text copied.')
+      setActionNotice(t("messaging.messageSurface.messageTextCopied"))
     } catch {
-      setActionError('Could not copy the message text. Check clipboard access and try again.')
+      setActionError(t("messaging.messageSurface.copyTextFailed"))
     }
   }
   return (
@@ -227,7 +229,9 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
       <button
         className="message-avatar-button"
         type="button"
-        aria-label={`View ${author.displayName}'s profile`}
+        aria-label={t("messaging.messageSurface.viewAuthorProfile", {
+          authorName: author.displayName,
+        })}
         onClick={() => onOpenProfile(author)}
       >
         <Avatar user={author} />
@@ -236,17 +240,17 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
         {message.expand?.replyTo ? (
           <div className="reply-context">
             <span className="reply-line" />
-            <strong>{message.expand.replyTo.expand?.author?.displayName ?? 'Unknown'}</strong>
-            <span>{message.expand.replyTo.content || 'Message unavailable'}</span>
+            <strong>{message.expand.replyTo.expand?.author?.displayName ?? t("messaging.messageSurface.unknown")}</strong>
+            <span>{message.expand.replyTo.content || t("messaging.messageSurface.messageUnavailable")}</span>
           </div>
         ) : null}
         <div className="message-meta">
           <strong>{author.displayName}</strong>
           <time dateTime={message.created}>{formatTime(message.created)}</time>
-          {message.editedAt ? <small className="edited">edited</small> : null}
+          {message.editedAt ? <small className="edited">{t("messaging.messageSurface.edited")}</small> : null}
         </div>
         {deleted
-          ? <p>Message deleted</p>
+          ? <p>{t("messaging.messageSurface.messageDeleted")}</p>
           : (
               <Suspense fallback={<p className="message-content-fallback">{message.content}</p>}>
                 <RichMessage content={message.content} embedsEnabled={message.embedsEnabled} />
@@ -259,12 +263,20 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
           <div className="reactions">
             {[...grouped.entries()].map(([emoji, items]) => {
               const reacted = items.some((item) => item.user === currentUser.id)
-              const reactionCount = `${items.length} reaction${items.length === 1 ? '' : 's'}`
+              const reactionCount = items.length
               return (
                 <button
                   className={reacted ? 'mine' : ''}
                   type="button"
-                  aria-label={`${reacted ? 'Remove' : 'Add'} ${emoji} reaction, ${reactionCount}`}
+                  aria-label={reacted
+                    ? t("messaging.messageSurface.removeReaction", {
+                        emoji,
+                        count: reactionCount,
+                      })
+                    : t("messaging.messageSurface.addReactionWithCount", {
+                        emoji,
+                        count: reactionCount,
+                      })}
                   aria-pressed={reacted}
                   onClick={() => void run(() => adapter.react(message, emoji))}
                   key={emoji}
@@ -281,8 +293,8 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
           <button
             className="message-action-quick"
             type="button"
-            title="Add reaction"
-            aria-label="Add reaction"
+            title={t("messaging.messageSurface.addReaction")}
+            aria-label={t("messaging.messageSurface.addReaction")}
             aria-expanded={reactionOpen}
             aria-controls={reactionPickerId}
             onClick={() => setReactionOpen((value) => !value)}
@@ -292,14 +304,16 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
           <button
             className="message-action-quick"
             type="button"
-            title="Reply"
-            aria-label="Reply to message"
+            title={t("messaging.messageSurface.reply")}
+            aria-label={t("messaging.messageSurface.replyToMessage")}
             onClick={() => onReply(message)}
           ><MessageSquareText size={15} /></button>
           <button
             type="button"
-            title="More actions"
-            aria-label={`More actions for message from ${author.displayName}`}
+            title={t("messaging.messageSurface.moreActions")}
+            aria-label={t("messaging.messageSurface.moreActionsForAuthorMessage", {
+              authorName: author.displayName,
+            })}
             aria-expanded={Boolean(menuPoint)}
             onClick={(event) => {
               const bounds = event.currentTarget.getBoundingClientRect()
@@ -311,18 +325,23 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
       {menuPoint ? (
         <ContextMenu
           point={menuPoint}
-          label={`Actions for message from ${author.displayName}`}
+          label={t("messaging.messageSurface.actionsForAuthorMessage", {
+            authorName: author.displayName,
+          })}
           onClose={() => setMenuPoint(null)}
         >
           <ContextMenuItem icon={<SmilePlus size={15} />} onSelect={() => setReactionOpen(true)}>
-            Add reaction
+
+            {t("messaging.messageSurface.addReaction")}
           </ContextMenuItem>
           <ContextMenuItem icon={<MessageSquareText size={15} />} onSelect={() => onReply(message)}>
-            Reply
+
+            {t("messaging.messageSurface.reply")}
           </ContextMenuItem>
           {message.content ? (
             <ContextMenuItem icon={<Copy size={15} />} onSelect={copyText}>
-              Copy text
+
+              {t("messaging.messageSurface.copyText")}
             </ContextMenuItem>
           ) : null}
           {adapter.policy.canPin(message, currentUser) ? (
@@ -330,12 +349,13 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
               icon={message.pinned ? <PinOff size={15} /> : <Pin size={15} />}
               onSelect={() => run(() => adapter.pin(message))}
             >
-              {message.pinned ? 'Unpin message' : 'Pin message'}
+              {message.pinned ? t("messaging.messageSurface.unpinMessage") : t("messaging.messageSurface.pinMessage")}
             </ContextMenuItem>
           ) : null}
           {adapter.policy.canEdit(message, currentUser) ? (
             <ContextMenuItem icon={<Pencil size={15} />} onSelect={() => onEdit(message)}>
-              Edit message
+
+              {t("messaging.messageSurface.editMessage")}
             </ContextMenuItem>
           ) : null}
           {adapter.policy.canDelete(message, currentUser) ? (
@@ -346,7 +366,8 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
                 danger
                 onSelect={() => setDeleteOpen(true)}
               >
-                Delete message
+
+                {t("messaging.messageSurface.deleteMessage")}
               </ContextMenuItem>
             </>
           ) : null}
@@ -360,9 +381,9 @@ function MessageRowComponent<TMessage extends SurfaceMessage,>({
       ) : null}
       {deleteOpen ? (
         <ConfirmDialog
-          title="Delete message?"
-          description="This removes the message for everyone in this conversation. This action cannot be undone."
-          confirmLabel="Delete message"
+          title={t("messaging.messageSurface.deleteMessageTitle")}
+          description={t("messaging.messageSurface.deleteMessageDescription")}
+          confirmLabel={t("messaging.messageSurface.deleteMessage")}
           onClose={() => setDeleteOpen(false)}
           onConfirm={async () => {
             await run(() => adapter.remove(message))
@@ -405,7 +426,7 @@ function MessageLog<TMessage extends SurfaceMessage,>({
     <div
       className="message-list"
       role="log"
-      aria-label="Messages"
+      aria-label={t("messaging.messageSurface.messages")}
       aria-live="polite"
       aria-relevant="additions text"
     >
@@ -478,12 +499,17 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
     setError('')
     const combined = [...files, ...selected]
     if (combined.length > policyLimits.message.attachmentsMax) {
-      setError(`You can attach up to ${policyLimits.message.attachmentsMax} files.`)
+      setError(t("messaging.messageSurface.youCanAttachUpToCountFiles", {
+        count: policyLimits.message.attachmentsMax,
+      }))
       return
     }
     const tooLarge = combined.find((file) => file.size > policyLimits.message.attachmentBytesMax)
     if (tooLarge) {
-      setError(`${tooLarge.name} is larger than ${policyLimits.message.attachmentBytesMax / 1024 / 1024} MB.`)
+      setError(t("messaging.messageSurface.nameIsLargerThanSizeMB", {
+        name: tooLarge.name,
+        size: policyLimits.message.attachmentBytesMax / 1024 / 1024,
+      }))
       return
     }
     setFiles(combined)
@@ -508,18 +534,25 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
     <div className="composer-wrap">
       {reply || editing ? (
         <div className="composer-context">
-          <span>{editing ? 'Editing message' : `Replying to ${reply?.expand?.author?.displayName ?? 'message'}`}</span>
-          <button type="button" aria-label="Cancel reply or edit" onClick={onCancelContext}><X size={14} /></button>
+          <span>{editing
+            ? t("messaging.messageSurface.editingMessage")
+            : t("messaging.messageSurface.replyingToAuthor", {
+                authorName: reply?.expand?.author?.displayName
+                  ?? t("messaging.messageSurface.message"),
+              })}</span>
+          <button type="button" aria-label={t("messaging.messageSurface.cancelReplyOrEdit")} onClick={onCancelContext}><X size={14} /></button>
         </div>
       ) : null}
       {files.length ? (
         <div className="composer-files">
           {files.map((file) => (
             <span key={`${file.name}-${file.lastModified}`}>
-              {file.name}<small>{Math.max(1, Math.round(file.size / 1024))} KB</small>
+              {file.name}<small>{Math.max(1, Math.round(file.size / 1024))}  {t("messaging.messageSurface.kb")}</small>
               <button
                 type="button"
-                aria-label={`Remove ${file.name}`}
+                aria-label={t("messaging.messageSurface.removeFile", {
+                  fileName: file.name,
+                })}
                 onClick={() => setFiles((current) => current.filter((item) => item !== file))}
               ><X size={12} /></button>
             </span>
@@ -528,7 +561,9 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
       ) : null}
       {busy && files.length ? (
         <div className="upload-progress" role="status">
-          <span />Uploading {files.length} attachment{files.length === 1 ? '' : 's'}…
+          <span />{t("messaging.messageSurface.uploadingAttachments", {
+            count: files.length,
+          })}
         </div>
       ) : null}
       {error ? <p className="composer-error" role="alert">{error}</p> : null}
@@ -547,7 +582,7 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
           type="button"
           disabled={Boolean(disabledReason) || busy || Boolean(editing)}
           className="composer-add"
-          title={editing ? 'Attachments cannot be changed while editing' : 'Add attachment'}
+          title={editing ? t("messaging.messageSurface.attachmentsCannotBeChangedWhileEditing") : t("messaging.messageSurface.addAttachment")}
           onClick={() => fileInput.current?.click()}
         ><Paperclip size={18} /></button>
         <textarea
@@ -577,7 +612,7 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
         <button
           type="button"
           disabled={Boolean(disabledReason) || busy}
-          title="Add emoji"
+          title={t("messaging.messageSurface.addEmoji")}
           aria-expanded={emojiOpen}
           aria-controls={emojiPickerId}
           onClick={() => setEmojiOpen((value) => !value)}
@@ -585,7 +620,7 @@ function MessageComposer<TMessage extends SurfaceMessage,>({
         <button
           className="send-button"
           type="submit"
-          title="Send message"
+          title={t("messaging.messageSurface.sendMessage")}
           disabled={Boolean(disabledReason) || busy || (!draft.trim() && !files.length)}
         ><Send size={17} /></button>
       </form>
@@ -642,10 +677,10 @@ function ConversationSearch({
         className={pinnedOnly ? 'active' : ''}
         type="button"
         aria-pressed={pinnedOnly}
-        title={pinnedOnly ? 'Show all messages' : 'Show pinned messages only'}
+        title={pinnedOnly ? t("messaging.messageSurface.showAllMessages") : t("messaging.messageSurface.showPinnedMessagesOnly")}
         onClick={() => onPinnedOnlyChange(!pinnedOnly)}
       >
-        <Pin size={13} />{pinnedOnly ? 'Pinned only' : 'Pinned messages'}
+        <Pin size={13} />{pinnedOnly ? t("messaging.messageSurface.pinnedOnly") : t("messaging.messageSurface.pinnedMessages")}
       </button>
     </search>
   )
@@ -828,7 +863,7 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
         }}
       >
         {intro}
-        {history.isLoading ? <LoadingState>Loading messages…</LoadingState> : null}
+        {history.isLoading ? <LoadingState>{t("messaging.messageSurface.loadingMessages")}</LoadingState> : null}
         {history.isError ? (
           <DataFailure
             error={history.error}
@@ -840,7 +875,7 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
           <DataFailure
             error={focusedMessage.error}
             onRetry={() => void focusedMessage.refetch()}
-            label="Could not load the linked message."
+            label={t("messaging.messageSurface.couldNotLoadTheLinkedMessage")}
           />
         ) : null}
         {messageWindow.hasOlderLoaded ? (
@@ -852,7 +887,8 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
               messageWindow.showOlder()
             }}
           >
-            Show older loaded messages
+
+            {t("messaging.messageSurface.showOlderLoadedMessages")}
           </button>
         ) : !searchActive && history.hasNextPage ? (
           <button
@@ -864,10 +900,10 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
               messageWindow.expectOlderMessages()
               void history.fetchNextPage()
             }}
-          >{history.isFetchingNextPage ? 'Loading…' : 'Load older messages'}</button>
+          >{history.isFetchingNextPage ? t("messaging.messageSurface.loading") : t("messaging.messageSurface.loadOlderMessages")}</button>
         ) : null}
         {searchActive && filteredMessages.isLoading
-          ? <LoadingState>Searching messages…</LoadingState>
+          ? <LoadingState>{t("messaging.messageSurface.searchingMessages")}</LoadingState>
           : null}
         {searchActive && filteredMessages.isError ? (
           <DataFailure
@@ -891,9 +927,9 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
         ) : showEmptyState ? (
           <div className="empty-channel">
             <span aria-hidden="true"><MessageSquareText size={22} /></span>
-            <h2>{searchActive ? 'No matching messages' : emptyTitle}</h2>
+            <h2>{searchActive ? t("messaging.messageSurface.noMatchingMessages") : emptyTitle}</h2>
             {searchActive
-              ? <p>Try a different search or clear the pinned filter.</p>
+              ? <p>{t("messaging.messageSurface.tryADifferentSearchOrClearThePinnedFilter")}</p>
               : emptyDescription ? <p>{emptyDescription}</p> : null}
           </div>
         ) : null}
@@ -909,7 +945,8 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
               })
             }}
           >
-            Show newer messages
+
+            {t("messaging.messageSurface.showNewerMessages")}
           </button>
         ) : null}
         {searchActive && filteredMessages.hasNextPage ? (
@@ -918,7 +955,7 @@ export function MessageSurface<TMessage extends SurfaceMessage,>({
             type="button"
             disabled={filteredMessages.isFetchingNextPage}
             onClick={() => void filteredMessages.fetchNextPage()}
-          >{filteredMessages.isFetchingNextPage ? 'Loading…' : 'More results'}</button>
+          >{filteredMessages.isFetchingNextPage ? t("messaging.messageSurface.loading") : t("messaging.messageSurface.moreResults")}</button>
         ) : null}
       </div>
       <MessageComposer

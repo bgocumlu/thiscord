@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type {
   Conversation,
   ConversationMember,
@@ -71,12 +72,14 @@ export function GroupSettingsDialog({
     if (busy) return
     const target = members.find((member) => member.user === userId)?.expand?.user
     const label = userId === currentUser.id
-      ? 'Leave this group?'
-      : `Remove ${target?.displayName ?? 'this member'} from the group?`
+      ? t("conversations.dialogs.leaveThisGroup")
+      : t("conversations.dialogs.removeNameFromTheGroup", {
+        name: target?.displayName ?? t("conversations.dialogs.thisMember"),
+      })
     if (!await confirm({
-      title: userId === currentUser.id ? 'Leave this group?' : 'Remove group member?',
+      title: userId === currentUser.id ? t("conversations.dialogs.leaveThisGroup") : t("conversations.dialogs.removeGroupMember"),
       description: label,
-      confirmLabel: userId === currentUser.id ? 'Leave group' : 'Remove member',
+      confirmLabel: userId === currentUser.id ? t("conversations.dialogs.leaveGroup") : t("conversations.dialogs.removeMember"),
     })) return
     setBusy(true)
     setError('')
@@ -94,16 +97,16 @@ export function GroupSettingsDialog({
     }
   }
   return (
-    <ModalFrame title="Group settings" onClose={onClose}>
+    <ModalFrame title={t("conversations.dialogs.groupSettings")} onClose={onClose}>
       {isOwner ? (
         <>
           <form className="modal-form compact-form" onSubmit={(event) => void rename(event)}>
-            <label><span>Group name</span><input name="name" defaultValue={conversation.name} required maxLength={policyLimits.conversation.nameMax} /></label>
-            <button className="secondary-action" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Rename group'}</button>
+            <label><span>{t("conversations.dialogs.groupName")}</span><input name="name" defaultValue={conversation.name} required maxLength={policyLimits.conversation.nameMax} /></label>
+            <button className="secondary-action" type="submit" disabled={busy}>{busy ? t("conversations.dialogs.saving") : t("conversations.dialogs.renameGroup")}</button>
           </form>
           <form className="modal-form compact-form" onSubmit={(event) => void addMember(event)}>
-            <label><span>Add member by handle</span><input name="handle" placeholder="@handle" required /></label>
-            <button className="secondary-action" type="submit" disabled={busy}>{busy ? 'Adding…' : 'Add member'}</button>
+            <label><span>{t("conversations.dialogs.addMemberByHandle")}</span><input name="handle" placeholder={t("conversations.dialogs.handle")} required /></label>
+            <button className="secondary-action" type="submit" disabled={busy}>{busy ? t("conversations.dialogs.adding") : t("conversations.dialogs.addMember")}</button>
           </form>
         </>
       ) : null}
@@ -114,9 +117,14 @@ export function GroupSettingsDialog({
           return (
             <article key={member.id}>
               <Avatar user={user} size="small" />
-              <span><strong>{user.displayName}</strong><small>@{user.handle}{conversation.owner === user.id ? ' · owner' : ''}</small></span>
+              <span>
+                <strong>{user.displayName}</strong>
+                <small>
+                  {conversation.owner === user.id ? t("conversations.dialogs.handleOwner", { handle: user.handle }) : t("conversations.dialogs.handleDisplay", { handle: user.handle })}
+                </small>
+              </span>
               {isOwner && user.id !== currentUser.id ? (
-                <button type="button" disabled={busy} onClick={() => void removeMember(user.id)}>Remove</button>
+                <button type="button" disabled={busy} onClick={() => void removeMember(user.id)}>{t("conversations.dialogs.remove")}</button>
               ) : null}
             </article>
           )
@@ -124,7 +132,7 @@ export function GroupSettingsDialog({
       </div>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <button className="danger-action modal-logout" type="button" disabled={busy} onClick={() => void removeMember(currentUser.id)}>
-        {busy ? 'Working…' : 'Leave group'}
+        {busy ? t("conversations.dialogs.working") : t("conversations.dialogs.leaveGroup")}
       </button>
       {confirmation}
     </ModalFrame>
@@ -160,7 +168,7 @@ export function DirectDialog({ onClose, onCreated }: {
           : {
               kind,
               userIds: users.map((user) => user.id),
-              name: String(data.get('name') || 'New group'),
+              name: String(data.get('name') || t("conversations.dialogs.newGroup")),
             },
       ))
     } catch (caught) {
@@ -170,19 +178,19 @@ export function DirectDialog({ onClose, onCreated }: {
     }
   }
   return (
-    <ModalFrame title="New conversation" onClose={onClose}>
+    <ModalFrame title={t("conversations.dialogs.newConversation")} onClose={onClose}>
       <form className="modal-form" onSubmit={(event) => void submit(event)}>
         <label>
-          <span>Type</span>
+          <span>{t("conversations.dialogs.type")}</span>
           <select value={kind} onChange={(event) => setKind(event.target.value as 'direct' | 'group')}>
-            <option value="direct">Direct message</option>
-            <option value="group">Group conversation</option>
+            <option value="direct">{t("conversations.dialogs.directMessage")}</option>
+            <option value="group">{t("conversations.dialogs.groupConversation")}</option>
           </select>
         </label>
-        <label><span>{kind === 'direct' ? 'Handle' : 'Handles'}</span><input name="handles" placeholder={kind === 'direct' ? '@handle' : '@handle, @another'} required /></label>
-        {kind === 'group' ? <label><span>Group name</span><input name="name" required maxLength={policyLimits.conversation.nameMax} /></label> : null}
+        <label><span>{kind === 'direct' ? t("conversations.dialogs.handle") : t("conversations.dialogs.handles")}</span><input name="handles" placeholder={kind === 'direct' ? t("conversations.dialogs.handle") : t("conversations.dialogs.handleAnother")} required /></label>
+        {kind === 'group' ? <label><span>{t("conversations.dialogs.groupName")}</span><input name="name" required maxLength={policyLimits.conversation.nameMax} /></label> : null}
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Starting…' : 'Start conversation'}</button>
+        <button className="primary-action" type="submit" disabled={busy}>{busy ? t("conversations.dialogs.starting") : t("conversations.dialogs.startConversation")}</button>
       </form>
     </ModalFrame>
   )

@@ -1,3 +1,4 @@
+import { t } from '../lib/i18n'
 import type { Channel } from '@thiscord/shared'
 import {
   Bell,
@@ -82,8 +83,8 @@ export function WorkspaceHelp({ supportUrl }: {
           ref={triggerRef}
           className={open ? 'active' : ''}
           type="button"
-          title="Help and tips"
-          aria-label="Help and tips"
+          title={t("workspace.chrome.helpAndTips")}
+          aria-label={t("workspace.chrome.helpAndTips")}
           aria-expanded={open}
           aria-controls="workspace-help"
           onClick={() => setOpen((value) => !value)}
@@ -97,18 +98,18 @@ export function WorkspaceHelp({ supportUrl }: {
           id="workspace-help"
           className="workspace-help-popover"
           role="region"
-          aria-label="Help and tips"
+          aria-label={t("workspace.chrome.helpAndTips")}
         >
           <header>
             <span>
-              <strong>Help</strong>
-              <small className="desktop-help-content">Keyboard shortcuts</small>
-              <small className="mobile-help-content">Mobile tips</small>
+              <strong>{t("workspace.chrome.help")}</strong>
+              <small className="desktop-help-content">{t("workspace.chrome.keyboardShortcuts")}</small>
+              <small className="mobile-help-content">{t("workspace.chrome.mobileTips")}</small>
             </span>
             <button
               className="workspace-help-close"
               type="button"
-              aria-label="Close help"
+              aria-label={t("workspace.chrome.closeHelp")}
               onClick={() => {
                 setOpen(false)
                 triggerRef.current?.focus()
@@ -116,25 +117,25 @@ export function WorkspaceHelp({ supportUrl }: {
             ><X size={16} /></button>
           </header>
           <dl className="desktop-help-content">
-            <div><dt>Search everywhere</dt><dd><kbd>Ctrl</kbd><kbd>K</kbd></dd></div>
-            <div><dt>Search this conversation</dt><dd><kbd>Ctrl</kbd><kbd>F</kbd></dd></div>
-            <div><dt>Focus the message box</dt><dd><kbd>/</kbd></dd></div>
-            <div><dt>New line in a message</dt><dd><kbd>Shift</kbd><kbd>Enter</kbd></dd></div>
-            <div><dt>Open item actions</dt><dd><kbd>Shift</kbd><kbd>F10</kbd></dd></div>
-            <div><dt>Close menus and dialogs</dt><dd><kbd>Esc</kbd></dd></div>
+            <div><dt>{t("workspace.chrome.searchEverywhere")}</dt><dd><kbd>{t("workspace.chrome.ctrl")}</kbd><kbd>{t("workspace.chrome.k")}</kbd></dd></div>
+            <div><dt>{t("workspace.chrome.searchThisConversation")}</dt><dd><kbd>{t("workspace.chrome.ctrl")}</kbd><kbd>{t("workspace.chrome.f")}</kbd></dd></div>
+            <div><dt>{t("workspace.chrome.focusTheMessageBox")}</dt><dd><kbd>/</kbd></dd></div>
+            <div><dt>{t("workspace.chrome.newLineInAMessage")}</dt><dd><kbd>{t("workspace.chrome.shift")}</kbd><kbd>{t("workspace.chrome.enter")}</kbd></dd></div>
+            <div><dt>{t("workspace.chrome.openItemActions")}</dt><dd><kbd>{t("workspace.chrome.shift")}</kbd><kbd>{t("workspace.chrome.f10")}</kbd></dd></div>
+            <div><dt>{t("workspace.chrome.closeMenusAndDialogs")}</dt><dd><kbd>{t("workspace.chrome.esc")}</kbd></dd></div>
           </dl>
           <ul className="mobile-help-content">
-            <li><strong>Navigate</strong><span>Tap the menu button to switch channels or conversations.</span></li>
-            <li><strong>Find things</strong><span>Tap search in the top bar to find messages, channels, or people.</span></li>
-            <li><strong>Message actions</strong><span>Press and hold a message to react, reply, or open more actions.</span></li>
-            <li><strong>View profiles</strong><span>Tap a member or message avatar to open their profile.</span></li>
+            <li><strong>{t("workspace.chrome.navigate")}</strong><span>{t("workspace.chrome.tapTheMenuButtonToSwitchChannelsOrConversations")}</span></li>
+            <li><strong>{t("workspace.chrome.findThings")}</strong><span>{t("workspace.chrome.tapSearchInTheTopBarToFindMessagesChannelsOrPeople")}</span></li>
+            <li><strong>{t("workspace.chrome.messageActions")}</strong><span>{t("workspace.chrome.pressAndHoldAMessageToReactReplyOrOpenMoreActions")}</span></li>
+            <li><strong>{t("workspace.chrome.viewProfiles")}</strong><span>{t("workspace.chrome.tapAMemberOrMessageAvatarToOpenTheirProfile")}</span></li>
           </ul>
           {supportUrl ? (
             <a href={supportUrl} target="_blank" rel="noreferrer">
-              <ExternalLink size={14} />Open support
+              <ExternalLink size={14} />{t("workspace.chrome.openSupport")}
             </a>
           ) : (
-            <p>For account or access help, contact a community administrator.</p>
+            <p>{t("workspace.chrome.forAccountOrAccessHelpContactACommunityAdministrator")}</p>
           )}
         </div>
       ) : null}
@@ -171,7 +172,7 @@ export function ChannelToolbar({
         ref={navigationTriggerRef}
         className="mobile-nav-button"
         type="button"
-        aria-label="Open community navigation"
+        aria-label={t("workspace.chrome.openCommunityNavigation")}
         aria-expanded={navigationOpen}
         aria-controls="community-navigation"
         onClick={onToggleNavigation}
@@ -184,20 +185,20 @@ export function ChannelToolbar({
       <div className="channel-toolbar-actions">
         <button
           type="button"
-          title={muted ? 'Unmute channel notifications' : 'Mute channel notifications'}
-          aria-label={muted ? 'Unmute channel notifications' : 'Mute channel notifications'}
+          title={muted ? t("workspace.chrome.unmuteChannelNotifications") : t("workspace.chrome.muteChannelNotifications")}
+          aria-label={muted ? t("workspace.chrome.unmuteChannelNotifications") : t("workspace.chrome.muteChannelNotifications")}
           onClick={onToggleMute}
         >{muted ? <BellOff size={18} /> : <Bell size={18} />}</button>
         {canManage ? (
-          <button type="button" title="Channel settings" aria-label="Channel settings" onClick={onOpenSettings}>
+          <button type="button" title={t("workspace.chrome.channelSettings")} aria-label={t("workspace.chrome.channelSettings")} onClick={onOpenSettings}>
             <Settings size={18} />
           </button>
         ) : null}
         <button
           className={membersOpen ? 'active' : ''}
           type="button"
-          title="Member list"
-          aria-label="Member list"
+          title={t("workspace.chrome.memberList")}
+          aria-label={t("workspace.chrome.memberList")}
           aria-expanded={membersOpen}
           aria-controls="member-list-panel"
           onClick={onToggleMembers}

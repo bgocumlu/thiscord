@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type { Community } from '@thiscord/shared'
 import { MessageSquareText, Plus } from 'lucide-react'
 import type { RecordModel } from 'pocketbase'
@@ -24,8 +25,8 @@ export function CommunityRail({
 }) {
   const client = usePocketBase()
   return (
-    <nav className="server-rail" aria-label="Communities">
-      <button className={`server-button direct-button ${directActive ? 'active' : ''}`} type="button" title="Direct messages" aria-current={directActive ? 'page' : undefined} onClick={onOpenDirect}>
+    <nav className="server-rail" aria-label={t("communities.rail.communities")}>
+      <button className={`server-button direct-button ${directActive ? 'active' : ''}`} type="button" title={t("communities.rail.directMessages")} aria-current={directActive ? 'page' : undefined} onClick={onOpenDirect}>
         <MessageSquareText size={22} strokeWidth={1.9} />
       </button>
       <span className="rail-divider" />
@@ -48,7 +49,7 @@ export function CommunityRail({
           </button>
         )
       })}
-      <button className="server-button utility-button" type="button" title="Add a community" onClick={onAdd}>
+      <button className="server-button utility-button" type="button" title={t("communities.rail.addACommunity")} onClick={onAdd}>
         <Plus size={21} />
       </button>
     </nav>

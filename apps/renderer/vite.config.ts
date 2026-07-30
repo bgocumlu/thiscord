@@ -71,6 +71,17 @@ export default defineConfig({
   build: {
     // The call engine is intentionally deferred; exact budgets are enforced after each build.
     chunkSizeWarningLimit: 1_100,
+    rollupOptions: {
+      output: {
+        // Keep the i18n runtime and source locale independently cacheable and budgeted.
+        manualChunks(id) {
+          const normalizedId = id.replaceAll('\\', '/')
+          if (normalizedId.includes('/src/locales/en/')) return 'i18n-en'
+          if (normalizedId.includes('/node_modules/i18next/')) return 'i18next'
+          return undefined
+        },
+      },
+    },
   },
   server: {
     port: Number(process.env.PORT ?? 5173),

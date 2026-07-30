@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type { Channel, Permission, User } from '@thiscord/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { Hash, Megaphone } from 'lucide-react'
@@ -40,26 +41,26 @@ export function ChannelMessageView({
         <div className="channel-intro">
           <span>{channel.kind === 'announcement' ? <Megaphone size={24} /> : <Hash size={24} />}</span>
           <small className="channel-intro-kicker">
-            {channel.kind === 'announcement' ? 'Community updates' : 'Community channel'}
+            {channel.kind === 'announcement' ? t("messaging.channelMessageView.communityUpdates") : t("messaging.channelMessageView.communityChannel")}
           </small>
           <h1>{channel.kind === 'announcement' ? '' : '#'}{channel.name}</h1>
           {channel.topic ? <p>{channel.topic}</p> : null}
           {channel.kind === 'announcement' ? (
             <p className="announcement-note">
-              Updates posted here are highlighted for every member. Only members with
-              message-management permission can publish.
+
+              {t("messaging.channelMessageView.announcementDescription")}
             </p>
           ) : null}
         </div>
       )}
-      placeholder={`Message #${channel.name}`}
-      searchLabel={`Search #${channel.name}`}
+      placeholder={t("messaging.channelMessageView.messageChannel", { channelName: channel.name })}
+      searchLabel={t("messaging.channelMessageView.searchChannel", { channelName: channel.name })}
       highlightedMessageId={highlightedMessageId}
       messageElementPrefix="message-"
-      emptyTitle="No messages yet"
-      emptyDescription={`Start the conversation in #${channel.name}. Share an update, question, or idea.`}
-      searchErrorLabel="Could not search messages."
-      historyErrorLabel="Could not load messages."
+      emptyTitle={t("messaging.channelMessageView.noMessagesYet")}
+      emptyDescription={t("messaging.channelMessageView.startConversation", { channelName: channel.name })}
+      searchErrorLabel={t("messaging.channelMessageView.couldNotSearchMessages")}
+      historyErrorLabel={t("messaging.channelMessageView.couldNotLoadMessages")}
       className="chat-view"
     />
   )

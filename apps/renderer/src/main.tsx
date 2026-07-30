@@ -1,3 +1,4 @@
+import { initializeLocale, t } from './lib/i18n'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -7,7 +8,7 @@ import type { DesktopApi } from '@thiscord/shared'
 import { AuthProvider } from './auth/AuthProvider'
 import { PocketBaseContext, RuntimeContext } from './lib/contexts'
 import { applyAppearance, readStoredAppearance } from './lib/appearance'
-import { createPocketBase } from './lib/pocketbase'
+import { createPocketBase, errorMessage } from './lib/pocketbase'
 import { loadRuntimeConfig } from './lib/runtimeConfig'
 
 declare global {
@@ -31,6 +32,7 @@ const queryClient = new QueryClient({
 let startupName = 'Thiscord'
 
 async function bootstrap() {
+  await initializeLocale()
   if (
     import.meta.env.DEV
     && new URLSearchParams(window.location.search).get('renderer-test') === 'workspace-controls'
@@ -77,10 +79,12 @@ async function bootstrap() {
 }
 
 void bootstrap().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : `Unable to start ${startupName}.`
+  const message = error instanceof Error
+    ? errorMessage(error)
+    : t("startup.unableToStartName", { name: startupName })
   createRoot(document.getElementById('root')!).render(
     <main className="fatal-startup">
-      <h1>{startupName} could not start</h1>
+      <h1>{t("startup.nameCouldNotStart", { name: startupName })}</h1>
       <p>{message}</p>
     </main>,
   )

@@ -1,6 +1,7 @@
 import type { DistributionConfig } from '@thiscord/shared'
 import * as z from 'zod/mini'
 import { runtimeAccentTokens } from './brandAccent'
+import { t } from './i18n'
 
 const distributionSchema = z.object({
   id: z.string().check(z.minLength(1), z.maxLength(80)),
@@ -36,7 +37,7 @@ function applyRuntimeBranding(config: DistributionConfig) {
   document.querySelector<HTMLMetaElement>('meta[name="application-name"]')?.setAttribute('content', config.name)
   document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute(
     'content',
-    `${config.name} brings communities, messages, voice, and video together.`,
+    t("runtimeConfig.description", { name: config.name }),
   )
 }
 

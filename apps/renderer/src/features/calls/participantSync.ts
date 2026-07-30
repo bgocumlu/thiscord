@@ -6,6 +6,7 @@ import type {
   JitsiParticipant,
   JitsiTrack,
 } from 'lib-jitsi-meet'
+import { t } from '../../lib/i18n'
 import { participantBelongsToTarget } from './targets'
 import type {
   CallParticipant,
@@ -23,7 +24,7 @@ export function participantFromJitsi(participant: JitsiParticipant): MutablePart
   return {
     id: participant.getId(),
     userId: typeof identityId === 'string' ? identityId : '',
-    name: participant.getDisplayName() || 'Participant',
+    name: participant.getDisplayName() || t("calls.participantSync.participant"),
     local: false,
     audioTrack: null,
     videoTrack: null,
@@ -38,7 +39,7 @@ function createRemoteParticipant(id: string): MutableParticipant {
   return {
     id,
     userId: '',
-    name: 'Participant',
+    name: t("calls.participantSync.participant"),
     local: false,
     audioTrack: null,
     videoTrack: null,

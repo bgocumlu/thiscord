@@ -1,3 +1,4 @@
+import { t } from '../lib/i18n'
 import { TriangleAlert, X } from 'lucide-react'
 import {
   useEffect,
@@ -33,7 +34,7 @@ export function LoadingState({
   )
 }
 
-export function DataFailure({ error, onRetry, label = 'Could not load this content.' }: {
+export function DataFailure({ error, onRetry, label = t("workspace.primitives.couldNotLoadThisContent") }: {
   readonly error: unknown
   readonly onRetry: () => void
   readonly label?: string
@@ -42,7 +43,7 @@ export function DataFailure({ error, onRetry, label = 'Could not load this conte
     <div className="data-failure" role="alert">
       <strong>{label}</strong>
       <span>{errorMessage(error)}</span>
-      <button type="button" onClick={onRetry}>Try again</button>
+      <button type="button" onClick={onRetry}>{t("workspace.primitives.tryAgain")}</button>
     </div>
   )
 }
@@ -73,14 +74,15 @@ export function ImageFileField({
         <span className="image-file-preview">{preview && !removed ? (
           <img
             src={preview}
-            alt={`${label} preview`}
+            alt={t("workspace.primitives.imagePreview", { label })}
             width={banner ? 120 : 56}
             height={56}
             decoding="async"
           />
         ) : initials(label)}</span>
         <label className="file-select-button">
-          Choose image
+
+          {t("workspace.primitives.chooseImage")}
           <input name={name} type="file" accept={accept} onChange={(event) => {
             const file = event.target.files?.[0]
             if (!file) return
@@ -90,7 +92,7 @@ export function ImageFileField({
             setRemoved(false)
           }} />
         </label>
-        {(currentUrl || preview) && !removed ? <button className="secondary-action compact-action" type="button" onClick={() => { setRemoved(true); setPreview('') }}>Remove</button> : null}
+        {(currentUrl || preview) && !removed ? <button className="secondary-action compact-action" type="button" onClick={() => { setRemoved(true); setPreview('') }}>{t("workspace.primitives.remove")}</button> : null}
       </div>
       <input type="hidden" name={`${name}Remove`} value={removed ? '1' : '0'} />
     </div>
@@ -107,7 +109,7 @@ export function ModalFrame({ title, onClose, children }: {
   return createPortal(
     <dialog ref={dialogRef} className="modal-backdrop" aria-label={title}>
       <section className="modal-card">
-        <header><h2>{title}</h2><button type="button" onClick={onClose} aria-label={`Close ${title}`}><X size={18} /></button></header>
+        <header><h2>{title}</h2><button type="button" onClick={onClose} aria-label={t("workspace.primitives.closeTitle", { title })}><X size={18} /></button></header>
         {children}
       </section>
     </dialog>,
@@ -140,7 +142,8 @@ export function ConfirmDialog({
       </div>
       <div className="confirmation-actions">
         <button className="secondary-action" type="button" disabled={busy} onClick={onClose}>
-          Cancel
+
+          {t("workspace.primitives.cancel")}
         </button>
         <button
           className="danger-action"
@@ -148,7 +151,7 @@ export function ConfirmDialog({
           disabled={busy}
           onClick={() => void onConfirm()}
         >
-          {busy ? 'Working…' : confirmLabel}
+          {busy ? t("workspace.primitives.working") : confirmLabel}
         </button>
       </div>
     </ModalFrame>

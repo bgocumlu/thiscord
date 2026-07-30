@@ -6,6 +6,7 @@ import type {
 } from 'lib-jitsi-meet'
 import { transientTimings } from '@thiscord/shared'
 import type { CallTarget } from '@thiscord/shared'
+import { t } from '../../lib/i18n'
 import { errorMessage } from '../../lib/pocketbase'
 
 export interface JitsiEngineResources {
@@ -45,7 +46,7 @@ export function resolveJitsiApi(module: unknown, globalApi?: unknown): JitsiMeet
     module,
     globalApi,
   ].find(isJitsiMeetApi)
-  if (!candidate) throw new Error('The Jitsi media module did not expose its API.')
+  if (!candidate) throw new Error(t("calls.jitsiEngine.moduleApiUnavailable"))
   return candidate
 }
 
@@ -134,13 +135,19 @@ export async function loadJitsiEngine() {
 export function mediaErrorMessage(caught: unknown, device: 'microphone' | 'camera' | 'screen') {
   const message = errorMessage(caught)
   if (/denied|notallowed|permission/i.test(message)) {
-    if (device === 'screen') return 'Screen sharing was cancelled or blocked.'
-    return `${device === 'microphone' ? 'Microphone' : 'Camera'} access is blocked in this app’s permissions.`
+    if (device === 'screen') return t("calls.jitsiEngine.screenSharingWasCancelledOrBlocked")
+    return device === 'microphone'
+      ? t("calls.jitsiEngine.microphoneAccessIsBlockedInThisAppsPermissions")
+      : t("calls.jitsiEngine.cameraAccessIsBlockedInThisAppsPermissions")
   }
   if (/not found|notfound/i.test(message)) {
     return device === 'screen'
-      ? 'Screen sharing is not available in this browser.'
-      : `No ${device} was found.`
+      ? t("calls.jitsiEngine.screenSharingIsNotAvailableInThisBrowser")
+      : t("calls.jitsiEngine.noDeviceWasFound", {
+          device: device === 'microphone'
+            ? t("calls.jitsiEngine.microphone")
+            : t("calls.jitsiEngine.camera"),
+        })
   }
   return message
 }

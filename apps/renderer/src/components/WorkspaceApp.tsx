@@ -1,3 +1,4 @@
+import { t } from '../lib/i18n'
 import type {
   Channel,
   Community,
@@ -134,7 +135,7 @@ function CompactMembersDialog({
   const dialogRef = useRef<HTMLDialogElement>(null)
   useDialogAccessibility(dialogRef, onClose)
   return createPortal(
-    <dialog ref={dialogRef} className="members-panel-dialog" aria-label="Member list">
+    <dialog ref={dialogRef} className="members-panel-dialog" aria-label={t("workspace.app.memberList")}>
       {children}
     </dialog>,
     document.body,
@@ -495,25 +496,25 @@ function useWorkspaceApp() {
   }
 
   if (memberships.isLoading) {
-    return <LoadingState fullscreen>Loading your communities…</LoadingState>
+    return <LoadingState fullscreen>{t("workspace.app.loadingYourCommunities")}</LoadingState>
   }
   if (memberships.isError) {
-    return <main className="fatal-startup"><section><h1>Could not load your communities</h1><p>{errorMessage(memberships.error)}</p><button className="primary-action" type="button" onClick={() => void memberships.refetch()}>Try again</button></section></main>
+    return <main className="fatal-startup"><section><h1>{t("workspace.app.couldNotLoadYourCommunities")}</h1><p>{errorMessage(memberships.error)}</p><button className="primary-action" type="button" onClick={() => void memberships.refetch()}>{t("workspace.app.tryAgain")}</button></section></main>
   }
   const backgroundFailure = channelTarget.isError && !requestWasDeniedOrMissing(channelTarget.error)
-    ? { label: 'Could not load the linked channel.', error: channelTarget.error, retry: channelTarget.refetch }
+    ? { label: t("workspace.app.couldNotLoadTheLinkedChannel"), error: channelTarget.error, retry: channelTarget.refetch }
     : conversationTarget.isError
-      ? { label: 'Could not load the linked conversation.', error: conversationTarget.error, retry: conversationTarget.refetch }
+      ? { label: t("workspace.app.couldNotLoadTheLinkedConversation"), error: conversationTarget.error, retry: conversationTarget.refetch }
       : communityPermissionQuery.isError
-        ? { label: 'Could not load your community permissions.', error: communityPermissionQuery.error, retry: communityPermissionQuery.refetch }
+        ? { label: t("workspace.app.couldNotLoadYourCommunityPermissions"), error: communityPermissionQuery.error, retry: communityPermissionQuery.refetch }
         : channelPermissionQuery.isError
-      ? { label: 'Could not load this channel’s permissions.', error: channelPermissionQuery.error, retry: channelPermissionQuery.refetch }
+      ? { label: t("workspace.app.couldNotLoadThisChannelsPermissions"), error: channelPermissionQuery.error, retry: channelPermissionQuery.refetch }
       : communityData.unreadSummary.isError
-        ? { label: 'Could not refresh unread channels.', error: communityData.unreadSummary.error, retry: communityData.unreadSummary.refetch }
+        ? { label: t("workspace.app.couldNotRefreshUnreadChannels"), error: communityData.unreadSummary.error, retry: communityData.unreadSummary.refetch }
       : communityData.presence.isError
-        ? { label: 'Could not refresh member presence.', error: communityData.presence.error, retry: communityData.presence.refetch }
+        ? { label: t("workspace.app.couldNotRefreshMemberPresence"), error: communityData.presence.error, retry: communityData.presence.refetch }
         : callOccupancy.isError
-          ? { label: 'Could not refresh call occupancy.', error: callOccupancy.error, retry: callOccupancy.refetch }
+          ? { label: t("workspace.app.couldNotRefreshCallOccupancy"), error: callOccupancy.error, retry: callOccupancy.refetch }
       : null
   const membersPanel = community && showMembers ? (
     <MembersPanel
@@ -618,12 +619,12 @@ function useWorkspaceApp() {
                 }}
               />
               {activeChannel.nsfw && !acknowledgedNsfw.has(activeChannel.id) ? (
-                <section className="nsfw-gate"><strong>Age-restricted channel</strong><p>This channel may contain content intended for adults.</p><button className="primary-action" type="button" onClick={() => {
+                <section className="nsfw-gate"><strong>{t("workspace.app.ageRestrictedChannel")}</strong><p>{t("workspace.app.thisChannelMayContainContentIntendedForAdults")}</p><button className="primary-action" type="button" onClick={() => {
                   const next = new Set(acknowledgedNsfw)
                   next.add(activeChannel.id)
                   sessionStorage.setItem('thiscord_nsfw_ack', JSON.stringify([...next]))
                   setAcknowledgedNsfw(next)
-                }}>Enter age-restricted channel</button></section>
+                }}>{t("workspace.app.enterAgeRestrictedChannel")}</button></section>
               ) : activeChannel.kind === 'voice'
                 ? (
                     <VoiceChannelSurface
@@ -643,17 +644,17 @@ function useWorkspaceApp() {
             </>
           ) : community ? (
             communityData.channels.isError
-              ? <DataFailure error={communityData.channels.error} onRetry={() => void communityData.channels.refetch()} label="Could not load channels." />
-              : <LoadingState>{communityData.channels.isLoading ? 'Loading channels…' : 'Select a channel.'}</LoadingState>
+              ? <DataFailure error={communityData.channels.error} onRetry={() => void communityData.channels.refetch()} label={t("workspace.app.couldNotLoadChannels")} />
+              : <LoadingState>{communityData.channels.isLoading ? t("workspace.app.loadingChannels") : t("workspace.app.selectAChannel")}</LoadingState>
           ) : (
             conversationsData.conversations.isError || conversationsData.members.isError
               ? <DataFailure
                   error={conversationsData.conversations.error ?? conversationsData.members.error}
                   onRetry={() => { void conversationsData.conversations.refetch(); void conversationsData.members.refetch() }}
-                  label="Could not load direct messages."
+                  label={t("workspace.app.couldNotLoadDirectMessages")}
                 />
                : conversationsData.conversations.isLoading || conversationsData.members.isLoading
-                 ? <LoadingState>Loading conversations…</LoadingState>
+                 ? <LoadingState>{t("workspace.app.loadingConversations")}</LoadingState>
                  : <ConversationView
                       key={activeConversation?.id ?? 'direct-home'}
                       conversation={activeConversation}
@@ -675,7 +676,7 @@ function useWorkspaceApp() {
                     />
           )}
         </main>
-        {mobileSidebarOpen ? <button className="mobile-sidebar-scrim" type="button" aria-label="Close navigation" onClick={() => setMobileSidebarOpen(false)} /> : null}
+        {mobileSidebarOpen ? <button className="mobile-sidebar-scrim" type="button" aria-label={t("workspace.app.closeNavigation")} onClick={() => setMobileSidebarOpen(false)} /> : null}
         {!compactMembersViewport ? membersPanel : null}
       </div>
       {compactMembersViewport && membersPanel ? (
@@ -684,7 +685,7 @@ function useWorkspaceApp() {
         </CompactMembersDialog>
       ) : null}
 
-      <Suspense fallback={<div className="modal-loading" role="status">Opening dialog…</div>}>
+      <Suspense fallback={<div className="modal-loading" role="status">{t("workspace.app.openingDialog")}</div>}>
       {modal?.kind === 'community' ? (
         <CommunityDialog
           onClose={() => setModal(null)}
@@ -778,7 +779,7 @@ function useWorkspaceApp() {
           memberName={
             modal.membership.nickname
             || modal.membership.expand?.user?.displayName
-            || 'member'
+            || t("workspace.app.unknownMember")
           }
           busy={memberActionBusy}
           error={memberActionError}
@@ -828,9 +829,9 @@ function useWorkspaceApp() {
         }} />
       ) : null}
       </Suspense>
-      {actionError ? <div className="toast-error" role="alert">{actionError}<button type="button" aria-label="Dismiss error" onClick={clearActionError}><X size={14} /></button></div> : null}
-      {backgroundFailure ? <div className="toast-error" role="alert"><span><strong>{backgroundFailure.label}</strong> {errorMessage(backgroundFailure.error)}</span><button type="button" onClick={() => void backgroundFailure.retry()}>Retry</button></div> : null}
-      {!backgroundFailure && (presence.error || realtimeStatus === 'degraded') ? <div className="toast-error connection-warning" role="status"><span>{presence.error || 'Live updates are reconnecting…'}</span></div> : null}
+      {actionError ? <div className="toast-error" role="alert">{actionError}<button type="button" aria-label={t("workspace.app.dismissError")} onClick={clearActionError}><X size={14} /></button></div> : null}
+      {backgroundFailure ? <div className="toast-error" role="alert"><span><strong>{backgroundFailure.label}</strong> {errorMessage(backgroundFailure.error)}</span><button type="button" onClick={() => void backgroundFailure.retry()}>{t("workspace.app.retry")}</button></div> : null}
+      {!backgroundFailure && (presence.error || realtimeStatus === 'degraded') ? <div className="toast-error connection-warning" role="status"><span>{presence.error || t("workspace.app.liveUpdatesAreReconnecting")}</span></div> : null}
     </div>
   )
 }

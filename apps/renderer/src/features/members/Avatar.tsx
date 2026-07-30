@@ -2,17 +2,24 @@ import type { User } from '@thiscord/shared'
 import type { RecordModel } from 'pocketbase'
 import type { CSSProperties } from 'react'
 import { usePocketBase } from '../../lib/contexts'
+import { t } from '../../lib/i18n'
 import { avatarColor } from './avatarColor'
 
 function initials(value: string) {
   return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?'
 }
 
-const presenceLabels: Record<string, string> = {
-  online: 'Online',
-  idle: 'Idle',
-  dnd: 'Do not disturb',
-  offline: 'Offline',
+const presenceLabelKeys = {
+  online: 'presence.online',
+  idle: 'presence.idle',
+  dnd: 'presence.doNotDisturb',
+  offline: 'presence.offline',
+} as const
+
+function presenceLabel(status: string) {
+  return status in presenceLabelKeys
+    ? t(presenceLabelKeys[status as keyof typeof presenceLabelKeys])
+    : t("presence.unknown")
 }
 
 export function Avatar({
@@ -49,8 +56,8 @@ export function Avatar({
         <span
           className={`presence-dot presence-${status}`}
           role="img"
-          aria-label={presenceLabels[status] ?? status}
-          title={presenceLabels[status] ?? status}
+          aria-label={presenceLabel(status)}
+          title={presenceLabel(status)}
         />
       ) : null}
     </span>

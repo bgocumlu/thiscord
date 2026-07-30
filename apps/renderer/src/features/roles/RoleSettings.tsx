@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type { Community, Permission, Role } from '@thiscord/shared'
 import { permissionDefinitions, policyLimits } from '@thiscord/shared'
 import { ChevronDown, ChevronUp, Plus } from 'lucide-react'
@@ -5,6 +6,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { usePocketBase } from '../../lib/contexts'
 import { useConfirmation } from '../../hooks/useConfirmation'
 import { errorMessage } from '../../lib/pocketbase'
+import { permissionLabel } from '../../lib/permissionTranslations'
 import { roleApi } from './api'
 import { manageableRoles } from './hierarchy'
 
@@ -78,14 +80,14 @@ export function RoleSettings({
   return (
     <div className="roles-settings">
       <form className="role-create" onSubmit={(event) => void create(event)}>
-        <label><span>Role name</span><input name="name" required maxLength={policyLimits.role.nameMax} /></label>
-        <input name="color" type="color" defaultValue="#aeb4c0" aria-label="Role color" />
+        <label><span>{t("roles.settings.roleName")}</span><input name="name" required maxLength={policyLimits.role.nameMax} /></label>
+        <input name="color" type="color" defaultValue="#aeb4c0" aria-label={t("roles.settings.roleColor")} />
         <button className="primary-action" type="submit" disabled={busy}>
-          <Plus size={15} />{busy ? 'Working…' : 'Create'}
+          <Plus size={15} />{busy ? t("roles.settings.working") : t("roles.settings.create")}
         </button>
       </form>
       <div className="role-layout">
-        <nav aria-label="Community roles">
+        <nav aria-label={t("roles.settings.communityRoles")}>
           {roles.map((role) => {
             const ordered = editable.toSorted((left, right) => right.position - left.position)
             const index = ordered.findIndex((item) => item.id === role.id)
@@ -102,12 +104,12 @@ export function RoleSettings({
                   }}
                 >
                   <i style={{ background: role.color }} />{role.name}
-                  {role.managed ? <small>managed</small> : null}
+                  {role.managed ? <small>{t("roles.settings.managed")}</small> : null}
                 </button>
                 {!role.managed ? (
                   <span>
-                    <button type="button" aria-label={`Move ${role.name} up`} disabled={busy || index <= 0} onClick={() => void move(role, -1)}><ChevronUp size={13} /></button>
-                    <button type="button" aria-label={`Move ${role.name} down`} disabled={busy || index < 0 || index >= ordered.length - 1} onClick={() => void move(role, 1)}><ChevronDown size={13} /></button>
+                    <button type="button" aria-label={t("roles.settings.moveRoleUp", { roleName: role.name })} disabled={busy || index <= 0} onClick={() => void move(role, -1)}><ChevronUp size={13} /></button>
+                    <button type="button" aria-label={t("roles.settings.moveRoleDown", { roleName: role.name })} disabled={busy || index < 0 || index >= ordered.length - 1} onClick={() => void move(role, 1)}><ChevronDown size={13} /></button>
                   </span>
                 ) : null}
               </div>
@@ -116,7 +118,7 @@ export function RoleSettings({
         </nav>
         {selected ? (
           <RoleEditor role={selected} permissions={permissions} onChanged={onChanged} key={selected.id} />
-        ) : <p>Select an editable role.</p>}
+        ) : <p>{t("roles.settings.selectAnEditableRole")}</p>}
       </div>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
     </div>
@@ -164,9 +166,11 @@ function RoleEditor({
   }
   const remove = async () => {
     if (busy || !await confirm({
-      title: 'Delete role?',
-      description: `Delete the ${role.name} role? Members will lose the permissions it grants.`,
-      confirmLabel: 'Delete role',
+      title: t("roles.settings.deleteRoleTitle"),
+      description: t("roles.settings.deleteTheNameRoleMembersWillLoseThePermissionsItGrants", {
+        name: role.name,
+      }),
+      confirmLabel: t("roles.settings.deleteRoleAction"),
     })) return
     setBusy(true)
     try {
@@ -181,24 +185,24 @@ function RoleEditor({
   return (
     <form className="role-editor" onSubmit={(event) => void submit(event)}>
       <div className="role-fields">
-        <input name="name" aria-label="Role name" defaultValue={role.name} required maxLength={policyLimits.role.nameMax} />
-        <input name="color" type="color" defaultValue={role.color || '#aeb4c0'} aria-label="Role color" />
+        <input name="name" aria-label={t("roles.settings.roleName")} defaultValue={role.name} required maxLength={policyLimits.role.nameMax} />
+        <input name="color" type="color" defaultValue={role.color || '#aeb4c0'} aria-label={t("roles.settings.roleColor")} />
       </div>
       <div className="permission-grid">
         {editablePermissionDefinitions
           .map((permission) => (
             <label key={permission.id}>
               <input name="permissions" type="checkbox" value={permission.id} defaultChecked={assignedPermissions.has(permission.id)} />
-              <span>{permission.label}</span>
+              <span>{permissionLabel(permission.id)}</span>
             </label>
           ))}
       </div>
-      <label className="checkbox-line"><input name="hoist" type="checkbox" defaultChecked={role.hoist} /><span>Show separately in the member list</span></label>
-      <label className="checkbox-line"><input name="mentionable" type="checkbox" defaultChecked={role.mentionable} /><span>Allow members to mention this role</span></label>
+      <label className="checkbox-line"><input name="hoist" type="checkbox" defaultChecked={role.hoist} /><span>{t("roles.settings.showSeparatelyInTheMemberList")}</span></label>
+      <label className="checkbox-line"><input name="mentionable" type="checkbox" defaultChecked={role.mentionable} /><span>{t("roles.settings.allowMembersToMentionThisRole")}</span></label>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <div className="role-actions">
-        <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save role'}</button>
-        <button className="danger-action" type="button" disabled={busy} onClick={() => void remove()}>Delete role</button>
+        <button className="primary-action" type="submit" disabled={busy}>{busy ? t("roles.settings.saving") : t("roles.settings.saveRole")}</button>
+        <button className="danger-action" type="button" disabled={busy} onClick={() => void remove()}>{t("roles.settings.deleteRoleAction")}</button>
       </div>
       {confirmation}
     </form>

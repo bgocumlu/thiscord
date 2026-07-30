@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type { CallParticipantRecord, CallTargetDescriptor, Conversation, ConversationMember, User } from '@thiscord/shared'
 import { Headphones, Mic, MicOff, PhoneCall, Plus, Settings } from 'lucide-react'
 import { CallDock } from '../calls/CallSurface'
@@ -45,9 +46,9 @@ export function DirectSidebar({
     <aside
       id="community-navigation"
       className="channel-sidebar direct-sidebar"
-      aria-label="Direct messages navigation"
+      aria-label={t("conversations.directSidebar.directMessagesNavigation")}
     >
-      <div className="community-header direct-header"><strong>Messages</strong><button type="button" onClick={onCreate} title="New message"><Plus size={17} /></button></div>
+      <div className="community-header direct-header"><strong>{t("conversations.directSidebar.messages")}</strong><button type="button" onClick={onCreate} title={t("conversations.directSidebar.newMessage")}><Plus size={17} /></button></div>
       <div className="channel-scroll">
         {conversations.map((conversation) => {
           const target = conversationCallTarget(conversation, members, currentUser.id)
@@ -58,7 +59,7 @@ export function DirectSidebar({
             : undefined
           const name = conversation.kind === 'group'
             ? conversation.name
-            : recipient?.displayName ?? 'Direct message'
+            : recipient?.displayName ?? t("conversations.directSidebar.directMessage")
           const unread = conversation.id !== activeId && unreadConversationIds.has(conversation.id)
           const participantCount = callOccupancy.filter((participant) => (
             participantBelongsToTarget(participant, target.target)
@@ -68,27 +69,27 @@ export function DirectSidebar({
             <span className="direct-avatar" aria-hidden="true">
               {recipient ? <Avatar user={recipient} /> : initials(name)}
             </span>
-            <span><strong>{name}</strong><small>{conversation.kind === 'group' ? 'Group message' : 'Direct message'}</small></span>
-            {participantCount ? <span className="direct-call-presence" title={`${participantCount} in call`}><PhoneCall size={12} />{participantCount}</span> : null}
-            {unread ? <span className="visually-hidden">Unread</span> : null}
+            <span><strong>{name}</strong><small>{conversation.kind === 'group' ? t("conversations.directSidebar.groupMessage") : t("conversations.directSidebar.directMessage")}</small></span>
+            {participantCount ? <span className="direct-call-presence" title={t("conversations.directSidebar.participantsInCall", { count: participantCount })}><PhoneCall size={12} />{participantCount}</span> : null}
+            {unread ? <span className="visually-hidden">{t("conversations.directSidebar.unread")}</span> : null}
           </button>
           )
         })}
-        {hasMore ? <button className="secondary-action sidebar-load-more" type="button" disabled={loadingMore} onClick={onLoadMore}>{loadingMore ? 'Loading…' : 'Load more conversations'}</button> : null}
-        {!conversations.length ? <div className="sidebar-empty">No conversations yet.</div> : null}
+        {hasMore ? <button className="secondary-action sidebar-load-more" type="button" disabled={loadingMore} onClick={onLoadMore}>{loadingMore ? t("conversations.directSidebar.loading") : t("conversations.directSidebar.loadMoreConversations")}</button> : null}
+        {!conversations.length ? <div className="sidebar-empty">{t("conversations.directSidebar.noConversationsYet")}</div> : null}
       </div>
       <div className="sidebar-footer">
         <CallDock onOpen={onOpenVoice} />
         <div className="user-panel">
           <Avatar user={currentUser} size="small" status={currentStatus} />
           <div className="user-panel-copy"><strong>{currentUser.displayName}</strong><small>@{currentUser.handle}</small></div>
-          <button className={call.microphoneMuted ? 'active' : ''} type="button" disabled={Boolean(call.session && (call.session.actionBusy || !call.session.canSpeak))} title={call.session ? !call.session.canSpeak ? 'You do not have permission to speak' : call.microphoneMuted ? 'Unmute' : 'Mute' : call.microphoneMuted ? 'Unmute before joining' : 'Mute before joining'} onClick={() => void call.toggleMicrophone()}>
+          <button className={call.microphoneMuted ? 'active' : ''} type="button" disabled={Boolean(call.session && (call.session.actionBusy || !call.session.canSpeak))} title={call.session ? !call.session.canSpeak ? t("conversations.directSidebar.youDoNotHavePermissionToSpeak") : call.microphoneMuted ? t("conversations.directSidebar.unmute") : t("conversations.directSidebar.mute") : call.microphoneMuted ? t("conversations.directSidebar.unmuteBeforeJoining") : t("conversations.directSidebar.muteBeforeJoining")} onClick={() => void call.toggleMicrophone()}>
             {call.microphoneMuted ? <MicOff size={16} /> : <Mic size={16} />}
           </button>
-          <button className={call.deafened ? 'active' : ''} type="button" disabled={Boolean(call.session?.actionBusy)} title={call.deafened ? 'Undeafen' : call.session ? 'Deafen' : 'Deafen before joining'} onClick={() => void call.toggleDeafen()}>
+          <button className={call.deafened ? 'active' : ''} type="button" disabled={Boolean(call.session?.actionBusy)} title={call.deafened ? t("conversations.directSidebar.undeafen") : call.session ? t("conversations.directSidebar.deafen") : t("conversations.directSidebar.deafenBeforeJoining")} onClick={() => void call.toggleDeafen()}>
             <Headphones size={16} />
           </button>
-          <button type="button" onClick={onProfile} title="User settings"><Settings size={16} /></button>
+          <button type="button" onClick={onProfile} title={t("conversations.directSidebar.userSettings")}><Settings size={16} /></button>
         </div>
       </div>
     </aside>

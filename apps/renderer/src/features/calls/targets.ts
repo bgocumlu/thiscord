@@ -6,6 +6,7 @@ import type {
   Conversation,
   ConversationMember,
 } from '@thiscord/shared'
+import { t } from '../../lib/i18n'
 import { appRoutes } from '../navigation/routes'
 
 export function channelCallTarget(channel: Channel): CallTargetDescriptor {
@@ -25,7 +26,7 @@ export function conversationCallTarget(
     ? conversation.name
     : members.find((member) => (
       member.conversation === conversation.id && member.user !== currentUserId
-    ))?.expand?.user?.displayName ?? 'Direct message'
+    ))?.expand?.user?.displayName ?? t("calls.targets.directMessage")
   return {
     target: { kind: 'conversation', id: conversation.id },
     name,

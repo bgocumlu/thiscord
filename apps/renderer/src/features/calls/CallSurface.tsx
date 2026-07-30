@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import {
   AudioLines,
   Fullscreen,
@@ -162,7 +163,9 @@ function ParticipantTile({
       ref={tileElement}
       className={`voice-tile ${speaking ? 'speaking' : ''} ${featured ? 'spotlighted' : ''} ${participant.screenTrack ? 'screen-share' : ''}`}
       tabIndex={hasMenu ? 0 : undefined}
-      aria-label={`${participant.name}${participant.local ? ', you' : ''}`}
+      aria-label={participant.local
+        ? t("calls.surface.participantYouAccessible", { name: participant.name })
+        : participant.name}
       onContextMenu={hasMenu ? (event) => {
         event.preventDefault()
         setMenuPoint({ x: event.clientX, y: event.clientY })
@@ -179,8 +182,16 @@ function ParticipantTile({
             <button
               className="voice-tile-focus"
               type="button"
-              title={featured ? 'Remove spotlight' : `Spotlight ${participant.name}${participant.screenTrack ? '’s screen' : ''}`}
-              aria-label={featured ? `Remove ${participant.name} from spotlight` : `Spotlight ${participant.name}${participant.screenTrack ? '’s screen' : ''}`}
+              title={featured
+                ? t("calls.surface.removeSpotlight")
+                : participant.screenTrack
+                  ? t("calls.surface.spotlightNameSScreen", { name: participant.name })
+                  : t("calls.surface.spotlightName", { name: participant.name })}
+              aria-label={featured
+                ? t("calls.surface.removeNameFromSpotlight", { name: participant.name })
+                : participant.screenTrack
+                  ? t("calls.surface.spotlightNameSScreen", { name: participant.name })
+                  : t("calls.surface.spotlightName", { name: participant.name })}
               aria-pressed={featured}
               onClick={() => onSpotlight(participant.id)}
             >
@@ -191,8 +202,8 @@ function ParticipantTile({
             <button
               className="voice-tile-fullscreen"
               type="button"
-              title={fullscreen ? 'Exit full screen' : `View ${participant.name}’s screen in full screen`}
-              aria-label={fullscreen ? `Exit ${participant.name}’s full screen share` : `View ${participant.name}’s screen share in full screen`}
+              title={fullscreen ? t("calls.surface.exitFullScreen") : t("calls.surface.viewParticipantScreenFullScreen", { participantName: participant.name })}
+              aria-label={fullscreen ? t("calls.surface.exitParticipantFullScreenShare", { participantName: participant.name }) : t("calls.surface.viewParticipantScreenShareFullScreen", { participantName: participant.name })}
               aria-pressed={fullscreen}
               onClick={() => void toggleFullscreen().catch(() => undefined)}
             >
@@ -202,10 +213,12 @@ function ParticipantTile({
         </div>
       ) : null}
       <div className="voice-tile-label">
-        <span>{participant.name}{participant.local ? ' (You)' : ''}</span>
-        {participant.screenTrack ? <span className="sharing-label"><MonitorUp size={12} />Screen</span> : null}
+        <span>{participant.local
+          ? t("calls.surface.participantYouDisplay", { name: participant.name })
+          : participant.name}</span>
+        {participant.screenTrack ? <span className="sharing-label"><MonitorUp size={12} />{t("calls.surface.screen")}</span> : null}
         {participant.serverMuted
-          ? <MicOff className="voice-tile-server-muted" size={12} aria-label="Server muted" />
+          ? <MicOff className="voice-tile-server-muted" size={12} aria-label={t("calls.surface.serverMuted")} />
           : participant.muted
             ? <MicOff size={12} />
             : <Mic size={12} />}
@@ -215,8 +228,8 @@ function ParticipantTile({
           <button
             className="voice-tile-context-trigger"
             type="button"
-            title={`More actions for ${participant.name}`}
-            aria-label={`More actions for ${participant.name}`}
+            title={t("calls.surface.moreActionsForParticipant", { participantName: participant.name })}
+            aria-label={t("calls.surface.moreActionsForParticipant", { participantName: participant.name })}
             onClick={(event) => {
               const bounds = event.currentTarget.getBoundingClientRect()
               setMenuPoint({ x: bounds.right, y: bounds.bottom })
@@ -227,7 +240,7 @@ function ParticipantTile({
       {menuPoint ? (
         <ContextMenu
           point={menuPoint}
-          label={`Actions for ${participant.name}`}
+          label={t("calls.surface.actionsForParticipant", { participantName: participant.name })}
           onClose={() => setMenuPoint(null)}
         >
           <MemberContextMenuItems
@@ -265,9 +278,11 @@ function ParticipantTile({
                   ),
                   onDisconnect: () => {
                     void confirm({
-                      title: 'Disconnect participant?',
-                      description: `Disconnect ${participant.name} from this call? They can rejoin if they still have access.`,
-                      confirmLabel: 'Disconnect participant',
+                      title: t("calls.surface.disconnectParticipant"),
+                      description: t("calls.surface.disconnectParticipantDescription", {
+                        name: participant.name,
+                      }),
+                      confirmLabel: t("calls.surface.disconnectParticipantAction"),
                     }).then((confirmed) => {
                       if (confirmed) onModerate?.(participant.userId, 'kick')
                     })
@@ -354,8 +369,10 @@ export function CallSurface({
     return (
       <div className="voice-view call-connecting call-idle">
         <Headphones size={28} />
-        <strong>Not connected</strong>
-        <span>Start or join {target.name} to connect.</span>
+        <strong>{t("calls.surface.notConnected")}</strong>
+        <span>{t("calls.surface.startOrJoinTargetToConnect", {
+          targetName: target.name,
+        })}</span>
       </div>
     )
   }
@@ -364,8 +381,10 @@ export function CallSurface({
     return (
       <div className="voice-view call-connecting">
         <Headphones size={28} />
-        <strong>Connected to {session.target.name}</strong>
-        <span>Start or join {target.name} to switch.</span>
+        <strong>{t("calls.surface.connectedToTarget", { targetName: session.target.name })}</strong>
+        <span>{t("calls.surface.startOrJoinTargetToSwitch", {
+          targetName: target.name,
+        })}</span>
       </div>
     )
   }
@@ -394,30 +413,28 @@ export function CallSurface({
   return (
     <section
       className={`voice-view native-call ${presentation === 'conversation' ? 'conversation-call' : ''}`}
-      aria-label={`${target.name} call`}
+      aria-label={t("calls.surface.targetCall", { targetName: target.name })}
     >
       <header className="voice-stage-header">
         <div>
           <span className={`live-label ${session.status === 'error' ? 'failed' : ''}`}><i />{
-            session.status === 'connected'
-              ? 'Voice connected'
-              : session.status === 'reconnecting'
-                ? 'Reconnecting'
-                : session.status === 'error'
-                  ? 'Connection failed'
-                  : 'Connecting'
+            session.status === 'connected' ? t("calls.surface.voiceConnected") : session.status === 'reconnecting' ? t("calls.surface.reconnecting") : session.status === 'error' ? t("calls.surface.connectionFailed") : t("calls.surface.connecting")
           }</span>
           <h1>{target.name}</h1>
-          <p>{description || `${visibleParticipants.length} connected`}</p>
+          <p>{description || t("calls.surface.connectedParticipantCount", {
+            count: visibleParticipants.length,
+          })}</p>
         </div>
-        <div className="voice-stage-meta"><span>{visibleParticipants.length} participant{visibleParticipants.length === 1 ? '' : 's'}</span></div>
+        <div className="voice-stage-meta"><span>{t("calls.surface.visibleParticipantCount", {
+          count: visibleParticipants.length,
+        })}</span></div>
       </header>
 
       {session.status === 'error' ? (
         <div className="native-call-error">
-          <strong>Couldn’t connect to this call</strong>
+          <strong>{t("calls.surface.couldntConnectToThisCall")}</strong>
           <p>{session.error}</p>
-          <button type="button" onClick={() => void call.retry()}><RotateCcw size={15} />Retry</button>
+          <button type="button" onClick={() => void call.retry()}><RotateCcw size={15} />{t("calls.surface.retry")}</button>
         </div>
       ) : (
         spotlightParticipant ? (
@@ -434,32 +451,32 @@ export function CallSurface({
 
       {session.error && session.status !== 'error' ? <div className="call-warning">{session.error}</div> : null}
       {devicesOpen ? (
-        <section id="call-device-panel" className="call-device-panel" aria-label="Call devices">
-          <label><Mic size={14} /><span>Microphone</span><select value={call.microphoneDeviceId} onChange={(event) => void call.selectMicrophone(event.target.value)}><option value="">System default</option>{deviceOptions(call.devices, 'audioinput', 'Microphone')}</select></label>
-          <label><Video size={14} /><span>Camera</span><select value={call.cameraDeviceId} onChange={(event) => void call.selectCamera(event.target.value)}><option value="">System default</option>{deviceOptions(call.devices, 'videoinput', 'Camera')}</select></label>
-          <label><Volume2 size={14} /><span>Speaker</span><select value={call.speakerDeviceId} onChange={(event) => void call.selectSpeaker(event.target.value)}><option value="">System default</option>{deviceOptions(call.devices, 'audiooutput', 'Speaker')}</select></label>
+        <section id="call-device-panel" className="call-device-panel" aria-label={t("calls.surface.callDevices")}>
+          <label><Mic size={14} /><span>{t("calls.surface.microphone")}</span><select value={call.microphoneDeviceId} onChange={(event) => void call.selectMicrophone(event.target.value)}><option value="">{t("calls.surface.systemDefault")}</option>{deviceOptions(call.devices, 'audioinput', t("calls.surface.microphone"))}</select></label>
+          <label><Video size={14} /><span>{t("calls.surface.camera")}</span><select value={call.cameraDeviceId} onChange={(event) => void call.selectCamera(event.target.value)}><option value="">{t("calls.surface.systemDefault")}</option>{deviceOptions(call.devices, 'videoinput', t("calls.surface.camera"))}</select></label>
+          <label><Volume2 size={14} /><span>{t("calls.surface.speaker")}</span><select value={call.speakerDeviceId} onChange={(event) => void call.selectSpeaker(event.target.value)}><option value="">{t("calls.surface.systemDefault")}</option>{deviceOptions(call.devices, 'audiooutput', t("calls.surface.speaker"))}</select></label>
         </section>
       ) : null}
       <div className="voice-controls">
-        <div className="voice-control-group" role="group" aria-label="Audio controls">
-          <button className={`control-button ${session.microphoneMuted ? 'off' : ''}`} type="button" title={session.canSpeak ? '' : 'You do not have permission to speak'} disabled={session.actionBusy || !session.canSpeak} onClick={() => void call.toggleMicrophone()}>
-            {session.microphoneMuted ? <MicOff size={18} /> : <Mic size={18} />}<span>{session.microphoneMuted ? 'Unmute' : 'Mute'}</span>
+        <div className="voice-control-group" role="group" aria-label={t("calls.surface.audioControls")}>
+          <button className={`control-button ${session.microphoneMuted ? 'off' : ''}`} type="button" title={session.canSpeak ? '' : t("calls.surface.youDoNotHavePermissionToSpeak")} disabled={session.actionBusy || !session.canSpeak} onClick={() => void call.toggleMicrophone()}>
+            {session.microphoneMuted ? <MicOff size={18} /> : <Mic size={18} />}<span>{session.microphoneMuted ? t("calls.surface.unmute") : t("calls.surface.mute")}</span>
           </button>
           <button className={`control-button ${session.deafened ? 'active' : ''}`} type="button" disabled={session.actionBusy} onClick={() => void call.toggleDeafen()}>
-            <Headphones size={18} /><span>{session.deafened ? 'Undeafen' : 'Deafen'}</span>
+            <Headphones size={18} /><span>{session.deafened ? t("calls.surface.undeafen") : t("calls.surface.deafen")}</span>
           </button>
         </div>
-        <div className="voice-control-group" role="group" aria-label="Video and sharing controls">
-          <button className={`control-button ${session.cameraEnabled ? '' : 'off'}`} type="button" title={session.canStreamVideo ? '' : 'You do not have permission to share video'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleCamera()}>
-            {session.cameraEnabled ? <Video size={18} /> : <VideoOff size={18} />}<span>{session.cameraEnabled ? 'Camera off' : 'Camera'}</span>
+        <div className="voice-control-group" role="group" aria-label={t("calls.surface.videoAndSharingControls")}>
+          <button className={`control-button ${session.cameraEnabled ? '' : 'off'}`} type="button" title={session.canStreamVideo ? '' : t("calls.surface.youDoNotHavePermissionToShareVideo")} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleCamera()}>
+            {session.cameraEnabled ? <Video size={18} /> : <VideoOff size={18} />}<span>{session.cameraEnabled ? t("calls.surface.cameraOff") : t("calls.surface.camera")}</span>
           </button>
           {screenShareAvailable ? (
-            <button className={`control-button screen-share-action ${session.screenSharing ? 'active' : ''}`} type="button" title={session.canStreamVideo ? '' : 'You do not have permission to share video'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleScreenShare()}>
-              <MonitorUp size={18} /><span>{session.screenSharing ? 'Stop sharing' : 'Share screen'}</span>
+            <button className={`control-button screen-share-action ${session.screenSharing ? 'active' : ''}`} type="button" title={session.canStreamVideo ? '' : t("calls.surface.youDoNotHavePermissionToShareVideo")} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleScreenShare()}>
+              <MonitorUp size={18} /><span>{session.screenSharing ? t("calls.surface.stopSharing") : t("calls.surface.shareScreen")}</span>
             </button>
           ) : null}
         </div>
-        <div className="voice-control-group voice-control-secondary" role="group" aria-label="Call settings">
+        <div className="voice-control-group voice-control-secondary" role="group" aria-label={t("calls.surface.callSettings")}>
           <button
             className={`control-button ${devicesOpen ? 'active' : ''}`}
             type="button"
@@ -467,11 +484,11 @@ export function CallSurface({
             aria-controls="call-device-panel"
             onClick={() => { setDevicesOpen((value) => !value); void call.refreshDevices() }}
           >
-            <Settings2 size={18} /><span>Devices</span>
+            <Settings2 size={18} /><span>{t("calls.surface.devices")}</span>
           </button>
         </div>
         <button className="control-button leave-control" type="button" onClick={() => void call.leave()}>
-          <PhoneOff size={18} /><span>Disconnect</span>
+          <PhoneOff size={18} /><span>{t("calls.surface.disconnect")}</span>
         </button>
       </div>
     </section>
@@ -503,17 +520,17 @@ export function CallDock({ onOpen }: { readonly onOpen: (target: CallTargetDescr
       <div className="call-dock-status">
         <button className="call-dock-main" type="button" onClick={() => onOpen(session.target)}>
           <span className={`call-status-icon ${session.status}`}><AudioLines size={16} /></span>
-          <span><strong>{session.status === 'connected' ? 'Voice Connected' : session.status === 'error' ? 'Connection failed' : session.status === 'reconnecting' ? 'Reconnecting' : 'Connecting'}</strong><small>{session.target.name}</small></span>
+          <span><strong>{session.status === 'connected' ? t("calls.surface.voiceConnectedDock") : session.status === 'error' ? t("calls.surface.connectionFailed") : session.status === 'reconnecting' ? t("calls.surface.reconnecting") : t("calls.surface.connecting")}</strong><small>{session.target.name}</small></span>
         </button>
-        <button type="button" title="Disconnect" onClick={() => void call.leave()}><PhoneOff size={15} /></button>
+        <button type="button" title={t("calls.surface.disconnect")} onClick={() => void call.leave()}><PhoneOff size={15} /></button>
       </div>
       {session.error ? <div className="call-dock-warning" title={session.error}>{session.error}</div> : null}
       <div className="call-dock-media">
-        <button className={session.cameraEnabled ? 'active' : ''} type="button" title={!session.canStreamVideo ? 'You do not have permission to share video' : session.cameraEnabled ? 'Turn off camera' : 'Turn on camera'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleCamera()}>
+        <button className={session.cameraEnabled ? 'active' : ''} type="button" title={!session.canStreamVideo ? t("calls.surface.youDoNotHavePermissionToShareVideo") : session.cameraEnabled ? t("calls.surface.turnOffCamera") : t("calls.surface.turnOnCamera")} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleCamera()}>
           {session.cameraEnabled ? <Video size={17} /> : <VideoOff size={17} />}
         </button>
         {screenShareAvailable ? (
-          <button className={`screen-share-action ${session.screenSharing ? 'active' : ''}`} type="button" title={!session.canStreamVideo ? 'You do not have permission to share video' : session.screenSharing ? 'Stop sharing' : 'Share your screen'} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleScreenShare()}>
+          <button className={`screen-share-action ${session.screenSharing ? 'active' : ''}`} type="button" title={!session.canStreamVideo ? t("calls.surface.youDoNotHavePermissionToShareVideo") : session.screenSharing ? t("calls.surface.stopSharing") : t("calls.surface.shareYourScreen")} disabled={session.actionBusy || !session.canStreamVideo} onClick={() => void call.toggleScreenShare()}>
             <MonitorUp size={17} />
           </button>
         ) : null}

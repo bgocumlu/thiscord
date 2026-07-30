@@ -1,14 +1,20 @@
+import { setLocalePreference, t } from '../../lib/i18n'
 import type { User } from '@thiscord/shared'
 import { policyLimits } from '@thiscord/shared'
 import { ExternalLink, LogOut, MessageSquareText } from 'lucide-react'
 import type { RecordModel } from 'pocketbase'
-import { useState, type FormEvent } from 'react'
+import { useState, type ChangeEvent, type FormEvent } from 'react'
 import {
   ConfirmDialog,
   ImageFileField,
   ModalFrame,
 } from '../../components/WorkspacePrimitives'
 import { usePocketBase, useRuntimeConfig } from '../../lib/contexts'
+import {
+  browserLocaleStorage,
+  readLocalePreference,
+  type LocalePreference,
+} from '../../lib/locale'
 import { errorMessage } from '../../lib/pocketbase'
 import { DesktopUpdatePanel } from '../updates/DesktopUpdatePanel'
 import { Avatar } from './Avatar'
@@ -27,6 +33,9 @@ export function ProfileDialog({ user, onClose, onLogout }: {
   const [busy, setBusy] = useState(false)
   const [verificationBusy, setVerificationBusy] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [localePreference, setLocalePreferenceState] = useState<LocalePreference>(
+    () => readLocalePreference(browserLocaleStorage()),
+  )
   const avatarUrl = user.avatar
     ? client.files.getURL(user as unknown as RecordModel, user.avatar, { thumb: '256x256' })
     : ''
@@ -42,7 +51,7 @@ export function ProfileDialog({ user, onClose, onLogout }: {
       const newPassword = String(data.get('newPassword') || '')
       const newPasswordConfirm = String(data.get('newPasswordConfirm') || '')
       if (newPassword && newPassword !== newPasswordConfirm) {
-        throw new Error('New passwords do not match.')
+        throw new Error(t("members.profileDialogs.newPasswordsDoNotMatch"))
       }
       const record = await client.collection('users').update(user.id, {
         displayName: data.get('displayName'),
@@ -98,56 +107,73 @@ export function ProfileDialog({ user, onClose, onLogout }: {
       setBusy(false)
     }
   }
+  const changeLocale = (event: ChangeEvent<HTMLSelectElement>) => {
+    const preference = event.currentTarget.value as LocalePreference
+    setLocalePreferenceState(preference)
+    void setLocalePreference(preference)
+  }
   return (
-    <ModalFrame title="User settings" onClose={onClose}>
+    <ModalFrame title={t("members.profileDialogs.userSettings")} onClose={onClose}>
       <form className="modal-form" onSubmit={(event) => void submit(event)}>
-        <label><span>Display name</span><input name="displayName" autoComplete="name" defaultValue={user.displayName} required maxLength={policyLimits.profile.displayNameMax} /></label>
-        <label><span>Handle</span><input name="handle" autoComplete="username" defaultValue={user.handle} required minLength={policyLimits.profile.handleMin} maxLength={policyLimits.profile.handleMax} pattern="[a-zA-Z0-9._-]+" /></label>
-        <label><span>Bio</span><textarea name="bio" autoComplete="off" defaultValue={user.bio} maxLength={policyLimits.profile.bioMax} rows={3} /></label>
-        <label><span>Presence</span><select name="status" defaultValue={user.status}><option value="online">Online</option><option value="idle">Idle</option><option value="dnd">Do not disturb</option><option value="offline">Invisible</option></select></label>
-        <ImageFileField name="avatar" label="Avatar" currentUrl={avatarUrl} />
+        <label><span>{t("members.profileDialogs.displayName")}</span><input name="displayName" autoComplete="name" defaultValue={user.displayName} required maxLength={policyLimits.profile.displayNameMax} /></label>
+        <label><span>{t("members.profileDialogs.handle")}</span><input name="handle" autoComplete="username" defaultValue={user.handle} required minLength={policyLimits.profile.handleMin} maxLength={policyLimits.profile.handleMax} pattern="[a-zA-Z0-9._-]+" /></label>
+        <label><span>{t("members.profileDialogs.bio")}</span><textarea name="bio" autoComplete="off" defaultValue={user.bio} maxLength={policyLimits.profile.bioMax} rows={3} /></label>
+        <label><span>{t("members.profileDialogs.presence")}</span><select name="status" defaultValue={user.status}><option value="online">{t("members.profileDialogs.online")}</option><option value="idle">{t("members.profileDialogs.idle")}</option><option value="dnd">{t("members.profileDialogs.doNotDisturb")}</option><option value="offline">{t("members.profileDialogs.invisible")}</option></select></label>
+        <ImageFileField name="avatar" label={t("members.profileDialogs.avatar")} currentUrl={avatarUrl} />
         <fieldset className="preference-fields">
-          <legend>Appearance and notifications</legend>
-          <label><span>Theme</span><select name="theme" defaultValue={user.preferences?.theme ?? 'dark'}><option value="dark">Dark</option><option value="light">Light</option><option value="system">Use system setting</option></select></label>
-          <label className="checkbox-line"><input name="compactMode" type="checkbox" defaultChecked={user.preferences?.compactMode} /><span>Compact message spacing</span></label>
-          <label className="checkbox-line"><input name="reduceMotion" type="checkbox" defaultChecked={user.preferences?.reduceMotion} /><span>Reduce motion</span></label>
-          <label className="checkbox-line"><input name="notificationSound" type="checkbox" defaultChecked={user.preferences?.notificationSound !== false} /><span>Notification sounds</span></label>
+          <legend>{t("members.profileDialogs.appearanceAndNotifications")}</legend>
+          <label>
+            <span>{t("members.profileDialogs.language")}</span>
+            <select
+              name="language"
+              value={localePreference}
+              onChange={changeLocale}
+            >
+              <option value="auto">{t("members.profileDialogs.automaticLanguage")}</option>
+              <option value="en">{t("members.profileDialogs.english")}</option>
+              <option value="tr">{t("members.profileDialogs.turkish")}</option>
+            </select>
+            <small className="field-description">
+              {t("members.profileDialogs.languageStoredOnThisDevice")}
+            </small>
+          </label>
+          <label><span>{t("members.profileDialogs.theme")}</span><select name="theme" defaultValue={user.preferences?.theme ?? 'dark'}><option value="dark">{t("members.profileDialogs.dark")}</option><option value="light">{t("members.profileDialogs.light")}</option><option value="system">{t("members.profileDialogs.useSystemSetting")}</option></select></label>
+          <label className="checkbox-line"><input name="compactMode" type="checkbox" defaultChecked={user.preferences?.compactMode} /><span>{t("members.profileDialogs.compactMessageSpacing")}</span></label>
+          <label className="checkbox-line"><input name="reduceMotion" type="checkbox" defaultChecked={user.preferences?.reduceMotion} /><span>{t("members.profileDialogs.reduceMotion")}</span></label>
+          <label className="checkbox-line"><input name="notificationSound" type="checkbox" defaultChecked={user.preferences?.notificationSound !== false} /><span>{t("members.profileDialogs.notificationSounds")}</span></label>
         </fieldset>
         <details className="settings-details">
-          <summary>Change password</summary>
-          <label><span>Current password</span><input name="currentPassword" type="password" autoComplete="current-password" /></label>
-          <label><span>New password</span><input name="newPassword" type="password" minLength={8} autoComplete="new-password" /></label>
-          <label><span>Confirm new password</span><input name="newPasswordConfirm" type="password" minLength={8} autoComplete="new-password" /></label>
+          <summary>{t("members.profileDialogs.changePassword")}</summary>
+          <label><span>{t("members.profileDialogs.currentPassword")}</span><input name="currentPassword" type="password" autoComplete="current-password" /></label>
+          <label><span>{t("members.profileDialogs.newPassword")}</span><input name="newPassword" type="password" minLength={8} autoComplete="new-password" /></label>
+          <label><span>{t("members.profileDialogs.confirmNewPassword")}</span><input name="newPasswordConfirm" type="password" minLength={8} autoComplete="new-password" /></label>
         </details>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        {saved ? <p className="form-notice" role="status">Saved.</p> : null}
-        <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button>
+        {saved ? <p className="form-notice" role="status">{t("members.profileDialogs.saved")}</p> : null}
+        <button className="primary-action" type="submit" disabled={busy}>{busy ? t("members.profileDialogs.saving") : t("members.profileDialogs.saveChanges")}</button>
       </form>
       {user.verified === false && user.email ? (
         <div className="verification-actions">
-          <span><strong>Email not verified</strong><small>{verificationSent ? 'Verification email sent.' : user.email}</small></span>
-          <button className="secondary-action compact-action" type="button" disabled={verificationBusy} onClick={() => void resendVerification()}>{verificationBusy ? 'Sending…' : 'Resend'}</button>
+          <span><strong>{t("members.profileDialogs.emailNotVerified")}</strong><small>{verificationSent ? t("members.profileDialogs.verificationEmailSent") : user.email}</small></span>
+          <button className="secondary-action compact-action" type="button" disabled={verificationBusy} onClick={() => void resendVerification()}>{verificationBusy ? t("members.profileDialogs.sending") : t("members.profileDialogs.resend")}</button>
         </div>
       ) : null}
       {window.desktop ? <DesktopUpdatePanel /> : null}
       {config.supportUrl || config.updateUrl ? (
         <div className="external-settings-links">
-          {config.supportUrl ? <a className="support-link secondary-action" href={config.supportUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} />Support</a> : null}
-          {config.updateUrl ? <a className="support-link secondary-action" href={config.updateUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} />Updates</a> : null}
+          {config.supportUrl ? <a className="support-link secondary-action" href={config.supportUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} />{t("members.profileDialogs.support")}</a> : null}
+          {config.updateUrl ? <a className="support-link secondary-action" href={config.updateUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} />{t("members.profileDialogs.updates")}</a> : null}
         </div>
       ) : null}
-      <button className="danger-action modal-logout" type="button" disabled={busy} onClick={onLogout}><LogOut size={16} />Sign out</button>
-      <button className="danger-action modal-logout" type="button" disabled={busy} onClick={() => setDeleteOpen(true)}>Delete account</button>
+      <button className="danger-action modal-logout" type="button" disabled={busy} onClick={onLogout}><LogOut size={16} />{t("members.profileDialogs.signOut")}</button>
+      <button className="danger-action modal-logout" type="button" disabled={busy} onClick={() => setDeleteOpen(true)}>{t("members.profileDialogs.deleteAccount")}</button>
       {deleteOpen ? (
         <ConfirmDialog
-          title="Permanently delete account?"
-          description={(
-            <>
-              This permanently deletes <strong>@{user.handle}</strong>, their memberships,
-              and authored messages. This cannot be undone.
-            </>
-          )}
-          confirmLabel="Delete account permanently"
+          title={t("members.profileDialogs.permanentlyDeleteAccount")}
+          description={t("members.profileDialogs.deleteAccountDescription", {
+            handle: user.handle,
+          })}
+          confirmLabel={t("members.profileDialogs.deleteAccountPermanently")}
           busy={busy}
           onClose={() => setDeleteOpen(false)}
           onConfirm={deleteAccount}
@@ -169,8 +195,8 @@ export function MemberProfileDialog({ user, onClose, onMessage }: {
         <div><h3>{user.displayName}</h3><p>@{user.handle}</p></div>
         {user.bio
           ? <p className="member-profile-bio">{user.bio}</p>
-          : <p className="member-profile-bio muted-copy">No bio.</p>}
-        {onMessage ? <button className="primary-action" type="button" onClick={onMessage}><MessageSquareText size={16} />Message</button> : null}
+          : <p className="member-profile-bio muted-copy">{t("members.profileDialogs.noBio")}</p>}
+        {onMessage ? <button className="primary-action" type="button" onClick={onMessage}><MessageSquareText size={16} />{t("members.profileDialogs.message")}</button> : null}
       </section>
     </ModalFrame>
   )

@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type { DesktopCaptureSource } from '@thiscord/shared'
 import { useRef, useState } from 'react'
 import { useDialogAccessibility } from '../../hooks/useDialogAccessibility'
@@ -22,8 +23,8 @@ export function ScreenSourceDialog({
     <dialog ref={dialogRef} className="modal-backdrop screen-picker-backdrop" aria-labelledby="screen-source-title">
       <section className="screen-source-picker">
         <header>
-          <span><h2 id="screen-source-title">Share your screen</h2><p>Choose a display or window.</p></span>
-          <button type="button" onClick={onClose}>Cancel</button>
+          <span><h2 id="screen-source-title">{t("calls.screenSourceDialog.shareYourScreen")}</h2><p>{t("calls.screenSourceDialog.chooseADisplayOrWindow")}</p></span>
+          <button type="button" onClick={onClose}>{t("calls.screenSourceDialog.cancel")}</button>
         </header>
         <label>
           <input
@@ -31,7 +32,8 @@ export function ScreenSourceDialog({
             checked={shareSystemAudio}
             onChange={(event) => setShareSystemAudio(event.target.checked)}
           />
-          Share system audio
+
+          {t("calls.screenSourceDialog.shareSystemAudio")}
         </label>
         <div className="screen-source-grid">
           {sources.map((source) => (

@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type {
   CallParticipantRecord,
   CallTargetDescriptor,
@@ -111,11 +112,11 @@ export function ChannelSidebar({
     <aside
       id="community-navigation"
       className="channel-sidebar"
-      aria-label={`${community.name} channels`}
+      aria-label={t("channels.sidebar.communityChannels", { communityName: community.name })}
     >
       <div className="community-header">
         <span><strong>{community.name}</strong></span>
-        <button type="button" onClick={onSettings} title="Community settings"><Settings size={16} /></button>
+        <button type="button" onClick={onSettings} title={t("channels.sidebar.communitySettings")}><Settings size={16} /></button>
       </div>
       {bannerUrl ? (
         <img
@@ -146,8 +147,8 @@ export function ChannelSidebar({
               })}><ChevronDown className={collapsed.has(category.id) ? 'collapsed' : ''} size={13} />{category.name}</button>
               {effectivePermissions.has('manage_channels') ? (
                 <span className="category-actions">
-                  <button type="button" title={`Category settings for ${category.name}`} onClick={() => onCategorySettings(category)}><Settings size={13} /></button>
-                  <button type="button" title={`Create channel in ${category.name}`} onClick={() => onCreate(category.id)}><Plus size={14} /></button>
+                  <button type="button" title={t("channels.sidebar.categorySettings", { categoryName: category.name })} onClick={() => onCategorySettings(category)}><Settings size={13} /></button>
+                  <button type="button" title={t("channels.sidebar.createChannelInCategory", { categoryName: category.name })} onClick={() => onCreate(category.id)}><Plus size={14} /></button>
                 </span>
               ) : null}
             </div>
@@ -160,20 +161,20 @@ export function ChannelSidebar({
             </div>
           </section>
         ))}
-        {hasMore ? <button className="secondary-action sidebar-load-more" type="button" disabled={loadingMore} onClick={onLoadMore}>{loadingMore ? 'Loading…' : 'Load more channels'}</button> : null}
+        {hasMore ? <button className="secondary-action sidebar-load-more" type="button" disabled={loadingMore} onClick={onLoadMore}>{loadingMore ? t("channels.sidebar.loading") : t("channels.sidebar.loadMoreChannels")}</button> : null}
       </div>
       <div className="sidebar-footer">
         <CallDock onOpen={onOpenVoice} />
         <div className="user-panel">
           <Avatar user={currentUser} size="small" status={currentStatus} />
           <div className="user-panel-copy"><strong>{currentUser.displayName}</strong><small>@{currentUser.handle}</small></div>
-          <button className={call.microphoneMuted ? 'active' : ''} type="button" disabled={Boolean(call.session && (call.session.actionBusy || !call.session.canSpeak))} title={call.session ? !call.session.canSpeak ? 'You do not have permission to speak' : call.microphoneMuted ? 'Unmute' : 'Mute' : call.microphoneMuted ? 'Unmute before joining' : 'Mute before joining'} onClick={() => void call.toggleMicrophone()}>
+          <button className={call.microphoneMuted ? 'active' : ''} type="button" disabled={Boolean(call.session && (call.session.actionBusy || !call.session.canSpeak))} title={call.session ? !call.session.canSpeak ? t("channels.sidebar.youDoNotHavePermissionToSpeak") : call.microphoneMuted ? t("channels.sidebar.unmute") : t("channels.sidebar.mute") : call.microphoneMuted ? t("channels.sidebar.unmuteBeforeJoining") : t("channels.sidebar.muteBeforeJoining")} onClick={() => void call.toggleMicrophone()}>
             {call.microphoneMuted ? <MicOff size={16} /> : <Mic size={16} />}
           </button>
-          <button className={call.deafened ? 'active' : ''} type="button" disabled={Boolean(call.session?.actionBusy)} title={call.deafened ? 'Undeafen' : call.session ? 'Deafen' : 'Deafen before joining'} onClick={() => void call.toggleDeafen()}>
+          <button className={call.deafened ? 'active' : ''} type="button" disabled={Boolean(call.session?.actionBusy)} title={call.deafened ? t("channels.sidebar.undeafen") : call.session ? t("channels.sidebar.deafen") : t("channels.sidebar.deafenBeforeJoining")} onClick={() => void call.toggleDeafen()}>
             <Headphones size={16} />
           </button>
-          <button type="button" title="User settings" onClick={onProfile}><Settings size={16} /></button>
+          <button type="button" title={t("channels.sidebar.userSettings")} onClick={onProfile}><Settings size={16} /></button>
         </div>
       </div>
     </aside>
@@ -292,8 +293,8 @@ function VoiceParticipantRow({
       <button
         className="voice-member-context-trigger"
         type="button"
-        title={`More actions for ${participant.name}`}
-        aria-label={`More actions for ${participant.name}`}
+        title={t("channels.sidebar.moreActionsForParticipant", { participantName: participant.name })}
+        aria-label={t("channels.sidebar.moreActionsForParticipant", { participantName: participant.name })}
         onClick={(event) => {
           const bounds = event.currentTarget.getBoundingClientRect()
           openMenu({ x: bounds.right, y: bounds.bottom })
@@ -302,7 +303,7 @@ function VoiceParticipantRow({
       {menuPoint ? (
         <ContextMenu
           point={menuPoint}
-          label={`Actions for ${participant.name}`}
+          label={t("channels.sidebar.actionsForParticipant", { participantName: participant.name })}
           onClose={() => setMenuPoint(null)}
         >
           <MemberContextMenuItems
@@ -331,9 +332,11 @@ function VoiceParticipantRow({
                   ),
                   onDisconnect: () => {
                     void confirm({
-                      title: 'Disconnect participant?',
-                      description: `Disconnect ${participant.name} from this call? They can rejoin if they still have access.`,
-                      confirmLabel: 'Disconnect participant',
+                      title: t("channels.sidebar.disconnectParticipant"),
+                      description: t("channels.sidebar.disconnectParticipantDescription", {
+                        name: participant.name,
+                      }),
+                      confirmLabel: t("channels.sidebar.disconnectParticipantAction"),
                     }).then((confirmed) => {
                       if (confirmed) {
                         void call.moderateParticipant(participant.userId, 'kick', target.target)
@@ -399,7 +402,7 @@ function ChannelButton({
       >
         <ChannelIcon kind={channel.kind} />
         <span className="channel-name">{channel.name}</span>
-        {unread ? <span className="visually-hidden">Unread</span> : null}
+        {unread ? <span className="visually-hidden">{t("channels.sidebar.unread")}</span> : null}
       </button>
       {callParticipants.length ? (
         <div className="voice-member-list">

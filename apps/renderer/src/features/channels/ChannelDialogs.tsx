@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type {
   Channel,
   ChannelPermission,
@@ -20,9 +21,20 @@ import { ModalFrame } from '../../components/WorkspacePrimitives'
 import { useConfirmation } from '../../hooks/useConfirmation'
 import { usePocketBase } from '../../lib/contexts'
 import { errorMessage } from '../../lib/pocketbase'
+import {
+  permissionGroupLabel,
+  permissionLabel,
+} from '../../lib/permissionTranslations'
 import { memberApi } from '../members/api'
 import { channelApi } from './api'
 import { channelKeys } from './queryKeys'
+
+const channelKindKeys = {
+  text: 'channels.dialogs.kinds.text',
+  announcement: 'channels.dialogs.kinds.announcement',
+  voice: 'channels.dialogs.kinds.voice',
+  category: 'channels.dialogs.kinds.category',
+} as const satisfies Record<(typeof channelKinds)[number], string>
 
 export function ChannelDialog({ community, parent, onClose, onCreated }: {
   readonly community: Community
@@ -61,21 +73,21 @@ export function ChannelDialog({ community, parent, onClose, onCreated }: {
     }
   }
   return (
-    <ModalFrame title="Create channel" onClose={onClose}>
+    <ModalFrame title={t("channels.dialogs.createChannel")} onClose={onClose}>
       <form className="modal-form" onSubmit={(event) => void submit(event)}>
         <label>
-          <span>Type</span>
+          <span>{t("channels.dialogs.type")}</span>
           <select name="kind" defaultValue="text">
             {channelKinds.map((kind) => (
-              <option value={kind} key={kind}>{kind[0].toUpperCase() + kind.slice(1)}</option>
+              <option value={kind} key={kind}>{t(channelKindKeys[kind])}</option>
             ))}
           </select>
         </label>
-        <label><span>Name</span><input name="name" required maxLength={policyLimits.channel.nameMax} /></label>
-        <label><span>Topic</span><textarea name="topic" maxLength={policyLimits.channel.topicMax} rows={3} /></label>
+        <label><span>{t("channels.dialogs.name")}</span><input name="name" required maxLength={policyLimits.channel.nameMax} /></label>
+        <label><span>{t("channels.dialogs.topic")}</span><textarea name="topic" maxLength={policyLimits.channel.topicMax} rows={3} /></label>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         <button className="primary-action" type="submit" disabled={busy}>
-          {busy ? 'Creating…' : 'Create channel'}
+          {busy ? t("channels.dialogs.creating") : t("channels.dialogs.createChannel")}
         </button>
       </form>
     </ModalFrame>
@@ -133,12 +145,14 @@ export function ChannelSettingsDialog({
   }
   const remove = async () => {
     const prompt = channel.kind === 'category'
-      ? `Delete the ${channel.name} category? Its channels will be kept without a category.`
-      : `Delete #${channel.name}? This cannot be undone.`
+      ? t("channels.dialogs.deleteCategoryDescription", {
+        name: channel.name,
+      })
+      : t("channels.dialogs.deleteNameThisCannotBeUndone", { name: channel.name })
     if (!await confirm({
-      title: channel.kind === 'category' ? 'Delete category?' : 'Delete channel?',
+      title: channel.kind === 'category' ? t("channels.dialogs.deleteCategoryTitle") : t("channels.dialogs.deleteChannelTitle"),
       description: prompt,
-      confirmLabel: channel.kind === 'category' ? 'Delete category' : 'Delete channel',
+      confirmLabel: channel.kind === 'category' ? t("channels.dialogs.deleteCategoryAction") : t("channels.dialogs.deleteChannelAction"),
     })) return
     setBusy(true)
     setError('')
@@ -165,44 +179,53 @@ export function ChannelSettingsDialog({
   }
   return (
     <ModalFrame
-      title={`${channel.kind === 'category' ? 'Category' : 'Channel'} settings · ${community.name}`}
+      title={t("channels.dialogs.settingsTitle", {
+        kind: channel.kind === 'category'
+          ? t("channels.dialogs.category")
+          : t("channels.dialogs.channel"),
+        communityName: community.name,
+      })}
       onClose={onClose}
     >
       {canReorder ? (
         <div className="ordering-actions">
-          <span>Channel position</span>
+          <span>{t("channels.dialogs.channelPosition")}</span>
           <button
             className="secondary-action compact-action"
             type="button"
             disabled={busy}
             onClick={() => void move(-1)}
-          ><ChevronUp size={15} />Move up</button>
+          ><ChevronUp size={15} />{t("channels.dialogs.moveUp")}</button>
           <button
             className="secondary-action compact-action"
             type="button"
             disabled={busy}
             onClick={() => void move(1)}
-          ><ChevronDown size={15} />Move down</button>
+          ><ChevronDown size={15} />{t("channels.dialogs.moveDown")}</button>
         </div>
       ) : null}
       {effectivePermissions.has('manage_channels') ? (
         <form className="modal-form" onSubmit={(event) => void submit(event)}>
-          <label><span>Name</span><input name="name" defaultValue={channel.name} required maxLength={policyLimits.channel.nameMax} /></label>
-          {settingsFields.includes('topic') ? <label><span>Topic</span><textarea name="topic" defaultValue={channel.topic} maxLength={policyLimits.channel.topicMax} rows={3} /></label> : null}
+          <label><span>{t("channels.dialogs.name")}</span><input name="name" defaultValue={channel.name} required maxLength={policyLimits.channel.nameMax} /></label>
+          {settingsFields.includes('topic') ? <label><span>{t("channels.dialogs.topic")}</span><textarea name="topic" defaultValue={channel.topic} maxLength={policyLimits.channel.topicMax} rows={3} /></label> : null}
           {settingsFields.includes('parent') ? (
             <label>
-              <span>Category</span>
+              <span>{t("channels.dialogs.category")}</span>
               <select name="parent" defaultValue={channel.parent}>
-                <option value="">No category</option>
+                <option value="">{t("channels.dialogs.noCategory")}</option>
                 {categories.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
               </select>
             </label>
           ) : null}
-          {settingsFields.includes('slowmodeSeconds') ? <label><span>Slow mode (seconds)</span><input name="slowmodeSeconds" type="number" min="0" max={policyLimits.channel.slowmodeSecondsMax} defaultValue={channel.slowmodeSeconds} /></label> : null}
-          {settingsFields.includes('nsfw') ? <label className="checkbox-line"><input name="nsfw" type="checkbox" defaultChecked={channel.nsfw} /><span>Age-restricted channel</span></label> : null}
+          {settingsFields.includes('slowmodeSeconds') ? <label><span>{t("channels.dialogs.slowModeSeconds")}</span><input name="slowmodeSeconds" type="number" min="0" max={policyLimits.channel.slowmodeSecondsMax} defaultValue={channel.slowmodeSeconds} /></label> : null}
+          {settingsFields.includes('nsfw') ? <label className="checkbox-line"><input name="nsfw" type="checkbox" defaultChecked={channel.nsfw} /><span>{t("channels.dialogs.ageRestrictedChannel")}</span></label> : null}
           {error ? <p className="form-error" role="alert">{error}</p> : null}
           <button className="primary-action" type="submit" disabled={busy}>
-            {busy ? 'Saving…' : `Save ${channel.kind === 'category' ? 'category' : 'channel'}`}
+            {busy ? t("channels.dialogs.saving") : t("channels.dialogs.saveKind", {
+              kind: channel.kind === 'category'
+                ? t("channels.dialogs.categoryLower")
+                : t("channels.dialogs.channelLower"),
+            })}
           </button>
         </form>
       ) : null}
@@ -215,7 +238,10 @@ export function ChannelSettingsDialog({
       ) : null}
       {effectivePermissions.has('manage_channels') ? (
         <button className="danger-action modal-logout" type="button" onClick={() => void remove()} disabled={busy}>
-          Delete {channel.kind === 'category' ? 'category' : 'channel'}
+
+          {channel.kind === 'category'
+            ? t("channels.dialogs.deleteCategoryAction")
+            : t("channels.dialogs.deleteChannelAction")}
         </button>
       ) : null}
       {confirmation}
@@ -253,7 +279,7 @@ function ChannelPermissionsEditor({
       key: `role:${role.id}`,
       type: 'role' as const,
       id: role.id,
-      label: `Role · ${role.name}`,
+      label: t("channels.dialogs.roleTarget", { roleName: role.name }),
     })),
     ...memberships.flatMap((membership) => {
       const user = membership.expand?.user
@@ -261,7 +287,7 @@ function ChannelPermissionsEditor({
         key: `member:${membership.id}`,
         type: 'member' as const,
         id: membership.id,
-        label: `Member · ${user.displayName}`,
+        label: t("channels.dialogs.memberTarget", { memberName: user.displayName }),
       }] : []
     }),
   ], [memberships, roles])
@@ -318,21 +344,21 @@ function ChannelPermissionsEditor({
   }
   return (
     <section className="channel-permissions">
-      <h3>Permission overrides</h3>
-      <p>Allow or deny permissions for a role or individual member in this channel.</p>
+      <h3>{t("channels.dialogs.permissionOverrides")}</h3>
+      <p>{t("channels.dialogs.permissionOverrideDescription")}</p>
       {targets.length ? (
         <>
           <label>
-            <span>Find member target</span>
+            <span>{t("channels.dialogs.findMemberTarget")}</span>
             <input
               type="search"
               value={memberSearch}
               onChange={(event) => setMemberSearch(event.target.value)}
-              placeholder="Search members"
+              placeholder={t("channels.dialogs.searchMembers")}
             />
           </label>
           <label>
-            <span>Role or member</span>
+            <span>{t("channels.dialogs.roleOrMember")}</span>
             <select value={effectiveTargetKey} onChange={(event) => {
               setTargetKey(event.target.value)
               setSaved(false)
@@ -347,11 +373,11 @@ function ChannelPermissionsEditor({
               disabled={memberPages.isFetchingNextPage}
               onClick={() => void memberPages.fetchNextPage()}
             >
-              {memberPages.isFetchingNextPage ? 'Loading members…' : 'Load more members'}
+              {memberPages.isFetchingNextPage ? t("channels.dialogs.loadingMembers") : t("channels.dialogs.loadMoreMembers")}
             </button>
           ) : null}
-          {memberPages.isError ? <p className="form-error" role="alert">Could not load member targets.</p> : null}
-          <label><span>Find permission</span><input type="search" value={permissionSearch} onChange={(event) => setPermissionSearch(event.target.value)} placeholder="Search permissions" /></label>
+          {memberPages.isError ? <p className="form-error" role="alert">{t("channels.dialogs.couldNotLoadMemberTargets")}</p> : null}
+          <label><span>{t("channels.dialogs.findPermission")}</span><input type="search" value={permissionSearch} onChange={(event) => setPermissionSearch(event.target.value)} placeholder={t("channels.dialogs.searchPermissions")} /></label>
           {selectedTarget ? (
             <form
               onSubmit={(event) => void save(event)}
@@ -370,20 +396,20 @@ function ChannelPermissionsEditor({
                 return visible.length ? [
                   (
                     <fieldset className="permission-section" key={group.id}>
-                      <legend>{group.label}</legend>
+                      <legend>{permissionGroupLabel(group.id)}</legend>
                       <div className="permission-overwrite-grid">
                         {visible.map((permission) => (
                           <label key={permission.id}>
-                            <span>{permission.label}</span>
+                            <span>{permissionLabel(permission.id)}</span>
                             <select
                               name={permission.id}
                               defaultValue={allowedPermissions.has(permission.id)
                                 ? 'allow'
                                 : deniedPermissions.has(permission.id) ? 'deny' : 'inherit'}
                             >
-                              <option value="inherit">Inherit</option>
-                              <option value="allow">Allow</option>
-                              <option value="deny">Deny</option>
+                              <option value="inherit">{t("channels.dialogs.inherit")}</option>
+                              <option value="allow">{t("channels.dialogs.allow")}</option>
+                              <option value="deny">{t("channels.dialogs.deny")}</option>
                             </select>
                           </label>
                         ))}
@@ -393,10 +419,10 @@ function ChannelPermissionsEditor({
                 ] : []
               })}
               {error ? <p className="form-error" role="alert">{error}</p> : null}
-              {saved ? <p className="form-notice" role="status">Permission overrides saved.</p> : null}
+              {saved ? <p className="form-notice" role="status">{t("channels.dialogs.permissionOverridesSaved")}</p> : null}
               <div className="role-actions">
                 <button className="primary-action" type="submit" disabled={busy}>
-                  {busy ? 'Saving…' : 'Save permission overrides'}
+                  {busy ? t("channels.dialogs.saving") : t("channels.dialogs.savePermissionOverrides")}
                 </button>
                 <button
                   className="secondary-action"
@@ -425,12 +451,12 @@ function ChannelPermissionsEditor({
                       setBusy(false)
                     })
                   }}
-                >Reset override</button>
+                >{t("channels.dialogs.resetOverride")}</button>
               </div>
             </form>
           ) : null}
         </>
-      ) : <p>No roles or members are available.</p>}
+      ) : <p>{t("channels.dialogs.noRolesOrMembersAreAvailable")}</p>}
     </section>
   )
 }

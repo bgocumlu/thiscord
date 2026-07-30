@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type { Community, Membership, Role, User } from '@thiscord/shared'
 import { policyLimits } from '@thiscord/shared'
 import { useQuery } from '@tanstack/react-query'
@@ -10,6 +11,20 @@ import { memberApi } from './api'
 import { Avatar } from './Avatar'
 
 export type ModerationAction = 'kick' | 'ban' | 'timeout' | 'untimeout'
+
+const moderationTitleKeys = {
+  kick: 'members.administration.kickMemberTitle',
+  ban: 'members.administration.banMemberTitle',
+  timeout: 'members.administration.timeoutMemberTitle',
+  untimeout: 'members.administration.removeTimeoutTitle',
+} as const
+
+const moderationConfirmKeys = {
+  kick: 'members.administration.confirmKick',
+  ban: 'members.administration.confirmBan',
+  timeout: 'members.administration.confirmTimeout',
+  untimeout: 'members.administration.confirmRemoveTimeout',
+} as const
 
 export function MemberAdminRow({
   community,
@@ -104,17 +119,19 @@ export function MemberAdminRow({
             <input
               name="nickname"
               defaultValue={membership.nickname}
-              placeholder="Server nickname"
+              placeholder={t("members.administration.serverNickname")}
               maxLength={policyLimits.membership.nicknameMax}
-              aria-label={`Nickname for ${user.displayName}`}
+              aria-label={t("members.administration.nicknameForMember", {
+                memberName: user.displayName,
+              })}
             />
-            <button type="submit" disabled={busy}>Save nickname</button>
+            <button type="submit" disabled={busy}>{t("members.administration.saveNickname")}</button>
           </form>
         ) : null}
         {canManageRoles && assignments.isSuccess ? (
           <form className="member-role-form" onSubmit={(event) => void saveRoles(event)}>
             <fieldset>
-              <legend>Roles</legend>
+              <legend>{t("members.administration.roles")}</legend>
               {roles.flatMap((role) => role.managed ? [] : [
                 (
                   <label key={role.id}>
@@ -130,16 +147,16 @@ export function MemberAdminRow({
                 ),
               ])}
             </fieldset>
-            <button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save roles'}</button>
+            <button type="submit" disabled={busy}>{busy ? t("members.administration.saving") : t("members.administration.saveRoles")}</button>
           </form>
         ) : null}
         {canManageMembers && user.id !== currentUser.id && user.id !== community.owner ? (
           <div className="member-admin-actions">
             {membership.timeoutUntil && new Date(membership.timeoutUntil).getTime() > mountedAt
-              ? <button type="button" disabled={busy} onClick={() => setModerationAction('untimeout')}>Remove timeout</button>
-              : <button type="button" disabled={busy} onClick={() => setModerationAction('timeout')}>Timeout</button>}
-            <button type="button" disabled={busy} onClick={() => setModerationAction('kick')}>Kick</button>
-            <button type="button" disabled={busy} onClick={() => setModerationAction('ban')}>Ban</button>
+              ? <button type="button" disabled={busy} onClick={() => setModerationAction('untimeout')}>{t("members.administration.removeTimeout")}</button>
+              : <button type="button" disabled={busy} onClick={() => setModerationAction('timeout')}>{t("members.administration.timeout")}</button>}
+            <button type="button" disabled={busy} onClick={() => setModerationAction('kick')}>{t("members.administration.kick")}</button>
+            <button type="button" disabled={busy} onClick={() => setModerationAction('ban')}>{t("members.administration.ban")}</button>
           </div>
         ) : null}
         {error ? <p className="form-error" role="alert">{error}</p> : null}
@@ -185,16 +202,14 @@ export function ModerationDialog({
   }
   return (
     <ModalFrame
-      title={`${action === 'untimeout'
-        ? 'Remove timeout from'
-        : `${action[0].toUpperCase()}${action.slice(1)}`} ${memberName}`}
+      title={t(moderationTitleKeys[action], { memberName })}
       onClose={onClose}
     >
       <form className="modal-form" onSubmit={submit}>
-        <p>This action takes effect immediately after confirmation.</p>
+        <p>{t("members.administration.thisActionTakesEffectImmediatelyAfterConfirmation")}</p>
         {action === 'timeout' ? (
           <label>
-            <span>Duration in minutes</span>
+            <span>{t("members.administration.durationInMinutes")}</span>
             <input
               name="durationMinutes"
               type="number"
@@ -205,11 +220,13 @@ export function ModerationDialog({
             />
           </label>
         ) : null}
-        <label><span>Reason (optional)</span><textarea name="reason" maxLength={policyLimits.community.descriptionMax} rows={3} /></label>
+        <label><span>{t("members.administration.reasonOptional")}</span><textarea name="reason" maxLength={policyLimits.community.descriptionMax} rows={3} /></label>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         <div className="confirmation-actions">
-          <button className="secondary-action" type="button" disabled={busy} onClick={onClose}>Cancel</button>
-          <button className="danger-action" type="submit" disabled={busy}>{busy ? 'Working…' : `Confirm ${action}`}</button>
+          <button className="secondary-action" type="button" disabled={busy} onClick={onClose}>{t("members.administration.cancel")}</button>
+          <button className="danger-action" type="submit" disabled={busy}>
+            {busy ? t("members.administration.working") : t(moderationConfirmKeys[action])}
+          </button>
         </div>
       </form>
     </ModalFrame>

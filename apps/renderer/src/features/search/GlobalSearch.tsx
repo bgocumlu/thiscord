@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type { User } from '@thiscord/shared'
 import { policyLimits } from '@thiscord/shared'
 import { MessageSquareText, Search, X } from 'lucide-react'
@@ -95,13 +96,13 @@ export function GlobalSearch({
   }, [close, mobile, open])
 
   const searchStatus = deferredSearch.length < policyLimits.search.queryMin
-    ? 'Type at least two characters.'
+    ? t("search.global.typeAtLeastTwoCharacters")
     : query.isLoading
-      ? 'Searching.'
+      ? t("search.global.searching")
       : query.isError
-        ? 'Search failed.'
+        ? t("search.global.searchFailed")
         : query.isSuccess
-          ? `${query.data?.length ?? 0} search result${query.data?.length === 1 ? '' : 's'}.`
+          ? t("search.resultCount", { count: query.data?.length ?? 0 })
           : ''
 
   const renderSearchSurface = (
@@ -114,15 +115,15 @@ export function GlobalSearch({
         <input
           ref={inputRef}
           type="search"
-          aria-label="Search messages, channels, or people"
+          aria-label={t("search.global.searchMessagesChannelsOrPeople")}
           aria-controls={`${surfaceId}-results`}
           value={search}
           onFocus={() => setOpen(true)}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search messages, channels, or people"
+          placeholder={t("search.global.searchMessagesChannelsOrPeople")}
         />
-        <kbd>Ctrl K</kbd>
-        <button className="search-close" type="button" aria-label="Close search" onClick={close}>
+        <kbd>{t("search.global.ctrlK")}</kbd>
+        <button className="search-close" type="button" aria-label={t("search.global.closeSearch")} onClick={close}>
           <X size={15} />
         </button>
       </search>
@@ -133,16 +134,16 @@ export function GlobalSearch({
         <section
           id={`${surfaceId}-results`}
           className="global-search-results"
-          aria-label="Search results"
+          aria-label={t("search.global.searchResults")}
         >
           {deferredSearch.length < policyLimits.search.queryMin
-            ? <p>Type at least two characters.</p>
+            ? <p>{t("search.global.typeAtLeastTwoCharacters")}</p>
             : null}
-          {query.isLoading ? <p>Searching…</p> : null}
+          {query.isLoading ? <p>{t("search.global.searchingIndicator")}</p> : null}
           {query.isError ? (
             <div className="search-state-error">
               <span>{errorMessage(query.error)}</span>
-              <button type="button" onClick={() => void query.refetch()}>Retry</button>
+              <button type="button" onClick={() => void query.refetch()}>{t("search.global.retry")}</button>
             </div>
           ) : null}
           {query.data?.map((target) => {
@@ -160,7 +161,9 @@ export function GlobalSearch({
                   <ChannelIcon kind={channel.kind} />
                   <span>
                     {channel.name}
-                    <small>{channel.expand?.community?.name ?? 'Community'} · channel</small>
+                    <small>{t("search.global.communityChannel", {
+                      community: channel.expand?.community?.name ?? t("search.global.community"),
+                    })}</small>
                   </span>
                 </button>
               )
@@ -177,7 +180,10 @@ export function GlobalSearch({
                   key={`member-${user.id}`}
                 >
                   <Avatar user={user} size="small" />
-                  <span>{user.displayName}<small>@{user.handle} · member</small></span>
+                  <span>
+                    {user.displayName}
+                    <small>{t("search.global.handleMember", { handle: user.handle })}</small>
+                  </span>
                 </button>
               )
             }
@@ -199,7 +205,7 @@ export function GlobalSearch({
                   <span>
                     {message.content}
                     <small>
-                      #{message.expand?.channel?.name ?? 'channel'} · {formatTime(message.created)}
+                      #{message.expand?.channel?.name ?? t("search.global.channel")} · {formatTime(message.created)}
                     </small>
                   </span>
                 </button>
@@ -218,12 +224,12 @@ export function GlobalSearch({
                 <MessageSquareText size={17} />
                 <span>
                   {message.content}
-                  <small>{message.expand?.conversation?.name || 'Direct message'} · {formatTime(message.created)}</small>
+                  <small>{message.expand?.conversation?.name || t("search.global.directMessage")} · {formatTime(message.created)}</small>
                 </span>
               </button>
             )
           })}
-          {query.isSuccess && !query.data?.length ? <p>No results found.</p> : null}
+          {query.isSuccess && !query.data?.length ? <p>{t("search.global.noResultsFound")}</p> : null}
         </section>
       ) : null}
     </>
@@ -235,7 +241,7 @@ export function GlobalSearch({
         ref={mobileTriggerRef}
         className="mobile-search-button"
         type="button"
-        aria-label="Open search"
+        aria-label={t("search.global.openSearch")}
         aria-expanded={open}
         aria-controls="global-search-dialog"
         onClick={() => {
@@ -249,7 +255,7 @@ export function GlobalSearch({
         ref={mobileDialogRef}
         id="global-search-dialog"
         className="mobile-search-dialog"
-        aria-label="Search messages, channels, or people"
+        aria-label={t("search.global.searchMessagesChannelsOrPeople")}
         onCancel={(event) => {
           event.preventDefault()
           close()

@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type {
   Membership,
   Role,
@@ -75,8 +76,12 @@ function MemberRow({
       <button
         className="member-context-trigger"
         type="button"
-        title={`More actions for ${membership.nickname || user.displayName}`}
-        aria-label={`More actions for ${membership.nickname || user.displayName}`}
+        title={t("members.panel.moreActionsForMember", {
+          memberName: membership.nickname || user.displayName,
+        })}
+        aria-label={t("members.panel.moreActionsForMember", {
+          memberName: membership.nickname || user.displayName,
+        })}
         onClick={(event) => {
           const bounds = event.currentTarget.getBoundingClientRect()
           openAt({ x: bounds.right, y: bounds.bottom })
@@ -85,7 +90,9 @@ function MemberRow({
       {menuPoint ? (
         <ContextMenu
           point={menuPoint}
-          label={`Actions for ${membership.nickname || user.displayName}`}
+          label={t("members.panel.actionsForMember", {
+            memberName: membership.nickname || user.displayName,
+          })}
           onClose={() => setMenuPoint(null)}
         >
           <MemberContextMenuItems
@@ -146,16 +153,16 @@ export function MembersPanel({
   })), [roles])
   if (error) {
     return (
-      <aside id="member-list-panel" className="members-panel" aria-label="Members">
+      <aside id="member-list-panel" className="members-panel" aria-label={t("members.panel.members")}>
         {onClose ? (
           <div className="members-summary">
-            <div><h2>Members</h2><small>Unavailable</small></div>
-            <button type="button" aria-label="Close member list" onClick={onClose}>
+            <div><h2>{t("members.panel.members")}</h2><small>{t("members.panel.unavailable")}</small></div>
+            <button type="button" aria-label={t("members.panel.closeMemberList")} onClick={onClose}>
               <X size={16} />
             </button>
           </div>
         ) : null}
-        <DataFailure error={error} onRetry={onRetry ?? (() => undefined)} label="Could not load members." />
+        <DataFailure error={error} onRetry={onRetry ?? (() => undefined)} label={t("members.panel.couldNotLoadMembers")} />
       </aside>
     )
   }
@@ -187,13 +194,13 @@ export function MembersPanel({
   const remaining = sorted.filter((membership) => !groupedIds.has(membership.id))
   groups.push(
     {
-      label: 'Online',
+      label: t("members.panel.online"),
       items: remaining.filter((membership) => (
         membership.expand?.user && statusFor(membership.expand.user) !== 'offline'
       )),
     },
     {
-      label: 'Offline',
+      label: t("members.panel.offline"),
       items: remaining.filter((membership) => (
         membership.expand?.user && statusFor(membership.expand.user) === 'offline'
       )),
@@ -207,14 +214,17 @@ export function MembersPanel({
     <aside id="member-list-panel" className="members-panel" aria-labelledby="members-panel-title">
       <div className="members-summary">
         <div>
-          <h2 id="members-panel-title">Members</h2>
+          <h2 id="members-panel-title">{t("members.panel.members")}</h2>
           <small>
-            {memberships.length}{hasMore ? '+' : ''} member{memberships.length === 1 ? '' : 's'}
-            {' · '}{onlineCount} online{hasMore ? ' shown' : ''}
+            {t(hasMore ? "members.panel.summaryWithMore" : "members.panel.summary", {
+              count: memberships.length,
+              memberCount: memberships.length,
+              onlineCount,
+            })}
           </small>
         </div>
         {onClose ? (
-          <button type="button" aria-label="Close member list" onClick={onClose}>
+          <button type="button" aria-label={t("members.panel.closeMemberList")} onClick={onClose}>
             <X size={16} />
           </button>
         ) : null}
@@ -252,7 +262,7 @@ export function MembersPanel({
             type="button"
             disabled={loadingMore}
             onClick={onLoadMore}
-          >{loadingMore ? 'Loading…' : 'Load more members'}</button>
+          >{loadingMore ? t("members.panel.loading") : t("members.panel.loadMoreMembers")}</button>
         ) : null}
       </div>
     </aside>
